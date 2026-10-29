@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Informe CD-35/23 — H. Senado de la Nación</title><style>
+:root{
+  --tinta:#1F2B28; --tinta-suave:#55645F; --cupula:#2E6B5F; --cupula-oscura:#1F4E45;
+  --cupula-tenue:#E4EFEB; --piedra:#EEF2F0; --linea:#CBD5D1; --papel:#FFFFFF;
+  --lacre:#8C2F2F; --lacre-tenue:#F6E7E5; --ambar:#8A5A10; --ambar-tenue:#F7EEDC;
+  --serif: Georgia, "Times New Roman", serif;
+  --sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --tinta:#E2EBE8; --tinta-suave:#A7B8B3; --cupula:#86C5B3; --cupula-oscura:#A9DACB;
+    --cupula-tenue:#1C322D; --piedra:#101716; --linea:#2D3E39; --papel:#141D1B;
+    --lacre:#E8A39B; --lacre-tenue:#3B201D; --ambar:#E6BC70; --ambar-tenue:#372B16;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--piedra);color:var(--tinta);font:15px/1.55 var(--sans)}
+.hoja{max-width:880px;margin:32px auto;background:var(--papel);padding:44px 56px 40px;border-top:6px solid var(--cupula)}
+.membrete{display:flex;justify-content:space-between;gap:16px;font-size:13px;color:var(--tinta-suave)}
+.numero{font-family:var(--serif);font-weight:normal;font-size:54px;line-height:1.05;margin:22px 0 6px;letter-spacing:.005em}
+.descripcion{font-size:16px;color:var(--tinta-suave);margin:0 0 14px}
+.extracto{font-family:var(--serif);font-size:17px;line-height:1.6;margin:0 0 16px;max-width:72ch}
+.enlaces{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:14px;margin:0}
+a{color:var(--cupula-oscura);text-decoration-thickness:1px;text-underline-offset:2px}
+a:hover{color:var(--cupula)}
+a:focus-visible{outline:2px solid var(--cupula);outline-offset:2px}
+.situacion{margin:30px 0 8px;padding:22px 26px 20px;background:var(--cupula-tenue);border-left:5px solid var(--cupula)}
+.situacion.ambar{background:var(--ambar-tenue);border-color:var(--ambar)}
+.situacion.lacre{background:var(--lacre-tenue);border-color:var(--lacre)}
+.situacion .rotulo{font-size:13px;color:var(--tinta-suave);margin:0}
+.situacion h2{font-family:var(--serif);font-weight:normal;font-size:25px;line-height:1.25;margin:4px 0 8px;border:0;padding:0}
+.situacion ul{margin:0 0 4px;padding-left:20px}
+.situacion li{margin:2px 0}
+.pasos{list-style:none;margin:20px 0 6px;padding:0;display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));counter-reset:paso}
+.paso{position:relative;padding:32px 10px 0 0;font-size:13px;line-height:1.35;color:var(--tinta-suave)}
+.paso::before{counter-increment:paso;content:counter(paso);position:absolute;top:0;left:0;width:24px;height:24px;border-radius:50%;
+  border:2px solid var(--linea);background:var(--papel);color:var(--tinta-suave);font-size:12px;line-height:20px;text-align:center;font-weight:600}
+.paso::after{content:"";position:absolute;top:11px;left:30px;right:6px;height:2px;background:var(--linea)}
+.paso:last-child::after{display:none}
+.paso strong{display:block;color:var(--tinta);font-weight:600}
+.paso.hecho::before{content:"✓";background:var(--cupula);border-color:var(--cupula);color:var(--papel)}
+.paso.hecho::after{background:var(--cupula)}
+.paso.actual::before{border-color:var(--cupula);color:var(--cupula-oscura);box-shadow:0 0 0 4px color-mix(in srgb,var(--cupula) 22%,transparent)}
+.paso.actual strong{color:var(--cupula-oscura)}
+.paso.detenido::before{content:"×";border-color:var(--lacre);color:var(--lacre);font-size:15px}
+.paso.detenido strong{color:var(--lacre)}
+.caducidad{margin:14px 0 0;font-size:13.5px}
+.caducidad.vencida{color:var(--lacre)}
+h2{font-family:var(--serif);font-weight:normal;font-size:21px;margin:40px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--linea)}
+dl.datos{display:grid;grid-template-columns:minmax(150px,230px) 1fr;gap:8px 24px;margin:0}
+dl.datos dt{color:var(--tinta-suave)}
+dl.datos dd{margin:0}
+.tabla{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-weight:600;color:var(--tinta-suave);background:var(--piedra);padding:8px 10px;white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--linea);vertical-align:top}
+td.fecha{white-space:nowrap;font-variant-numeric:tabular-nums}
+.tipo{display:inline-block;font-size:12px;padding:1px 9px;border-radius:999px;background:var(--cupula-tenue);color:var(--cupula-oscura);white-space:nowrap}
+.tipo.asesores{background:var(--piedra);color:var(--tinta-suave)}
+.secundario{color:var(--tinta-suave);font-size:13px;margin:4px 0 0}
+.docs a{display:inline-block;margin-right:12px;white-space:nowrap}
+.vacio{color:var(--tinta-suave);font-style:italic}
+.bloques{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.bloque{border:1px solid var(--linea);padding:14px 16px}
+.bloque h3{font-size:14px;margin:0 0 8px;font-weight:600}
+.bloque dl{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;margin:0;font-size:13.5px}
+.bloque dt{color:var(--tinta-suave)}
+.bloque dd{margin:0}
+.notas{white-space:pre-wrap;font-family:var(--serif);font-size:16px;border-left:3px solid var(--linea);padding-left:16px}
+footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--linea);font-size:12.5px;color:var(--tinta-suave)}
+footer ul{padding-left:18px;margin:6px 0}
+@media (max-width:680px){
+  .hoja{margin:0;padding:28px 20px}
+  .numero{font-size:40px}
+  dl.datos{grid-template-columns:1fr;gap:2px}
+  dl.datos dd{margin-bottom:8px}
+  .pasos{grid-template-columns:1fr;gap:10px}
+  .paso{padding:2px 0 0 36px}
+  .paso::after{display:none}
+}
+@media print{
+  :root{--tinta:#1F2B28;--tinta-suave:#55645F;--papel:#fff;--piedra:#EEF2F0;--linea:#CBD5D1;
+        --cupula:#2E6B5F;--cupula-oscura:#1F4E45;--cupula-tenue:#E4EFEB;--lacre:#8C2F2F;--lacre-tenue:#F6E7E5;
+        --ambar:#8A5A10;--ambar-tenue:#F7EEDC}
+  body{background:#fff}
+  .hoja{margin:0;padding:0;max-width:none;border-top:0}
+  h2{break-after:avoid}
+  tr,.bloque{break-inside:avoid}
+  .situacion,.paso::before,th{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style></head><body><main class='hoja'><div class="membrete"><span>H. Senado de la Nación</span><span>Informe del 29/10/2026, 18:31 h</span></div><p class="secundario"><strong>Ejemplo generado con páginas de prueba.</strong> No reemplaza una consulta real.</p><h1 class="numero">CD-35/23</h1><p class="descripcion">Proyecto de ley venido en revisión de la Cámara de Diputados</p><p class="extracto">PROYECTO DE LEY EN REVISION QUE CREA LA UNIVERSIDAD NACIONAL DE LA CUENCA DEL SALADO, CON SEDE CENTRAL EN EL DISTRITO DE CAÑUELAS, PROV. DE BS. AS.</p><p class="enlaces"><span><a href="https://www.senado.gob.ar/parlamentario/comisiones/verExp/35.23/CD/PL" target="_blank" rel="noopener">Ficha en el sitio del Senado</a></span><span><a href="https://www.senado.gob.ar/parlamentario/parlamentaria/475915/downloadPdf" target="_blank" rel="noopener">Texto original (PDF)</a></span></p><section class="situacion lacre" aria-labelledby="situacion"><p class="rotulo">Situación actual</p><h2 id="situacion">Caducó el 28/02/2026</h2><ul><li>Enviado al archivo el 22/06/2026.</li><li>Moción de preferencia del 18/09/2025, con despacho de comisión.</li></ul><ol class="pasos" style="--n:6" aria-label="Recorrido del trámite"><li class="paso hecho" aria-label="Sanción de Diputados: cumplido"><strong>Sanción de Diputados</strong>10/10/2023 OD 736</li><li class="paso hecho" aria-label="Ingreso al Senado: cumplido"><strong>Ingreso al Senado</strong>12/10/2023 DAE 108/2023</li><li class="paso hecho" aria-label="Comisión: cumplido"><strong>Comisión</strong>12/10/2023 Educación y Cultura y Presupuesto y Hacienda</li><li class="paso detenido" aria-label="Dictamen: se detuvo aquí"><strong>Dictamen</strong></li><li class="paso pendiente" aria-label="Sanción del Senado: pendiente"><strong>Sanción del Senado</strong></li><li class="paso pendiente" aria-label="Ley y Poder Ejecutivo: pendiente"><strong>Ley y Poder Ejecutivo</strong></li></ol><p class="caducidad"><strong>Caducidad registrada: 28/02/2026.</strong> Registrada en la ficha del Senado.</p></section><h2>Datos del expediente</h2><dl class="datos"><dt>Expediente</dt><dd><a href="https://www.senado.gob.ar/parlamentario/comisiones/verExp/35.23/CD/PL" target="_blank" rel="noopener">CD-35/23 (PL)</a></dd><dt>Tipo</dt><dd>Proyecto de ley</dd><dt>Origen</dt><dd>Cámara de Diputados</dd><dt>Autor en Diputados</dt><dd>Martinez Maria Rosa y Otros</dd><dt>Ingreso por mesa de entradas</dt><dd>12/10/2023</dd><dt>Dado cuenta en sesión</dt><dd>18/04/2024</dd><dt>Diario de Asuntos Entrados</dt><dd>N° 108/2023 (normal)</dd><dt>Textos</dt><dd><a href="https://www.senado.gob.ar/parlamentario/parlamentaria/475915/downloadPdf" target="_blank" rel="noopener">Texto original (PDF)</a>; texto definitivo en proceso de carga</dd></dl><h2>Etapa en la Cámara de Diputados</h2><dl class="datos"><dt>Expedientes en Diputados</dt><dd><a href="https://www.hcdn.gob.ar/proyectos/proyecto.jsp?exp=1752-D-2023" target="_blank" rel="noopener">1752-D-2023</a></dd><dt>Orden del Día de Diputados (dictamen)</dt><dd>N° 736</dd><dt>Trámite Parlamentario</dt><dd>N° 42</dd><dt>Sanción de Diputados</dt><dd>10/10/2023</dd></dl><h2>Giros a comisiones</h2><div class="tabla"><table><thead><tr><th>Comisión</th><th>Orden de giro</th><th>Ingreso</th><th>Egreso</th></tr></thead><tbody><tr><td>Educación y Cultura</td><td>1</td><td class="fecha">09/02/2024</td><td class="fecha">17/06/2026</td></tr><tr><td>Presupuesto y Hacienda</td><td>2</td><td class="fecha">09/02/2024</td><td class="fecha">17/06/2026</td></tr><tr><td>Educación y Cultura</td><td>1</td><td class="fecha">17/10/2023</td><td class="fecha">18/10/2023</td></tr><tr><td>Presupuesto y Hacienda</td><td>2</td><td class="fecha">12/10/2023</td><td class="fecha">18/10/2023</td></tr></tbody></table></div><h2>Reuniones de comisión en que se trató</h2><div class="tabla"><table><thead><tr><th>Fecha</th><th>Reunión</th><th>Tipo</th><th>Documentos</th></tr></thead><tbody><tr><td class="fecha"><a href="https://www.senado.gob.ar/micrositios/nota/23192/noticias" target="_blank" rel="noopener">24/09/2025</a></td><td><a href="https://www.senado.gob.ar/micrositios/nota/23192/noticias" target="_blank" rel="noopener">REUNIÓN CONJUNTA DE ASESORES DE LAS COMISIONES DE EDUCACIÓN Y CULTURA Y DE PRESUPUESTO Y HACIENDA</a><p class="secundario">Educación y Cultura</p></td><td><span class="tipo asesores">Asesores</span></td><td class="docs"><span class=vacio>sin archivos</span></td></tr><tr><td class="fecha"><a href="https://www.senado.gob.ar/micrositios/nota/23244/noticias" target="_blank" rel="noopener">01/10/2025</a></td><td><a href="https://www.senado.gob.ar/micrositios/nota/23244/noticias" target="_blank" rel="noopener">CREACION DE UNIVERSIDADES</a><p class="secundario">Educación y Cultura y Presupuesto y Hacienda</p></td><td><span class="tipo">Plenario</span></td><td class="docs"><a href="https://www.senado.gob.ar/upload/archivo/55722" target="_blank" rel="noopener">Versión taquigráfica</a><a href="https://www.youtube.com/watch?v=4JjcptV_SKU" target="_blank" rel="noopener">Video</a></td></tr></tbody></table></div><p class="secundario">Se revisaron 16 reuniones publicadas por las comisiones de Educación y Cultura y Presupuesto y Hacienda, entre el 11/10/2023 y el 24/06/2026, incluidas las reuniones de asesores.</p><h2>Órdenes del Día del Senado</h2><div class="tabla"><table><thead><tr><th>Número</th><th>Fecha</th><th>Estado</th><th>Texto</th></tr></thead><tbody><tr><td><a href="https://www.senado.gob.ar/parlamentario/parlamentaria/ordenDelDiaResultadoLink/2023/234" target="_blank" rel="noopener">N° 234/23</a></td><td class='fecha'>18/10/2023</td><td>Caduca por renov. bienal</td><td><a href="https://www.senado.gob.ar/parlamentario/parlamentaria/34120/downloadOrdenDia" target="_blank" rel="noopener">Dictamen (PDF)</a></td></tr></tbody></table></div><h2>Observaciones de la ficha</h2><ul><li>06-02-2024- VUELVE A LA COMISION POR RENOVACION BIENAL DEL CUERPO ISP-5/24, SEGUN LO ESTABLECIDO EN EL CUARTO PARRAFO DEL ART. 106 DEL REGLAMENTO DEL H. SENADO.</li></ul><h2>Notas</h2><p class='notas'>Informe solicitado por la Secretaría de la Comisión de Educación y Cultura.</p><footer><p>Informe generado automáticamente con datos públicos del sitio del H. Senado de la Nación (<a href="https://www.senado.gob.ar/parlamentario/comisiones/verExp/35.23/CD/PL" target="_blank" rel="noopener">ficha del expediente</a>). Antes de usarlo en un trámite oficial, verificá los datos en la fuente. Programa Informe de Expedientes, versión 1.0.0.</p></footer></main></body></html>

@@ -1,0 +1,41 @@
+# Compila InformeExpediente.exe en una máquina Windows de GitHub, sin instalar Python en tu PC.
+#
+# Cómo usarlo:
+#  1. Subí el contenido de la carpeta informe_expedientes (app.py, requirements.txt, la carpeta
+#     informe_expedientes/ y tests/) a la raíz de un repositorio de GitHub.
+#  2. Copiá este archivo a .github/workflows/compilar-exe-windows.yml.
+#  3. Actions → Compilar InformeExpediente.exe → Run workflow.
+#  4. Al terminar (unos minutos), abrí la ejecución y descargá el artefacto «InformeExpediente»:
+#     es un .zip con el .exe adentro.
+
+name: Compilar InformeExpediente.exe
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: python -m pip install -r requirements.txt pyinstaller pytest
+
+      - name: Correr las pruebas
+        run: python -m pytest -q
+
+      - name: Compilar
+        run: >
+          python -m PyInstaller --noconfirm --clean --onefile --windowed
+          --name InformeExpediente --collect-submodules informe_expedientes --collect-data docx
+          --hidden-import lxml.etree --hidden-import lxml._elementpath app.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: InformeExpediente
+          path: dist/InformeExpediente.exe
