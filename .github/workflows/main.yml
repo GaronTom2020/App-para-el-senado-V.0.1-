@@ -1,0 +1,41 @@
+name: Compilar InformeExpediente.exe
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Verificar la estructura del repositorio
+        shell: bash
+        run: |
+          for f in app.py requirements.txt informe_expedientes/__init__.py tests/conftest.py tests/fixtures/buscador.html; do
+            if [ ! -f "$f" ]; then
+              echo "::error::Falta $f. Subí las carpetas informe_expedientes y tests completas, arrastrándolas desde el Explorador."
+              exit 1
+            fi
+          done
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: python -m pip install -r requirements.txt pyinstaller pytest
+
+      - name: Correr las pruebas
+        run: python -m pytest -q
+
+      - name: Compilar
+        run: >
+          python -m PyInstaller --noconfirm --clean --onefile --windowed
+          --name InformeExpediente --collect-submodules informe_expedientes --collect-data docx
+          --hidden-import lxml.etree --hidden-import lxml._elementpath app.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: InformeExpediente
+          path: dist/InformeExpediente.exe
