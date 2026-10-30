@@ -145,6 +145,8 @@ Si se quisiera usar desde el navegador sin instalar nada, el mismo paquete puede
 
 Las tablas de la ficha se reconocen por su atributo `summary` y, si falta, por los títulos de sus columnas; cada sección se lee por separado, así que un cambio en el sitio afecta solo esa parte y se informa como aviso. Si el sitio cambia, lo más probable es tener que ajustar `ficha.py` o `comisiones.py`: guardá las páginas con el modo diagnóstico, agregalas a `tests/fixtures` y corregí hasta que pasen las pruebas.
 
+En `docs/relevamiento-fase0.md` está relevado qué publican el sitio del Senado y el de Diputados sobre votaciones nominales, el plan de labor, los proyectos en revisión en Diputados y la búsqueda por autor y bloque, con las páginas reales guardadas en `tests/fixtures` (las que empiezan con `acta_`, `votaciones_`, `plenario_`, `plan_labor_`, `hcdn_`, `senadores_` y `avanzada_autor_`).
+
 Pruebas: `pip install pytest` y luego `python -m pytest`. Usan páginas de prueba que reproducen la estructura real del sitio, sin conexión a internet.
 
 Direcciones que usa: `parlamentario/comisiones/verExp/{número}.{año}/{origen}/{tipo}` (ficha), `parlamentario/parlamentaria/avanzada` (búsqueda) y `micrositios/DatosAbiertosExpedientes/BusquedaAvanzada/XLS` (su exportación completa), `parlamentario/comisiones/info/{id}` y `?Reuniones=N` (reuniones), `micrositios/nota/{id}/noticias` (nota de cada reunión), `parlamentario/comisiones/agenda/{id}` (agenda) y `parlamentario/parlamentaria/ordenDelDiaResultadoLink/{año}/{número}` (órdenes del día). En Diputados, `proyectos/proyecto.jsp?exp={número}-D-{año}`.
