@@ -8,7 +8,8 @@ from pathlib import Path
 from . import __version__
 from .contenido import (
     Linea, alcance_busqueda, bloques_resolucion, comisiones_texto, datos_diputados, datos_generales,
-    descripcion,
+    descripcion, descripcion_votacion, enlaces_votacion, nota_votacion, resultado_votacion, texto_votaciones,
+    tipo_votacion, totales_votacion, votaciones_con_bloques,
 )
 from .modelos import Resultado
 from .util import fmt_fecha, nombre_comision
@@ -71,6 +72,9 @@ table{width:100%;border-collapse:collapse;font-size:14px}
 th{text-align:left;font-weight:600;color:var(--tinta-suave);background:var(--piedra);padding:8px 10px;white-space:nowrap}
 td{padding:9px 10px;border-bottom:1px solid var(--linea);vertical-align:top}
 td.fecha{white-space:nowrap;font-variant-numeric:tabular-nums}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+h3.votacion{font-family:var(--serif);font-weight:normal;font-size:16px;margin:24px 0 8px}
+.resultado.negativo{color:var(--lacre)}
 .tipo{display:inline-block;font-size:12px;padding:1px 9px;border-radius:999px;background:var(--cupula-tenue);color:var(--cupula-oscura);white-space:nowrap}
 .tipo.asesores{background:var(--piedra);color:var(--tinta-suave)}
 .secundario{color:var(--tinta-suave);font-size:13px;margin:4px 0 0}
@@ -240,6 +244,9 @@ def generar_html(resultado: Resultado, ejemplo: bool = False) -> str:
         agregar('<div class="tabla"><table><thead><tr><th>Número</th><th>Fecha</th><th>Estado</th>'
                 f"<th>Texto</th></tr></thead><tbody>{filas}</tbody></table></div>")
 
+    if resultado.votaciones_consultadas:
+        agregar(_votaciones(resultado))
+
     bloques = bloques_resolucion(f)
     if bloques:
         agregar("<h2>Sanción y resoluciones</h2><div class='bloques'>")
@@ -275,6 +282,37 @@ def generar_html(resultado: Resultado, ejemplo: bool = False) -> str:
         f"<style>{ESTILOS}</style></head><body><main class='hoja'>"
         + "".join(partes) + "</main></body></html>\n"
     )
+
+
+def _votaciones(resultado: Resultado) -> str:
+    partes = ["<h2>Votaciones en el recinto</h2>", f"<p>{_e(texto_votaciones(resultado))}</p>"]
+    if resultado.votaciones:
+        filas = []
+        for v in resultado.votaciones:
+            clase = " negativo" if v.rechazada else ""
+            numeros = "".join(f'<td class="num">{x}</td>' for x in totales_votacion(v))
+            enlaces = " ".join(_enlace(fr.texto, fr.url) for fr in enlaces_votacion(v))
+            filas.append(
+                f'<tr><td class="fecha">{fmt_fecha(v.fecha)}</td><td>{_e(descripcion_votacion(v))}</td>'
+                f"<td>{_e(tipo_votacion(v))}</td><td class='resultado{clase}'>{_e(resultado_votacion(v))}</td>"
+                f'{numeros}<td class="docs">{enlaces or "—"}</td></tr>')
+        partes.append('<div class="tabla"><table><thead><tr><th>Fecha</th><th>Votación</th><th>Tipo</th>'
+                      '<th>Resultado</th><th class="num">Afirm.</th><th class="num">Neg.</th>'
+                      '<th class="num">Abst.</th><th class="num">Aus.</th><th>Acta</th></tr></thead>'
+                      f"<tbody>{''.join(filas)}</tbody></table></div>")
+    for v in votaciones_con_bloques(resultado):
+        partes.append(f'<h3 class="votacion">Cómo votó cada bloque: {_e(tipo_votacion(v).lower())}, '
+                      f"{fmt_fecha(v.fecha)}</h3>")
+        filas = "".join(
+            f"<tr><td>{_e(b)}</td>" + "".join(f'<td class="num">{n}</td>' for n in numeros) + "</tr>"
+            for b, *numeros in v.por_bloque())
+        partes.append('<div class="tabla"><table><thead><tr><th>Bloque</th><th class="num">Afirmativos</th>'
+                      '<th class="num">Negativos</th><th class="num">Abstenciones</th><th class="num">Ausentes</th>'
+                      f"</tr></thead><tbody>{filas}</tbody></table></div>")
+        nota = nota_votacion(v)
+        if nota:
+            partes.append(f'<p class="secundario">{_e(nota)}</p>')
+    return "".join(partes)
 
 
 def escribir(resultado: Resultado, destino: Path, ejemplo: bool = False) -> Path:

@@ -31,6 +31,22 @@ MAPA = {
     f"{B}/parlamentario/comisiones/agenda/75": "agenda_75.html",
     f"{B}/parlamentario/comisiones/agenda/54": "agenda_vacia.html",
     f"{B}/parlamentario/comisiones/agenda/78": "agenda_vacia.html",
+    f"{B}/votaciones/actas": "votaciones_actas_2026.html",
+    f"{B}/votaciones/detalleActa/2847": "acta_2847.html",
+    f"{B}/votaciones/detalleActa/2623": "acta_2623.html",
+    f"{B}/votaciones/detalleActa/2867": "acta_2867_pendiente.html",
+    f"{B}/votaciones/detalleActa/2874": "acta_2874_inexistente.html",
+    f"{B}/senadores/listados/agrupados-por-bloques": "senadores_bloques.html",
+    f"{B}/parlamentario/comisiones/verExp/99.26/PE/PL": "ficha_pe_99_26.html",
+    f"{B}/parlamentario/comisiones/verExp/159.25/PE/PL": "ficha_pe_159_25.html",
+    f"{B}/parlamentario/parlamentaria/ordenDelDiaResultadoLink/2026/409": "od_2026_409.html",
+}
+BINARIOS = {
+    f"{B}/votaciones/verActaVotacion/2867": "acta_2867.pdf",
+    f"{B}/votaciones/verActaVotacion/2847": "acta_2847.pdf",
+    f"{B}/votaciones/verActaVotacion/2868": "acta_2868.pdf",
+    f"{B}/votaciones/verActaVotacion/2869": "acta_2869.pdf",
+    f"{B}/votaciones/verActaVotacion/2870": "acta_2870.pdf",
 }
 MAPA_POST = {f"{B}/parlamentario/parlamentaria/avanzada": "resultados_avanzada.html"}
 
@@ -51,6 +67,8 @@ class ClienteFalso:
         self.pedidos.append(url)
         if url == f"{B}/micrositios/DatosAbiertosExpedientes/BusquedaAvanzada/XLS":
             return Respuesta(url, 200, contenido=(FIXTURES / "busqueda_avanzada.xls").read_bytes())
+        if url in BINARIOS:
+            return Respuesta(url, 200, contenido=(FIXTURES / BINARIOS[url]).read_bytes())
         archivo = self.mapa.get(url)
         if archivo is None and RE_NOTA.search(url):
             archivo = "nota_generica.html"
@@ -62,6 +80,10 @@ class ClienteFalso:
         self.pedidos.append("POST " + url)
         self.ultimo_post = datos
         archivo = MAPA_POST.get(url)
+        if url == f"{B}/votaciones/actas":
+            archivo = f"votaciones_actas_{datos.get('busqueda_actas[anio]')}.html"
+            if not (FIXTURES / archivo).exists():
+                raise ErrorRed("404")
         if archivo is None:
             raise ErrorRed("404")
         return Respuesta(url, 200, leer(archivo))

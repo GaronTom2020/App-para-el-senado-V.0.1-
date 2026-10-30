@@ -7,7 +7,7 @@ from pathlib import Path
 from docx import Document
 from docx.enum.section import WD_ORIENT
 from docx.enum.table import WD_TABLE_ALIGNMENT
-from docx.enum.text import WD_TAB_ALIGNMENT
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -16,7 +16,8 @@ from docx.shared import Cm, Pt, RGBColor
 from . import __version__
 from .contenido import (
     Linea, alcance_busqueda, bloques_resolucion, comisiones_texto, datos_diputados, datos_generales,
-    descripcion,
+    descripcion, descripcion_votacion, enlaces_votacion, nota_votacion, resultado_votacion, texto_votaciones,
+    tipo_votacion, totales_votacion, votaciones_con_bloques,
 )
 from .modelos import Resultado
 from .util import fmt_fecha, nombre_comision
@@ -393,6 +394,9 @@ class _Escritor:
                 else:
                     self._run(fila.cells[3].paragraphs[0], "—", 9.5)
 
+        if r.votaciones_consultadas:
+            self._votaciones()
+
         bloques = bloques_resolucion(f)
         if bloques:
             self.titulo("Sanción y resoluciones")
@@ -487,6 +491,45 @@ class _Escritor:
                     self._run(p2, extra, 7.5, color)
             for i in range(len(s.pasos)):
                 t.columns[i].width = Cm(ancho)
+
+    def _votaciones(self) -> None:
+        r = self.r
+        self.titulo("Votaciones en el recinto")
+        self.parrafo(texto_votaciones(r), 10)
+        if r.votaciones:
+            anchos = [2.0, 5.4, 2.2, 1.9, 1.0, 1.0, 1.0, 1.0, 1.1]
+            t = self.tabla(["Fecha", "Votación", "Tipo", "Resultado", "Afirm.", "Neg.", "Abst.", "Aus.", "Acta"],
+                           anchos)
+            for v in r.votaciones:
+                fila = self.fila(t, anchos)
+                self._run(fila.cells[0].paragraphs[0], fmt_fecha(v.fecha), 9)
+                self._run(fila.cells[1].paragraphs[0], descripcion_votacion(v), 9)
+                self._run(fila.cells[2].paragraphs[0], tipo_votacion(v), 9)
+                self._run(fila.cells[3].paragraphs[0], resultado_votacion(v), 9, "lacre" if v.rechazada else None)
+                for i, numero in enumerate(totales_votacion(v), start=4):
+                    p = fila.cells[i].paragraphs[0]
+                    p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                    self._run(p, numero, 9)
+                enlaces = enlaces_votacion(v)
+                if not enlaces:
+                    self._run(fila.cells[8].paragraphs[0], "—", 9)
+                for j, fr in enumerate(enlaces):
+                    p = fila.cells[8].paragraphs[0] if j == 0 else fila.cells[8].add_paragraph()
+                    _hipervinculo(p, fr.texto, fr.url, 8.5)
+        for v in votaciones_con_bloques(r):
+            self.doc.add_heading(f"Cómo votó cada bloque: {tipo_votacion(v).lower()}, {fmt_fecha(v.fecha)}", level=2)
+            anchos = [7.0, 2.4, 2.4, 2.4, 2.4]
+            t = self.tabla(["Bloque", "Afirmativos", "Negativos", "Abstenciones", "Ausentes"], anchos)
+            for bloque, *numeros in v.por_bloque():
+                fila = self.fila(t, anchos)
+                self._run(fila.cells[0].paragraphs[0], bloque, 9)
+                for i, n in enumerate(numeros, start=1):
+                    p = fila.cells[i].paragraphs[0]
+                    p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                    self._run(p, str(n), 9)
+            nota = nota_votacion(v)
+            if nota:
+                self.parrafo(nota, 8.5, "suave", antes=4)
 
     def _reuniones(self) -> None:
         r = self.r

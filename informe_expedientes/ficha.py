@@ -12,6 +12,7 @@ una falla, se registra una advertencia y el resto sigue.
 
 from __future__ import annotations
 
+import importlib.util
 import re
 from urllib.parse import urljoin
 
@@ -98,12 +99,11 @@ def buscar_tipo(cliente: Cliente, ident: IdExpediente) -> str | None:
     tipo = tipo_desde_resultados(resultados.texto, ident)
     if tipo:
         return tipo
+    if importlib.util.find_spec("xlrd") is None:   # opcional: sin él se omite la exportación XLS
+        return None
     try:
-        import xlrd  # noqa: F401  (opcional: sin él se omite la exportación XLS)
         xls = cliente.get(config.URL_XLS_AVANZADA, binario=True)
         return tipo_desde_xls(xls.contenido or b"", ident)
-    except ImportError:
-        return None
     except Exception:
         return None
 

@@ -187,6 +187,76 @@ class BusquedaReuniones:
 
 
 @dataclass
+class VotoNominal:
+    nombre: str                    # APELLIDO, NOMBRES
+    voto: str                      # AFIRMATIVO · NEGATIVO · ABSTENCION · AUSENTE
+    bloque: str = ""
+    provincia: str = ""
+    senador_id: int | None = None
+
+
+@dataclass
+class Votacion:
+    """Una votación nominal del recinto, tal como la publica la Secretaría Parlamentaria."""
+    id: int
+    fecha: date | None
+    titulo: str = ""
+    tipo: str = ""                 # EN GENERAL · EN PARTICULAR · EN GENERAL Y EN PARTICULAR · MOCIÓN DE ORDEN…
+    resultado: str = ""            # AFIRMATIVO · NEGATIVO
+    mayoria: str = ""
+    numero_en_sesion: str = ""
+    articulos: str = ""
+    expedientes: list[str] = field(default_factory=list)    # S-1234/24
+    ordenes_del_dia: list[str] = field(default_factory=list)  # 409/26
+    hora: str = ""
+    quorum: str = ""
+    presentes: int | None = None
+    presidente: str = ""
+    afirmativos: int | None = None
+    negativos: int | None = None
+    abstenciones: int | None = None
+    ausentes: int | None = None
+    votos: list[VotoNominal] = field(default_factory=list)
+    fuente: str = "listado"        # listado · detalle · pdf
+    bloques_actuales: bool = False  # el bloque salió del listado de bloques de hoy, no del acta
+    url_detalle: str | None = None
+    url_pdf: str | None = None
+    video: str | None = None
+
+    @property
+    def aprobada(self) -> bool:
+        return normalizar(self.resultado).startswith("AFIRMATIV")
+
+    @property
+    def rechazada(self) -> bool:
+        return normalizar(self.resultado).startswith("NEGATIV")
+
+    @property
+    def en_general(self) -> bool:
+        """Votación que decide sobre el proyecto (no un artículo ni una moción)."""
+        return normalizar(self.tipo) in ("EN GENERAL", "EN GENERAL Y EN PARTICULAR")
+
+    @property
+    def con_totales(self) -> bool:
+        return bool(self.afirmativos or self.negativos or self.abstenciones or self.ausentes)
+
+    @property
+    def url(self) -> str | None:
+        return self.url_detalle if self.fuente == "detalle" else (self.url_pdf or self.url_detalle)
+
+    def por_bloque(self) -> list[tuple[str, int, int, int, int]]:
+        """(bloque, afirmativos, negativos, abstenciones, ausentes), de mayor a menor."""
+        cuenta: dict[str, list[int]] = {}
+        orden = {"AFIRMATIVO": 0, "NEGATIVO": 1, "ABSTENCION": 2, "AUSENTE": 3}
+        for v in self.votos:
+            fila = cuenta.setdefault(v.bloque or "Sin datos de bloque", [0, 0, 0, 0])
+            if v.voto in orden:
+                fila[orden[v.voto]] += 1
+        filas = [(b, *n) for b, n in cuenta.items()]
+        return sorted(filas, key=lambda f: (-sum(f[1:]), f[0]))
+
+
+@dataclass
 class Resultado:
     ficha: Ficha
     situacion: Situacion
@@ -194,6 +264,8 @@ class Resultado:
     convocadas: list[ReunionConvocada] = field(default_factory=list)
     busqueda: BusquedaReuniones = field(default_factory=BusquedaReuniones)
     agenda_consultada: bool = False
+    votaciones: list[Votacion] = field(default_factory=list)
+    votaciones_consultadas: bool = False
     notas_usuario: str = ""
     generado: datetime = field(default_factory=datetime.now)
     archivos: dict[str, Path] = field(default_factory=dict)

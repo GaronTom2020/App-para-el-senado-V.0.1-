@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import re
 from dataclasses import dataclass, field
 from datetime import date
@@ -195,10 +196,8 @@ class Buscador:
         raise ultimo_error or ErrorBusqueda("La búsqueda no devolvió resultados legibles.")
 
     def _xls(self) -> list[dict]:
-        try:
-            import xlrd
-        except ImportError as e:
-            raise ErrorBusqueda("Falta la biblioteca xlrd para leer la exportación del Senado.") from e
+        if importlib.util.find_spec("xlrd") is None:
+            raise ErrorBusqueda("Falta la biblioteca xlrd para leer la exportación del Senado.")
         try:
             r = self.cliente.get(config.URL_XLS_AVANZADA, binario=True)
         except ErrorRed as e:

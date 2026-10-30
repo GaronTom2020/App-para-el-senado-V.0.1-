@@ -14,7 +14,9 @@ URL_AVANZADA = BASE + "/parlamentario/parlamentaria/avanzada"
 URL_XLS_AVANZADA = BASE + "/micrositios/DatosAbiertosExpedientes/BusquedaAvanzada/XLS"
 URL_COMISION = BASE + "/parlamentario/comisiones/info/{id}"
 URL_AGENDA = BASE + "/parlamentario/comisiones/agenda/{id}"
-URL_HCDN_PROYECTO = "https://www.hcdn.gob.ar/proyectos/proyecto.jsp?exp={exp}"
+# El buscador de Diputados acepta GET: sirve como enlace a un proyecto (proyecto.jsp ya no existe).
+URL_HCDN_BUSQUEDA = "https://www.hcdn.gob.ar/proyectos/resultado.html"
+URL_HCDN_PROYECTO = URL_HCDN_BUSQUEDA + "?strNumExp={numero}&strNumExpOrig={origen}&strNumExpAnio={anio}"
 
 USER_AGENT = (
     "Mozilla/5.0 (compatible; InformeExpedientes/1.0; "
@@ -180,6 +182,12 @@ TTL_ORDEN_DIA = 30 * 86400
 INTERVALO_ENTRE_PEDIDOS = 0.3   # segundos entre pedidos al sitio
 HILOS_POR_DEFECTO = 4
 MAX_PAGINAS_POR_LISTADO = 40
+
+
+def url_hcdn(expediente: str) -> str:
+    """«1752-D-2023» → búsqueda de ese expediente en el sitio de Diputados."""
+    numero, origen, anio = expediente.split("-", 2)
+    return URL_HCDN_PROYECTO.format(numero=int(numero), origen=origen, anio=anio)
 
 
 def carpeta_app() -> Path:

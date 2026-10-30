@@ -1,8 +1,8 @@
 """Situación del expediente en el trámite parlamentario.
 
 Se deduce de los datos de la ficha, en este orden de prioridad:
-sanción como ley → aprobación o rechazo del Senado → caducidad o archivo →
-en comisión → con dictamen → otros.
+sanción como ley → aprobación o rechazo del Senado → votación en el recinto que
+la ficha todavía no registra → caducidad o archivo → en comisión → con dictamen → otros.
 
 La caducidad es una estimación orientativa:
 - Proyectos de ley (Ley 13.640, texto según Ley 23.821): caducan si no obtienen
@@ -21,7 +21,7 @@ import re
 from datetime import date
 
 from . import config
-from .modelos import Caducidad, Ficha, Paso, Situacion
+from .modelos import Caducidad, Ficha, Paso, Situacion, Votacion
 from .util import (
     anio_parlamentario, fin_anio_parlamentario, fmt_fecha, fmt_numero_ley, nombre_comision,
     normalizar, parsear_fecha,
@@ -45,7 +45,29 @@ def _descripcion_mocion(para: str | None) -> str:
     return para or ""
 
 
-def calcular(ficha: Ficha, hoy: date | None = None) -> Situacion:
+def votacion_sin_registrar(ficha: Ficha, votaciones: list[Votacion] | None) -> Votacion | None:
+    """Última votación en general del recinto que la ficha todavía no refleja."""
+    generales = [v for v in votaciones or [] if v.en_general and (v.aprobada or v.rechazada) and v.fecha]
+    if not generales:
+        return None
+    ultima = max(generales, key=lambda v: (v.fecha, v.id))
+    registradas = []
+    for titulo in ("SENADO", "SANCION DE LEY"):
+        b = ficha.bloque(titulo, exacto=True) if titulo == "SENADO" else ficha.bloque(titulo)
+        if b and (b.valor("SANCION") or b.valor("NUMERO DE LEY")):
+            registradas.append(parsear_fecha(b.valor("FECHA DE SANCION")) or date.min)
+    if any(f >= ultima.fecha for f in registradas):
+        return None
+    return ultima
+
+
+def _resultado_votacion(v: Votacion) -> str:
+    if v.con_totales:
+        return f" ({v.afirmativos} a {v.negativos})"
+    return ""
+
+
+def calcular(ficha: Ficha, hoy: date | None = None, votaciones: list[Votacion] | None = None) -> Situacion:
     hoy = hoy or date.today()
     tipo, origen = ficha.id.tipo, ficha.id.origen
 
@@ -69,6 +91,7 @@ def calcular(ficha: Ficha, hoy: date | None = None) -> Situacion:
     ods_caducas = [od for od in ficha.ordenes_del_dia if od.situacion == "caduca"]
 
     detalle: list[str] = []
+    votada = None if (numero_ley or "APROB" in sancion or "RECHAZ" in sancion) else         votacion_sin_registrar(ficha, votaciones)
 
     if numero_ley:
         titulo = f"Sancionado: Ley N° {fmt_numero_ley(numero_ley)}"
@@ -118,6 +141,25 @@ def calcular(ficha: Ficha, hoy: date | None = None) -> Situacion:
         titulo = "Rechazado por el Senado"
         if fecha_senado:
             detalle.append(f"Rechazado el {fmt_fecha(fecha_senado)}.")
+    elif votada and votada.aprobada:
+        nivel = "aprobado"
+        fecha_senado, sancion = votada.fecha, "APROBO"
+        if tipo == "PL" and origen != "CD":
+            titulo = "Media sanción del Senado (votada en el recinto)"
+        elif tipo == "PL":
+            titulo = "Aprobado por el Senado como cámara revisora (votado en el recinto)"
+        else:
+            titulo = "Aprobado en el recinto"
+        detalle.append(f"Votado en el recinto el {fmt_fecha(votada.fecha)}{_resultado_votacion(votada)}; "
+                       "la ficha oficial todavía no registra la sanción.")
+        if tipo == "PL" and origen != "CD":
+            detalle.append("Pasa a la Cámara de Diputados para su revisión.")
+    elif votada and votada.rechazada:
+        nivel = "rechazado"
+        fecha_senado, sancion = votada.fecha, "RECHAZO"
+        titulo = "Rechazado en el recinto"
+        detalle.append(f"Votado en el recinto el {fmt_fecha(votada.fecha)}{_resultado_votacion(votada)}, con "
+                       "resultado negativo; la ficha oficial todavía no registra el rechazo.")
     elif ficha.fecha_caducidad_registrada:
         nivel = "caducado"
         titulo = f"Caducó el {fmt_fecha(ficha.fecha_caducidad_registrada)}"
@@ -171,14 +213,16 @@ def calcular(ficha: Ficha, hoy: date | None = None) -> Situacion:
         detalle.append(texto + (f", {descripcion}." if descripcion else "."))
 
     situacion = Situacion(titulo=titulo, nivel=nivel, detalle=detalle)
-    situacion.pasos = _pasos(ficha, situacion, numero_ley, fecha_ley, fecha_senado, sancion, b_pe, b_dip)
+    situacion.pasos = _pasos(ficha, situacion, numero_ley, fecha_ley, fecha_senado, sancion, b_pe, b_dip,
+                             votada is not None)
     situacion.caducidad = estimar_caducidad(ficha, situacion, hoy, fecha_senado, nota_senado)
     return situacion
 
 
 # ======================================================================= pasos
 
-def _pasos(ficha, situacion, numero_ley, fecha_ley, fecha_senado, sancion, b_pe, b_dip) -> list[Paso]:
+def _pasos(ficha, situacion, numero_ley, fecha_ley, fecha_senado, sancion, b_pe, b_dip,
+           por_votacion: bool = False) -> list[Paso]:
     tipo, origen = ficha.id.tipo, ficha.id.origen
     pasos: list[Paso] = []
     etapa = ficha.etapa_diputados
@@ -220,7 +264,8 @@ def _pasos(ficha, situacion, numero_ley, fecha_ley, fecha_senado, sancion, b_pe,
         "Sanción del Senado",
         "hecho" if senado_hecho else "pendiente",
         fecha_senado,
-        "aprobado" if "APROB" in sancion else ("rechazado" if "RECHAZ" in sancion else ""),
+        ("aprobado" if "APROB" in sancion else ("rechazado" if "RECHAZ" in sancion else ""))
+        + (" en el recinto; sin registro en la ficha" if por_votacion else ""),
     ))
     if tipo == "PL":
         if origen != "CD":

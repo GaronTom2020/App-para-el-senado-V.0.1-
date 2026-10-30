@@ -103,7 +103,7 @@ def test_informe_completo_cd_35_23(tmp_path):
     assert "Caducó el 28/02/2026" in html
     assert 'href="https://www.senado.gob.ar/micrositios/nota/23244/noticias"' in html
     assert 'href="https://www.youtube.com/watch?v=4JjcptV_SKU"' in html
-    assert 'href="https://www.hcdn.gob.ar/proyectos/proyecto.jsp?exp=1752-D-2023"' in html
+    assert 'href="https://www.hcdn.gob.ar/proyectos/resultado.html?strNumExp=1752&amp;strNumExpOrig=D&amp;strNumExpAnio=2023"' in html
     assert "Pedido de la Secretaría." in html
     texto = contenido.texto_resumen(r)
     assert "CREACION DE UNIVERSIDADES" in texto and "Situación: Caducó" in texto
@@ -127,5 +127,5 @@ def test_docx_tiene_hipervinculos(tmp_path):
         documento = z.read("word/document.xml").decode("utf-8")
         relaciones = z.read("word/_rels/document.xml.rels").decode("utf-8")
     assert documento.count("<w:hyperlink") >= 8
-    assert "verExp/14.24/CD/PL" in relaciones and "proyecto.jsp?exp=1888-D-2024" in relaciones
+    assert "verExp/14.24/CD/PL" in relaciones and "strNumExp=1888&amp;strNumExpOrig=D&amp;strNumExpAnio=2024" in relaciones
     assert "Ley N° 27.757" in documento

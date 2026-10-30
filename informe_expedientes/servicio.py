@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 
-from . import comisiones, config, ficha as ficha_mod, situacion as situacion_mod
+from . import comisiones, config, ficha as ficha_mod, situacion as situacion_mod, votaciones as votaciones_mod
 from .cliente import Cancelado, Cliente, ErrorRed
 from .identificador import parsear
 from .modelos import BusquedaReuniones, Resultado
@@ -28,6 +28,7 @@ class Opciones:
     incluir_asesores: bool = True
     buscar_agenda: bool = True
     completar_ordenes_del_dia: bool = True
+    buscar_votaciones: bool = True
     formatos: tuple[str, ...] = ("docx", "html")
     carpeta_salida: Path = field(default_factory=config.carpeta_informes_por_defecto)
     notas_usuario: str = ""
@@ -80,7 +81,16 @@ def generar(texto: str, opciones: Opciones, cliente: Cliente, avisar=_nada, hoy:
         except ErrorRed as e:
             avisar_y_guardar("advertencia", f"No se pudo revisar la agenda: {e}")
 
-    situacion = situacion_mod.calcular(ficha, hoy)
+    votaciones = []
+    if opciones.buscar_votaciones:
+        avisar("etapa", "Buscando votaciones nominales en el recinto…")
+        try:
+            votaciones = votaciones_mod.buscar(cliente, ficha, hoy, avisar_y_guardar)
+            avisar("log", f"Votaciones nominales encontradas: {len(votaciones)}.")
+        except (ErrorRed, votaciones_mod.ErrorVotaciones) as e:
+            avisar_y_guardar("advertencia", f"No se pudieron revisar las votaciones del recinto: {e}")
+
+    situacion = situacion_mod.calcular(ficha, hoy, votaciones)
     resultado = Resultado(
         ficha=ficha,
         situacion=situacion,
@@ -88,6 +98,8 @@ def generar(texto: str, opciones: Opciones, cliente: Cliente, avisar=_nada, hoy:
         convocadas=convocadas,
         busqueda=busqueda,
         agenda_consultada=opciones.buscar_agenda,
+        votaciones=votaciones,
+        votaciones_consultadas=opciones.buscar_votaciones,
         notas_usuario=opciones.notas_usuario.strip(),
         generado=datetime.now(),
         advertencias=advertencias,

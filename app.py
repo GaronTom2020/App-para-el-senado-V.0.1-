@@ -8,6 +8,10 @@ Sin argumentos abre la ventana. Con argumentos funciona por línea de comandos:
     Informe temático (por eje guardado o por palabras):
         python app.py --tema "Salud" --anios 2025-2026
         python app.py --palabras "litio, minería" --tipos PL,PC --comision "Minería"
+
+    Lista de seguimiento:
+        python app.py --seguimiento agregar PE-99/26 S-351/25
+        python app.py --seguimiento revisar --salida "C:/Informes"
 """
 
 from __future__ import annotations
@@ -59,12 +63,19 @@ def linea_de_comandos(argumentos: list[str]) -> int:
     t.add_argument("--individuales", action="store_true", help="Generar además el informe completo de cada uno")
     t.add_argument("--limite", type=int, default=200, help="Máximo de fichas a consultar (200)")
     t.add_argument("--ejes", type=Path, help="Archivo de ejes temáticos a usar (JSON)")
+    s = p.add_argument_group("lista de seguimiento")
+    s.add_argument("--seguimiento", choices=["revisar", "agregar", "quitar", "listar"],
+                   help="revisar la lista y anotar las novedades; agregar o quitar los expedientes indicados; listar")
+    s.add_argument("--lista-seguimiento", type=Path, help="Archivo de la lista (por defecto, el de la configuración)")
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     a = p.parse_args(argumentos)
 
     tematico = bool(a.tema or a.palabras or a.comision)
-    if not tematico and not a.expedientes:
-        p.error("indicá uno o más expedientes, o --tema / --palabras / --comision")
+    if not tematico and not a.expedientes and a.seguimiento not in ("revisar", "listar"):
+        p.error("indicá uno o más expedientes, o --tema / --palabras / --comision, o --seguimiento revisar")
+
+    if a.seguimiento in ("agregar", "quitar", "listar"):
+        return _editar_seguimiento(a)
 
     cliente = Cliente(carpeta_cache=config.carpeta_app() / "cache", usar_cache=not a.sin_cache,
                       carpeta_diagnostico=a.diagnostico)
@@ -75,6 +86,8 @@ def linea_de_comandos(argumentos: list[str]) -> int:
         elif evento == "advertencia":
             print(f"Aviso: {mensaje}", flush=True)
 
+    if a.seguimiento == "revisar":
+        return _revisar_seguimiento(a, cliente, avisar)
     if tematico:
         return _tematico(a, cliente, avisar)
 
@@ -98,6 +111,58 @@ def linea_de_comandos(argumentos: list[str]) -> int:
             errores += 1
             print(f"Error con {texto}: {e}", file=sys.stderr)
     return 1 if errores else 0
+
+
+def _editar_seguimiento(a) -> int:
+    from informe_expedientes.identificador import ErrorIdentificador
+    from informe_expedientes.seguimiento import Lista
+
+    lista = Lista(a.lista_seguimiento)
+    errores = 0
+    for texto in a.expedientes:
+        try:
+            if a.seguimiento == "agregar":
+                s, nuevo = lista.agregar(texto, a.tipo.upper() if a.tipo else None)
+                print(f"{s.expediente}: {'agregado' if nuevo else 'ya estaba en la lista'}")
+            elif lista.quitar(texto):
+                print(f"{texto}: quitado")
+            else:
+                print(f"{texto}: no estaba en la lista")
+        except ErrorIdentificador as e:
+            errores += 1
+            print(f"{texto}: {e}", file=sys.stderr)
+    if a.seguimiento != "listar":
+        lista.guardar()
+    print(f"\nLista de seguimiento ({lista.archivo}): {len(lista.seguidos)} expedientes")
+    for s in lista.seguidos:
+        situacion = (s.foto or {}).get("situacion", "sin revisar todavía")
+        print(f"  {s.expediente:<12} {situacion}")
+    return 2 if errores else 0
+
+
+def _revisar_seguimiento(a, cliente: Cliente, avisar) -> int:
+    from informe_expedientes.seguimiento import Lista, OpcionesSeguimiento, resumen, revisar
+
+    lista = Lista(a.lista_seguimiento)
+    if not lista.seguidos:
+        print(f"La lista de seguimiento está vacía ({lista.archivo}). Agregá expedientes con "
+              "--seguimiento agregar S-1234/24.", file=sys.stderr)
+        return 2
+    formatos = tuple(f.strip().lower() for f in (a.formatos or "html,md").split(",") if f.strip())
+    opciones = OpcionesSeguimiento(buscar_reuniones=not a.sin_reuniones, incluir_asesores=not a.sin_asesores,
+                                   formatos=formatos, carpeta_salida=a.salida, nombre_archivo=a.nombre)
+    try:
+        res = revisar(lista, cliente, opciones, avisar)
+    except Cancelado:
+        return 130
+    print("\n" + resumen(res))
+    for r in res.con_novedades:
+        print(f"\n{r.seguido.expediente} ({r.situacion})")
+        for n in r.novedades:
+            print(f"  - {n.texto}")
+    for ruta in res.archivos.values():
+        print(f"  {ruta}")
+    return 0
 
 
 def _tematico(a, cliente: Cliente, avisar) -> int:

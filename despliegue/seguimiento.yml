@@ -1,0 +1,84 @@
+# Revisa la lista de seguimiento de lunes a viernes y deja las novedades en un issue nuevo.
+#
+# Cómo usarlo:
+#  1. Copiá la carpeta del programa (informe_expedientes, con app.py y requirements.txt)
+#     a la raíz del repositorio.
+#  2. Copiá este archivo a .github/workflows/seguimiento.yml.
+#  3. Armá la lista desde una PC con el programa y subila al repositorio:
+#        python app.py --seguimiento agregar PE-99/26 S-351/25 --lista-seguimiento seguimiento/lista.json
+#     El flujo guarda en ese mismo archivo la «foto» de cada expediente después de cada
+#     revisión, así la siguiente puede comparar. No lo edites a mano mientras corre.
+#  4. En Settings → Actions → General, dale permiso de escritura al flujo
+#     ("Read and write permissions"). Los issues tienen que estar habilitados en el repositorio.
+#  5. Para probarlo sin esperar al horario: Actions → Seguimiento de expedientes → Run workflow.
+#
+# Si preferís un issue solo cuando hay novedades, poné SOLO_CON_NOVEDADES: "si".
+# La búsqueda de reuniones de comisión es lenta; para una lista larga podés sumar
+# --sin-reuniones a la línea de python app.py (las convocatorias de la agenda se revisan igual).
+
+name: Seguimiento de expedientes
+
+on:
+  schedule:
+    - cron: "0 11 * * 1-5"      # lunes a viernes, 8:00 de Buenos Aires (11:00 UTC)
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: seguimiento-expedientes
+  cancel-in-progress: false
+
+jobs:
+  revisar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      LISTA: seguimiento/lista.json
+      SOLO_CON_NOVEDADES: "no"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar el programa
+        run: pip install -r informe_expedientes/requirements.txt
+
+      - name: Revisar la lista
+        working-directory: informe_expedientes
+        run: |
+          python app.py --seguimiento revisar --lista-seguimiento "../$LISTA" \
+                        --salida ../salida --nombre novedades --formatos md,html | tee ../salida.txt
+
+      - name: Guardar las fotos para la próxima revisión
+        run: |
+          git config user.name "seguimiento-bot"
+          git config user.email "seguimiento-bot@users.noreply.github.com"
+          git add "$LISTA"
+          if git diff --cached --quiet; then
+            echo "Sin cambios en la lista."
+          else
+            git commit -m "Seguimiento de expedientes $(date +%F)"
+            git push
+          fi
+
+      - name: Abrir el issue con las novedades
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$SOLO_CON_NOVEDADES" = "si" ] && grep -q ", sin novedades\.$" salida.txt; then
+            echo "Sin novedades: no se abre issue."
+            exit 0
+          fi
+          head -c 60000 salida/novedades.md > cuerpo.md   # los issues admiten hasta 65.536 caracteres
+          gh issue create --title "Seguimiento de expedientes — $(TZ=America/Argentina/Buenos_Aires date +%d/%m/%Y)" \
+                          --body-file cuerpo.md
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: seguimiento
+          path: salida/

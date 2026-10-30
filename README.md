@@ -18,6 +18,7 @@ Usa solamente información pública de www.senado.gob.ar y www.hcdn.gob.ar.
 - **Reuniones de comisión** en que se trató: fecha (enlazada a la nota de la reunión), título, comisiones, tipo (comisión, plenario o asesores), versión taquigráfica y video.
 - **Reuniones ya convocadas** en la agenda de las comisiones del giro.
 - **Órdenes del Día del Senado**, con su estado y el PDF del dictamen.
+- **Votaciones en el recinto**: cada votación nominal del expediente o de su orden del día, con fecha, tipo (en general, en particular, moción), resultado, afirmativos, negativos, abstenciones y ausentes, enlace al acta, al PDF y al video, y una tabla de cómo votó cada bloque en las votaciones en general. Si hay una votación más reciente que lo que registra la ficha, la situación lo avisa («Votado en el recinto el 29/10/2026 (42 a 21); la ficha oficial todavía no registra la sanción») y la línea de pasos marca la sanción del Senado como hecha.
 - Sanción, número de ley, resolución del Poder Ejecutivo (veto o promulgación, decreto y Boletín Oficial), observaciones de la ficha y notas propias.
 
 ## Instalación
@@ -67,6 +68,26 @@ En la pestaña **Por tema**:
 
 `comision_id` es el número de la comisión en el sitio del Senado (`comisiones/info/{número}`); puede ser `null`.
 
+## Lista de seguimiento
+
+En la pestaña **Seguimiento** se arma una lista de expedientes para revisar seguido. Se agregan escribiendo el número (o varios, separados por coma) o, desde la lista del modo *Por tema*, con clic derecho → *Agregar a la lista de seguimiento*. Para quitarlos, elegilos y presioná *Quitar los elegidos* (o Supr).
+
+**Revisar novedades** vuelve a consultar cada expediente y lo compara con la revisión anterior. Avisa:
+
+- giro nuevo a una comisión y egreso de una comisión;
+- dictamen u orden del día nuevos, o cambio de estado de una orden del día;
+- votación en el recinto y sanción registrada en la ficha;
+- reunión convocada con el expediente en el temario y reunión de comisión en que se trató (si se buscan reuniones);
+- cambio de situación y caducidad cercana (menos de 60 días).
+
+La primera revisión de cada expediente solo guarda su estado («Primera revisión»). El resumen queda en la ventana y en un HTML y un Markdown en la carpeta de informes; *Copiar resumen* copia el Markdown. La lista y la última «foto» de cada expediente se guardan en `seguimiento.json`, en la carpeta de configuración.
+
+## Cómo se buscan las votaciones
+
+El programa lee el listado anual de votaciones del Senado (`votaciones/actas`), desde el año de ingreso del expediente hasta hoy, y toma las filas que enlazan el expediente o su orden del día, o que lo nombran en el título. De cada una abre el detalle del acta, que trae los totales y el bloque de cada senador. En las sesiones recientes el detalle se publica vacío durante unos días: mientras tanto se usa el PDF del acta, que ya trae la lista nominal, el quórum y la mayoría, y el bloque se completa por nombre con el listado de bloques actual (el informe lo aclara).
+
+Los listados y las actas ya leídas se guardan en un índice (`indice_votaciones.json`, en la carpeta de caché): el año en curso se vuelve a leer cada 3 horas, los anteriores cada 30 días, y un acta completa no se vuelve a pedir. Se detallan hasta 40 votaciones por expediente (las en general, siempre); las demás figuran solo con su resultado. Los datos abiertos del Senado no publican votaciones, por eso se leen estas páginas.
+
 ## Cómo se buscan las reuniones
 
 La ficha del expediente no lista las reuniones, así que el programa:
@@ -101,8 +122,13 @@ python app.py PE-107/24 --tipo PL --sin-reuniones --formatos html
 python app.py --tema "Salud" --anios 2025-2026
 python app.py --palabras "litio, minería" --tipos PL,PC --comision "Minería" --formatos xlsx
 python app.py --tema "Educación y universidades" --nombre index --salida informes/educacion
+python app.py --seguimiento agregar PE-99/26 S-351/25
+python app.py --seguimiento revisar --salida "C:\Informes" --formatos html,md
+python app.py --seguimiento listar
 python app.py --help
 ```
+
+`--seguimiento revisar` deja el resumen de novedades en HTML y Markdown; `--lista-seguimiento archivo.json` usa otra lista en lugar de la de la configuración, y `--sin-reuniones` acelera la revisión.
 
 `--nombre` fija el nombre del archivo (sin fecha), útil para publicar siempre en la misma dirección.
 
@@ -124,6 +150,10 @@ No se puede publicar el programa como una página web que consulte al Senado des
 
 Lo que se publica en GitHub Pages es público. Los datos ya lo son, pero conviene acordarlo con la Prosecretaría antes de sumarlo al sitio institucional.
 
+### Seguimiento diario con un issue en GitHub
+
+`despliegue/seguimiento.yml` es un flujo de GitHub Actions que, de lunes a viernes a las 8:00 de Buenos Aires, revisa una lista guardada en el repositorio (`seguimiento/lista.json`), vuelve a guardar en ese archivo la foto de cada expediente y abre un issue nuevo con el resumen de novedades en Markdown. Las instrucciones están al comienzo del archivo; con `SOLO_CON_NOVEDADES: "si"` el issue se abre solo cuando hay novedades.
+
 ### En un servidor interno (más adelante)
 
 Si se quisiera usar desde el navegador sin instalar nada, el mismo paquete puede servirse con una pequeña aplicación web (por ejemplo Flask) en un servidor de la Casa con salida a internet. La lógica (`servicio.generar` y `tematico.generar_tematico`) ya está separada de la ventana, así que alcanza con agregar las pantallas web.
@@ -139,6 +169,8 @@ Si se quisiera usar desde el navegador sin instalar nada, el mismo paquete puede
 | `situacion.py` | Situación, pasos del trámite y caducidad. |
 | `busqueda.py`, `ejes.py` | Búsqueda por palabras y filtros; ejes temáticos. |
 | `tematico.py`, `informe_tematico.py` | Informe temático y su escritura en Word, HTML y Excel. |
+| `votaciones.py` | Listado anual de votaciones, detalle y PDF de cada acta, bloques y el índice guardado. |
+| `seguimiento.py` | Lista de seguimiento, foto del estado, comparación y resumen de novedades (HTML y Markdown). |
 | `numeros.py` | Cantidades en letras («VEINTIÚN (21)»). |
 | `contenido.py`, `informe_docx.py`, `informe_html.py` | Contenido y escritura de los informes. |
 | `servicio.py` | Encadena todo; es lo que usan la ventana (`gui.py`) y la línea de comandos (`app.py`). |
@@ -149,4 +181,6 @@ En `docs/relevamiento-fase0.md` está relevado qué publican el sitio del Senado
 
 Pruebas: `pip install pytest` y luego `python -m pytest`. Usan páginas de prueba que reproducen la estructura real del sitio, sin conexión a internet.
 
-Direcciones que usa: `parlamentario/comisiones/verExp/{número}.{año}/{origen}/{tipo}` (ficha), `parlamentario/parlamentaria/avanzada` (búsqueda) y `micrositios/DatosAbiertosExpedientes/BusquedaAvanzada/XLS` (su exportación completa), `parlamentario/comisiones/info/{id}` y `?Reuniones=N` (reuniones), `micrositios/nota/{id}/noticias` (nota de cada reunión), `parlamentario/comisiones/agenda/{id}` (agenda) y `parlamentario/parlamentaria/ordenDelDiaResultadoLink/{año}/{número}` (órdenes del día). En Diputados, `proyectos/proyecto.jsp?exp={número}-D-{año}`.
+Direcciones que usa: `parlamentario/comisiones/verExp/{número}.{año}/{origen}/{tipo}` (ficha), `parlamentario/parlamentaria/avanzada` (búsqueda) y `micrositios/DatosAbiertosExpedientes/BusquedaAvanzada/XLS` (su exportación completa), `parlamentario/comisiones/info/{id}` y `?Reuniones=N` (reuniones), `micrositios/nota/{id}/noticias` (nota de cada reunión), `parlamentario/comisiones/agenda/{id}` (agenda) `parlamentario/parlamentaria/ordenDelDiaResultadoLink/{año}/{número}` (órdenes del día), `votaciones/actas` (listado anual; otros años por POST con `busqueda_actas[anio]`), `votaciones/detalleActa/{id}` y `votaciones/verActaVotacion/{id}` (detalle y PDF de cada acta) y `senadores/listados/agrupados-por-bloques` (bloques actuales). En Diputados, la búsqueda `proyectos/resultado.html?strNumExp={número}&strNumExpOrig={origen}&strNumExpAnio={año}`, que sirve como enlace (la dirección `proyecto.jsp` ya no existe).
+
+Los PDF de actas se leen con `pypdf`, incluida en `requirements.txt`; sin ella, las votaciones de sesiones recientes figuran solo con su resultado.

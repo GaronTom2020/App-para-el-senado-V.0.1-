@@ -18,11 +18,16 @@ from tkinter import font as tkfont
 
 from . import __version__, config
 from .cliente import Cancelado, Cliente, ErrorRed
-from .contenido import comisiones_texto, datos_diputados, datos_generales, descripcion, texto_resumen
+from .contenido import (
+    comisiones_texto, datos_diputados, datos_generales, descripcion, descripcion_votacion, resultado_votacion,
+    texto_resumen, tipo_votacion, totales_votacion,
+)
 from .ficha import ExpedienteNoEncontrado
 from .identificador import ErrorIdentificador, parsear, separar_lote
 from .busqueda import OTROS, Consulta, separar_palabras
 from .ejes import Eje, buscar_eje, cargar_ejes, guardar_ejes
+from .seguimiento import Lista, OpcionesSeguimiento, ResultadoSeguimiento, markdown, revisar
+from .seguimiento import resumen as resumen_seguimiento
 from .servicio import Opciones, generar
 from .tematico import ETAPA, OpcionesTematicas, ResultadoTematico, generar_tematico, resumen, resumen_tipos
 from .tematico import texto_resumen_tematico
@@ -209,6 +214,9 @@ class Aplicacion(tk.Tk):
         self.var_t_docx = tk.BooleanVar(value=c.get("tema_docx", True))
         self.var_t_html = tk.BooleanVar(value=c.get("tema_html", True))
         self.var_t_xlsx = tk.BooleanVar(value=c.get("tema_xlsx", True))
+        self.lista_seguimiento = Lista()
+        self.var_seg_nuevo = tk.StringVar()
+        self.var_seg_reuniones = tk.BooleanVar(value=c.get("seguimiento_reuniones", True))
         self.comisiones_por_nombre = {nombre_comision(n): i for i, n in sorted(config.COMISIONES.items(),
                                                                               key=lambda kv: nombre_comision(kv[1]))}
         self.var_estado = tk.StringVar(value="Escribí uno o más expedientes y presioná «Generar informe».")
@@ -259,6 +267,9 @@ class Aplicacion(tk.Tk):
         exterior, interior = self._desplazable(self.modos)
         self._panel_tema(interior).pack(fill="both", expand=True)
         self.modos.add(exterior, text="Por tema")
+        exterior, interior = self._desplazable(self.modos)
+        self._panel_seguimiento(interior).pack(fill="both", expand=True)
+        self.modos.add(exterior, text="Seguimiento")
         self._panel_resultados(cuerpo).grid(row=0, column=1, sticky="nsew")
 
     def _desplazable(self, padre):
@@ -394,6 +405,63 @@ class Aplicacion(tk.Tk):
             marco.columnconfigure(col, weight=1)
         return marco
 
+    def _panel_seguimiento(self, padre) -> ttk.Frame:
+        marco = ttk.Frame(padre, style="Tarjeta.TFrame", padding=(16, 12, 16, 14))
+        ttk.Label(marco, text="Expedientes en seguimiento", style="Seccion.TLabel").grid(
+            row=0, column=0, columnspan=2, sticky="w", pady=(0, 4))
+        contenedor = ttk.Frame(marco, style="Tarjeta.TFrame")
+        contenedor.grid(row=1, column=0, columnspan=2, sticky="nsew")
+        self.arbol_seguimiento = ttk.Treeview(contenedor, columns=("exp", "situacion"), show="headings",
+                                              selectmode="extended", height=7)
+        self.arbol_seguimiento.heading("exp", text="Expediente", anchor="w")
+        self.arbol_seguimiento.heading("situacion", text="Última situación conocida", anchor="w")
+        self.arbol_seguimiento.column("exp", width=124, stretch=False)
+        self.arbol_seguimiento.column("situacion", width=200, stretch=True)
+        barra = ttk.Scrollbar(contenedor, orient="vertical", command=self.arbol_seguimiento.yview)
+        self.arbol_seguimiento.configure(yscrollcommand=barra.set)
+        self.arbol_seguimiento.pack(side="left", fill="both", expand=True)
+        barra.pack(side="right", fill="y")
+        self.arbol_seguimiento.bind("<Delete>", lambda _e: self._quitar_seguimiento())
+        self.arbol_seguimiento.bind("<Double-1>", lambda _e: self._ficha_seguimiento())
+
+        ttk.Label(marco, text="Agregar expediente", style="Seccion.TLabel").grid(
+            row=2, column=0, columnspan=2, sticky="w", pady=(10, 4))
+        entrada = ttk.Entry(marco, textvariable=self.var_seg_nuevo)
+        entrada.grid(row=3, column=0, sticky="ew", padx=(0, 6))
+        entrada.bind("<Return>", lambda _e: self._agregar_seguimiento())
+        ttk.Button(marco, text="Agregar", command=self._agregar_seguimiento).grid(row=3, column=1, sticky="ew")
+        acciones = ttk.Frame(marco, style="Tarjeta.TFrame")
+        acciones.grid(row=4, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        ttk.Button(acciones, text="Quitar los elegidos", style="Chico.TButton",
+                   command=self._quitar_seguimiento).pack(side="left")
+        ttk.Button(acciones, text="Ver ficha", style="Chico.TButton",
+                   command=self._ficha_seguimiento).pack(side="left", padx=(6, 0))
+        ttk.Label(marco, text="También podés sumar expedientes desde la lista del modo «Por tema», con clic derecho.",
+                  style="Ayuda.TLabel", wraplength=300, justify="left").grid(
+            row=5, column=0, columnspan=2, sticky="w", pady=(6, 0))
+
+        ttk.Label(marco, text="Al revisar", style="Seccion.TLabel").grid(
+            row=6, column=0, columnspan=2, sticky="w", pady=(10, 4))
+        ttk.Checkbutton(marco, text="Buscar también reuniones de comisión (lento)", variable=self.var_seg_reuniones,
+                        style="Tarjeta.TCheckbutton").grid(row=7, column=0, columnspan=2, sticky="w")
+        ttk.Label(marco, text="Se compara cada expediente con la revisión anterior: giros, egresos, dictámenes, "
+                              "votaciones, sanción, reuniones convocadas y caducidad cercana (menos de 60 días). "
+                              "El resumen se guarda en HTML y Markdown en la carpeta de informes.",
+                  style="Ayuda.TLabel", wraplength=300, justify="left").grid(
+            row=8, column=0, columnspan=2, sticky="w", pady=(4, 0))
+
+        botones = ttk.Frame(marco, style="Tarjeta.TFrame")
+        botones.grid(row=9, column=0, columnspan=2, sticky="ew", pady=(14, 0))
+        botones.columnconfigure(0, weight=1)
+        self.btn_revisar = ttk.Button(botones, text="Revisar novedades", style="Acento.TButton",
+                                      command=self._revisar_seguimiento)
+        self.btn_revisar.grid(row=0, column=0, sticky="ew")
+        self.btn_cancelar_seg = ttk.Button(botones, text="Cancelar", command=self._cancelar, state="disabled")
+        self.btn_cancelar_seg.grid(row=0, column=1, padx=(8, 0))
+        marco.columnconfigure(0, weight=1)
+        self._llenar_seguimiento()
+        return marco
+
     def _panel_opciones(self, padre) -> ttk.Frame:
         marco = ttk.Frame(padre, style="Tarjeta.TFrame", padding=(16, 12, 16, 14))
         fila = 0
@@ -487,7 +555,7 @@ class Aplicacion(tk.Tk):
         self.arbol_expedientes = self._arbol(
             self.pestanias, [("exp", "Expediente", 104), ("tipo", "Tipo", 50), ("etapa", "Situación", 210),
                              ("extracto", "Extracto", 300)],
-            ayuda="Doble clic: abre la ficha. Clic derecho: generar el informe completo de ese expediente.")
+            ayuda="Doble clic: abre la ficha. Clic derecho: informe completo o agregar a la lista de seguimiento.")
         self.pestanias.add(self.arbol_expedientes.master, text="Expedientes", state="hidden")
         self.arbol_reuniones = self._arbol(
             self.pestanias, [("fecha", "Fecha", 92), ("reunion", "Reunión", 300), ("tipo", "Tipo", 84),
@@ -496,7 +564,7 @@ class Aplicacion(tk.Tk):
         self.pestanias.add(self.arbol_reuniones.master, text="Reuniones")
         self.arbol_tramite = self._arbol(
             self.pestanias, [("detalle", "Detalle", 300), ("fecha", "Fecha", 100), ("estado", "Estado / egreso", 200)],
-            con_arbol=True, ayuda="Doble clic en una orden del día o convocatoria: la abre en el navegador.")
+            con_arbol=True, ayuda="Doble clic en una orden del día, votación o convocatoria: la abre en el navegador.")
         self.pestanias.add(self.arbol_tramite.master, text="Trámite")
         self.txt_registro = self._texto_solo_lectura(self.pestanias, fuente=self.f_chica)
         self.pestanias.add(self.txt_registro.master, text="Registro")
@@ -535,6 +603,8 @@ class Aplicacion(tk.Tk):
         menu_exp.add_command(label="Ver la ficha en el sitio", command=lambda: self._accion_expediente("ficha"))
         menu_exp.add_command(label="Generar el informe completo de este expediente",
                              command=lambda: self._accion_expediente("informe"))
+        menu_exp.add_command(label="Agregar a la lista de seguimiento",
+                             command=lambda: self._accion_expediente("seguir"))
         menu_exp.add_separator()
         menu_exp.add_command(label="Copiar el número", command=lambda: self._accion_expediente("copiar"))
         self.menu_expediente = menu_exp
@@ -669,9 +739,9 @@ class Aplicacion(tk.Tk):
                        cancelar=self.cancelar, carpeta_diagnostico=diagnostico)
 
     def _ocupado(self, si: bool) -> None:
-        for b in (self.btn_generar, self.btn_generar_tema):
+        for b in (self.btn_generar, self.btn_generar_tema, self.btn_revisar):
             b.state(["disabled"] if si else ["!disabled"])
-        for b in (self.btn_cancelar, self.btn_cancelar_tema):
+        for b in (self.btn_cancelar, self.btn_cancelar_tema, self.btn_cancelar_seg):
             b.state(["!disabled"] if si else ["disabled"])
 
     def _trabajo(self, textos: list[str], opciones: Opciones) -> None:
@@ -702,7 +772,7 @@ class Aplicacion(tk.Tk):
     def _cancelar(self) -> None:
         self.cancelar.set()
         self.var_estado.set("Cancelando…")
-        for b in (self.btn_cancelar, self.btn_cancelar_tema):
+        for b in (self.btn_cancelar, self.btn_cancelar_tema, self.btn_cancelar_seg):
             b.state(["disabled"])
 
     def _procesar_cola(self) -> None:
@@ -733,8 +803,7 @@ class Aplicacion(tk.Tk):
         elif evento == "resultado":
             resultado = datos["resultado"]
             self.resultados.append(resultado)
-            nombres = [(f"Tema: {r.consulta.titulo()[:24]}" if isinstance(r, ResultadoTematico) else r.ficha.id.corto)
-                       + f" ({r.generado:%H:%M})" for r in self.resultados]
+            nombres = [self._nombre_resultado(r) + f" ({r.generado:%H:%M})" for r in self.resultados]
             self.combo_resultado.configure(values=nombres, state="readonly" if len(nombres) > 1 else "disabled")
             self.var_resultado.set(nombres[-1])
             self._mostrar(resultado)
@@ -750,6 +819,9 @@ class Aplicacion(tk.Tk):
                 self.var_estado.set(f"Listo: {hechos} informe{'s' if hechos != 1 else ''} en {datos['carpeta']}")
                 if self.resultados and isinstance(self.resultados[-1], ResultadoTematico):
                     self.var_estado.set(f"Listo: informe temático en {datos['carpeta']}")
+                if self.resultados and isinstance(self.resultados[-1], ResultadoSeguimiento):
+                    self.var_estado.set(f"Listo: {resumen_seguimiento(self.resultados[-1])}")
+                    self._llenar_seguimiento()
             else:
                 self.var_estado.set("No se pudo generar el informe. Mirá el detalle en «Registro».")
             self._registro(f"Pedidos al sitio: {datos['pedidos']} · desde caché: {datos['cache']}")
@@ -771,6 +843,9 @@ class Aplicacion(tk.Tk):
         self.actual = r
         if isinstance(r, ResultadoTematico):
             self._mostrar_tematico(r)
+            return
+        if isinstance(r, ResultadoSeguimiento):
+            self._mostrar_seguimiento(r)
             return
         self._pestanias_visibles(False)
         self.btn_excel.state(["disabled"])
@@ -821,6 +896,127 @@ class Aplicacion(tk.Tk):
         self.btn_copiar.state(["!disabled"])
         self.pestanias.select(self.arbol_expedientes.master if r.items else 0)
 
+    @staticmethod
+    def _nombre_resultado(r) -> str:
+        if isinstance(r, ResultadoTematico):
+            return f"Tema: {r.consulta.titulo()[:24]}"
+        if isinstance(r, ResultadoSeguimiento):
+            return "Seguimiento"
+        return r.ficha.id.corto
+
+    def _mostrar_seguimiento(self, r: ResultadoSeguimiento) -> None:
+        self._pestanias_visibles(True)
+        self.pestanias.tab(self.arbol_expedientes.master, state="hidden")
+        t = self.txt_resumen
+        t.configure(state="normal")
+        t.delete("1.0", "end")
+        self._enlaces.clear()
+        t.insert("end", f"Revisión del {r.generado:%d/%m/%Y, %H:%M} h\n", "suave")
+        t.insert("end", "Seguimiento de expedientes\n", "numero")
+        t.insert("end", resumen_seguimiento(r) + "\n", "extracto")
+        for rev in r.con_novedades:
+            self._enlace(rev.seguido.expediente, rev.url, "rotulo")
+            t.insert("end", "\n", "rotulo")
+            if rev.situacion:
+                t.insert("end", rev.situacion + "\n", "suave")
+            for n in rev.novedades:
+                t.insert("end", "• " + n.texto, "vineta")
+                if n.url:
+                    t.insert("end", "  ")
+                    self._enlace("ver", n.url)
+                t.insert("end", "\n")
+        sin = [rev for rev in r.revisiones if not rev.novedades]
+        if sin:
+            t.insert("end", "Sin novedades\n", "rotulo")
+            for rev in sin:
+                t.insert("end", f"{rev.seguido.expediente}: ", ("vineta", "etiqueta"))
+                t.insert("end", rev.situacion + "\n")
+        t.configure(state="disabled")
+        for formato, boton in (("docx", self.btn_word), ("html", self.btn_html), ("xlsx", self.btn_excel)):
+            boton.state(["!disabled"] if formato in r.archivos else ["disabled"])
+        self.btn_ficha.state(["disabled"])
+        self.btn_copiar.state(["!disabled"])
+        self.pestanias.select(0)
+
+    # ------------------------------------------------------- seguimiento
+    def _llenar_seguimiento(self) -> None:
+        a = self.arbol_seguimiento
+        a.delete(*a.get_children())
+        for s in self.lista_seguimiento.seguidos:
+            a.insert("", "end", iid=s.expediente,
+                     values=(s.expediente, (s.foto or {}).get("situacion", "sin revisar todavía")))
+
+    def _sumar_a_seguimiento(self, texto: str, tipo: str | None = None) -> bool:
+        try:
+            s, nuevo = self.lista_seguimiento.agregar(texto, tipo)
+            self.lista_seguimiento.guardar()
+        except ErrorIdentificador as e:
+            messagebox.showwarning("Revisá el número", str(e))
+            return False
+        except OSError as e:
+            messagebox.showerror("No se pudo guardar la lista", str(e))
+            return False
+        self._llenar_seguimiento()
+        self.var_estado.set(f"{s.expediente} {'se agregó a' if nuevo else 'ya estaba en'} la lista de seguimiento.")
+        return True
+
+    def _agregar_seguimiento(self) -> None:
+        textos = separar_lote(self.var_seg_nuevo.get().replace(",", "\n"))
+        if textos and all(self._sumar_a_seguimiento(x) for x in textos):
+            self.var_seg_nuevo.set("")
+
+    def _quitar_seguimiento(self) -> None:
+        elegidos = self.arbol_seguimiento.selection()
+        if not elegidos:
+            return
+        for corto in elegidos:
+            self.lista_seguimiento.quitar(corto)
+        self.lista_seguimiento.guardar()
+        self._llenar_seguimiento()
+
+    def _ficha_seguimiento(self) -> None:
+        elegidos = self.arbol_seguimiento.selection()
+        s = next((x for x in self.lista_seguimiento.seguidos if elegidos and x.expediente == elegidos[0]), None)
+        if s and s.foto and s.foto.get("url"):
+            webbrowser.open(s.foto["url"])
+        elif s:
+            messagebox.showinfo("Sin revisar", "Todavía no se revisó este expediente: presioná «Revisar novedades».")
+
+    def _revisar_seguimiento(self) -> None:
+        if self.hilo and self.hilo.is_alive():
+            return
+        if not self.lista_seguimiento.seguidos:
+            messagebox.showinfo("Lista vacía", "Agregá al menos un expediente a la lista de seguimiento.")
+            return
+        opciones = OpcionesSeguimiento(buscar_reuniones=self.var_seg_reuniones.get(),
+                                       incluir_asesores=self.var_asesores.get(),
+                                       carpeta_salida=Path(self.var_carpeta.get()).expanduser())
+        self._guardar_preferencias()
+        self.cancelar.clear()
+        self._registro(f"— Revisión de la lista de seguimiento ({len(self.lista_seguimiento.seguidos)} expedientes)")
+        self._ocupado(True)
+        self.hilo = threading.Thread(target=self._trabajo_seguimiento, args=(opciones,), daemon=True)
+        self.hilo.start()
+
+    def _trabajo_seguimiento(self, opciones: OpcionesSeguimiento) -> None:
+        cliente = self._nuevo_cliente()
+        hechos, fallidos = 0, []
+
+        def avisar(evento, mensaje="", **datos):
+            self.cola.put((evento, mensaje, datos))
+
+        try:
+            res = revisar(self.lista_seguimiento, cliente, opciones, avisar)
+            self.cola.put(("resultado", "", {"resultado": res}))
+            hechos = 1
+        except Cancelado:
+            self.cola.put(("log", "Revisión cancelada.", {}))
+        except Exception as e:  # noqa: BLE001
+            fallidos.append(mensaje_de_error(e))
+            self.cola.put(("log", traceback.format_exc(), {}))
+        self.cola.put(("fin", "", {"hechos": hechos, "fallidos": fallidos, "carpeta": str(opciones.carpeta_salida),
+                                   "pedidos": cliente.pedidos_red, "cache": cliente.pedidos_cache}))
+
     def _expediente_elegido(self):
         if not isinstance(self.actual, ResultadoTematico):
             return None
@@ -843,6 +1039,8 @@ class Aplicacion(tk.Tk):
         elif que == "copiar":
             self.clipboard_clear()
             self.clipboard_append(ident.corto)
+        elif que == "seguir":
+            self._sumar_a_seguimiento(ident.corto, ident.tipo)
         elif que == "informe":
             if self.hilo and self.hilo.is_alive():
                 messagebox.showinfo("Consulta en curso", "Esperá a que termine la consulta actual.")
@@ -969,14 +1167,14 @@ class Aplicacion(tk.Tk):
         self.cola.put(("fin", "", {"hechos": hechos, "fallidos": fallidos, "carpeta": str(opciones.carpeta_salida),
                                    "pedidos": cliente.pedidos_red, "cache": cliente.pedidos_cache}))
 
-    def _enlace(self, texto: str, url: str | None) -> None:
+    def _enlace(self, texto: str, url: str | None, estilo: str | None = None) -> None:
         t = self.txt_resumen
         if not url:
-            t.insert("end", texto)
+            t.insert("end", texto, estilo or ())
             return
         etiqueta = f"enlace{len(self._enlaces)}"
         self._enlaces[etiqueta] = url
-        t.insert("end", texto, ("enlace", etiqueta))
+        t.insert("end", texto, ((estilo,) if estilo else ()) + ("enlace", etiqueta))
         t.tag_bind(etiqueta, "<Button-1>", lambda _e, u=url: webbrowser.open(u))
 
     def _escribir_resumen(self, r) -> None:
@@ -1024,6 +1222,14 @@ class Aplicacion(tk.Tk):
                 t.insert("end", "  ")
                 self._enlace("Video", v)
             t.insert("end", "\n")
+        if r.votaciones:
+            t.insert("end", f"Votaciones en el recinto ({len(r.votaciones)})\n", "rotulo")
+            for v in r.votaciones:
+                totales = " · ".join(totales_votacion(v)) if v.con_totales else "sin totales publicados"
+                t.insert("end", f"{fmt_fecha(v.fecha)}  {tipo_votacion(v)}: {resultado_votacion(v)} ({totales})  ",
+                         "vineta")
+                self._enlace(descripcion_votacion(v)[:80], v.url)
+                t.insert("end", "\n")
         if r.convocadas:
             t.insert("end", "Próximas reuniones convocadas\n", "rotulo")
             for c in r.convocadas:
@@ -1067,6 +1273,14 @@ class Aplicacion(tk.Tk):
                 iid = a.insert(o_id, "end", values=(f"N° {od.numero}", fmt_fecha(od.fecha), od.estado.capitalize()))
                 if od.url_pdf or od.url:
                     self._urls_tramite[iid] = od.url_pdf or od.url
+        if r.votaciones:
+            v_id = a.insert("", "end", values=("Votaciones en el recinto", "", ""), open=True, tags=("grupo",))
+            for v in r.votaciones:
+                totales = f" ({v.afirmativos} a {v.negativos})" if v.con_totales else ""
+                iid = a.insert(v_id, "end", values=(descripcion_votacion(v), fmt_fecha(v.fecha),
+                                                    f"{tipo_votacion(v)}: {resultado_votacion(v)}{totales}"))
+                if v.url:
+                    self._urls_tramite[iid] = v.url
         if r.convocadas:
             c_id = a.insert("", "end", values=("Reuniones convocadas", "", ""), open=True, tags=("grupo",))
             for c in r.convocadas:
@@ -1132,8 +1346,12 @@ class Aplicacion(tk.Tk):
     def _copiar(self) -> None:
         if self.actual:
             self.clipboard_clear()
-            texto = texto_resumen_tematico(self.actual) if isinstance(self.actual, ResultadoTematico) \
-                else texto_resumen(self.actual)
+            if isinstance(self.actual, ResultadoTematico):
+                texto = texto_resumen_tematico(self.actual)
+            elif isinstance(self.actual, ResultadoSeguimiento):
+                texto = markdown(self.actual)
+            else:
+                texto = texto_resumen(self.actual)
             self.clipboard_append(texto)
             self.var_estado.set("Resumen copiado al portapapeles.")
 
@@ -1165,7 +1383,10 @@ class Aplicacion(tk.Tk):
             "2. Para las reuniones, recorre las reuniones publicadas por cada comisión del giro desde el ingreso "
             "del expediente y abre cada nota para ver si figura en el temario. De cada una toma la versión "
             "taquigráfica y el video.\n\n"
-            "3. Revisa la agenda de esas comisiones para avisar si ya hay una reunión convocada.\n\n"
+            "3. Revisa la agenda de esas comisiones para avisar si ya hay una reunión convocada, y busca las "
+            "votaciones nominales del recinto sobre el expediente o su orden del día.\n\n"
+            "Seguimiento: guarda una lista de expedientes y, al revisarla, avisa qué cambió desde la revisión "
+            "anterior (giros, dictámenes, votaciones, sanción, convocatorias y caducidad cercana).\n\n"
             "Por tema: busca en el Senado los expedientes cuyo extracto menciona las palabras del eje, filtra por "
             "años, origen, tipo y comisión, y arma un informe con la etapa de cada uno, en Word, HTML y Excel.\n\n"
             "4. Deduce la situación actual y estima la caducidad (Ley 13.640). Es orientativa: si importa, "
@@ -1188,6 +1409,7 @@ class Aplicacion(tk.Tk):
             "diagnostico": self.var_diagnostico.get(),
             "tema_tipos": [c for c, v in self.vars_tipos.items() if v.get()], "tema_detallar": self.var_detallar.get(),
             "tema_docx": self.var_t_docx.get(), "tema_html": self.var_t_html.get(), "tema_xlsx": self.var_t_xlsx.get(),
+            "seguimiento_reuniones": self.var_seg_reuniones.get(),
         })
         guardar_config(self.cfg)
 

@@ -6,7 +6,8 @@ import re
 from dataclasses import dataclass
 
 from . import config
-from .modelos import Ficha, Resultado
+from .modelos import Ficha, Resultado, Votacion
+from .numeros import cantidad, en_letras
 from .util import fmt_fecha, nombre_comision, normalizar, parsear_fecha, titulo_es
 
 
@@ -85,7 +86,7 @@ def datos_diputados(ficha: Ficha) -> list[tuple[str, Linea]]:
     filas: list[tuple[str, Linea]] = []
     if etapa.expedientes:
         filas.append(("Expedientes en Diputados", _unir(
-            [Fragmento(e, config.URL_HCDN_PROYECTO.format(exp=e)) for e in etapa.expedientes])))
+            [Fragmento(e, config.url_hcdn(e)) for e in etapa.expedientes])))
     elif etapa.texto_expedientes:
         filas.append(("Expedientes en Diputados", [Fragmento(etapa.texto_expedientes)]))
     if etapa.orden_del_dia:
@@ -160,6 +161,84 @@ def alcance_busqueda(resultado: Resultado) -> str:
     return texto
 
 
+# ================================================================ votaciones
+
+def tipo_votacion(v: Votacion) -> str:
+    return (v.tipo or "votación").capitalize()
+
+
+def resultado_votacion(v: Votacion) -> str:
+    return v.resultado.capitalize() if v.resultado else "—"
+
+
+def descripcion_votacion(v: Votacion) -> str:
+    titulo = normalizar(v.titulo)
+    partes = [v.titulo or "Votación sin título publicado"]
+    ods = [od for od in v.ordenes_del_dia if od not in v.titulo]
+    if ods:
+        partes.append("OD " + ", ".join(ods))
+    articulos = [a.strip() for a in v.articulos.split(",") if a.strip()]
+    if articulos and "ART" not in titulo:
+        partes.append(", ".join(articulos) if len(articulos) <= 3 else f"{articulos[0]} a {articulos[-1]}")
+    return " · ".join(partes)
+
+
+def enlaces_votacion(v: Votacion) -> list[Fragmento]:
+    enlaces = []
+    if v.url_detalle:
+        enlaces.append(Fragmento("Acta", v.url_detalle))
+    if v.url_pdf:
+        enlaces.append(Fragmento("PDF", v.url_pdf))
+    if v.video:
+        enlaces.append(Fragmento("Video", v.video))
+    return enlaces
+
+
+def totales_votacion(v: Votacion) -> list[str]:
+    if not v.con_totales:
+        return ["—"] * 4
+    return [str(x if x is not None else "—") for x in (v.afirmativos, v.negativos, v.abstenciones, v.ausentes)]
+
+
+def texto_votaciones(resultado: Resultado) -> str:
+    """Párrafo de la sección, con las cantidades en forma normativa."""
+    vs = resultado.votaciones
+    if not vs:
+        return ("No se encontraron votaciones nominales del recinto sobre este expediente ni sobre sus "
+                "órdenes del día.")
+    generales = sum(1 for v in vs if v.en_general)
+    texto = f"Se registran {cantidad(len(vs), 'votación nominal', 'votaciones nominales', femenino=True)} en el recinto"
+    if generales and generales < len(vs):
+        otras = len(vs) - generales
+        texto += (f": {en_letras(generales, True)} ({generales}) en general y {en_letras(otras, True)} ({otras}) "
+                  "en particular o sobre mociones")
+    elif generales:
+        texto += " en general" if generales == 1 else ", todas en general"
+    return texto + "."
+
+
+def nota_votacion(v: Votacion) -> str:
+    """Fuente y datos de quórum de una votación, para el pie de su tabla por bloque."""
+    partes = []
+    if v.mayoria:
+        partes.append(f"Mayoría requerida: {v.mayoria.lower()}")
+    if v.quorum:
+        partes.append(f"quórum: {v.quorum}")
+    if v.presentes:
+        partes.append(f"presentes: {v.presentes}")
+    if v.presidente:
+        partes.append(f"presidencia: {titulo_es(v.presidente)}")
+    texto = "; ".join(partes) + "." if partes else ""
+    if v.fuente == "pdf":
+        texto += (" El detalle oficial del acta todavía no se publicó: los votos salen del PDF del acta"
+                  + (" y el bloque de cada senador, del listado de bloques actual." if v.bloques_actuales else "."))
+    return texto.strip()
+
+
+def votaciones_con_bloques(resultado: Resultado) -> list[Votacion]:
+    return [v for v in resultado.votaciones if v.en_general and v.votos]
+
+
 def texto_resumen(resultado: Resultado) -> str:
     """Resumen en texto plano (vista previa y «Copiar resumen»)."""
     f, s = resultado.ficha, resultado.situacion
@@ -190,6 +269,12 @@ def texto_resumen(resultado: Resultado) -> str:
         lineas += ["", "Próximas reuniones convocadas"]
         for c in resultado.convocadas:
             lineas.append(f"  {fmt_fecha(c.fecha)} {c.hora}  {c.comision}  {c.lugar}")
+    if resultado.votaciones:
+        lineas += ["", "Votaciones en el recinto"]
+        for v in resultado.votaciones:
+            totales = "-".join(totales_votacion(v)) if v.con_totales else "sin totales publicados"
+            lineas.append(f"  {fmt_fecha(v.fecha)}  {tipo_votacion(v)}: {resultado_votacion(v)} ({totales})")
+            lineas.append(f"      {descripcion_votacion(v)}  {v.url or ''}")
     if f.ordenes_del_dia:
         lineas += ["", "Órdenes del Día del Senado"]
         for od in f.ordenes_del_dia:
