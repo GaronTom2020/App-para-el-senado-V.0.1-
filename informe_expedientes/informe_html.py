@@ -8,7 +8,7 @@ from pathlib import Path
 from . import __version__
 from .contenido import (
     Linea, alcance_busqueda, bloques_resolucion, comisiones_texto, datos_diputados, datos_generales,
-    datos_diputados_hcdn, descripcion, sesiones_votadas, texto_votaciones,
+    datos_diputados_hcdn, descripcion, sesiones_votadas, texto_votaciones, titulo_etapa_diputados,
 )
 from .modelos import Resultado
 from .util import fmt_fecha, nombre_comision
@@ -210,7 +210,7 @@ def contenido_html(resultado: Resultado, ejemplo: bool = False, incrustado: bool
 
     dip = datos_diputados(f) + datos_diputados_hcdn(resultado)
     if dip:
-        agregar("<h2>Etapa en la Cámara de Diputados</h2>")
+        agregar(f"<h2>{_e(titulo_etapa_diputados(resultado))}</h2>")
         agregar(_dl(dip))
 
     if f.giros:

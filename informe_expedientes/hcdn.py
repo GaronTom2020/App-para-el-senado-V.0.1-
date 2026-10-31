@@ -43,6 +43,44 @@ class Dictamen:
 
 
 @dataclass
+class Estado:
+    """En qué está el proyecto en una cámara: rechazado · sancionado · modificado · aprobado · con_dictamen ·
+    en_comision · ingresado."""
+    clave: str
+    texto: str
+    fecha: date | None = None
+    comisiones: list[str] = field(default_factory=list)
+
+
+def _f(d: date | None) -> str:
+    return d.strftime("%d/%m/%Y") if d else "—"
+
+
+_MAYORIAS = [
+    (r"\bCON MODIFICACIONES\b", "con modificaciones"),
+    (r"\bSIN MODIFICACIONES\b", "sin modificaciones"),
+    (r"\bACONSEJA (?:SU|LA) SANCION\b", "aconseja su sanción"),
+    (r"\bACONSEJA (?:SU|EL) RECHAZO\b", "aconseja su rechazo"),
+    (r"\bACONSEJA (?:APROBAR|LA APROBACION)\b", "aconseja aprobarlo"),
+    (r"\bACONSEJA ACEPTAR LAS MODIFICACIONES\b", "aconseja aceptar las modificaciones"),
+]
+
+
+def mayoria(texto: str) -> str:
+    """Qué aconseja el dictamen de mayoría, en pocas palabras («con modificaciones», «aconseja su sanción»)."""
+    n = normalizar(texto)
+    m = re.search(r"DICTAMEN DE MAYORIA:\s*([^;]+)", n)
+    clausula = m.group(1) if m else n
+    return next((texto_ for patron, texto_ in _MAYORIAS if re.search(patron, clausula)), "")
+
+
+def _od(numero: str) -> str:
+    """«0448/2026» → «448/2026»."""
+    n, _, a = numero.partition("/")
+    return f"{int(n)}/{a}" if n.isdigit() else numero
+
+
+@dataclass
 class ProyectoHCDN:
     titulo: str
     iniciado_en: str = ""
@@ -80,6 +118,44 @@ class ProyectoHCDN:
 
     def pases(self) -> list[Movimiento]:
         return [m for m in self.tramite if re.match(r"(PASA|VUELVE) A ", normalizar(m.movimiento))]
+
+    def rechazos(self) -> list[Movimiento]:
+        """Rechazo total del proyecto en una cámara (el sitio lo marca con el resultado «RECHAZADO»)."""
+        return [m for m in self.tramite if normalizar(m.resultado) == "RECHAZADO"]
+
+    def dictamenes_de(self, camara: str) -> list[Dictamen]:
+        return [d for d in self.dictamenes if normalizar(d.camara).startswith(normalizar(camara)[:5])]
+
+    def estado(self, camara: str = "Diputados", origen: str = "Senado") -> "Estado | None":
+        """En qué está el proyecto en esa cámara, según su trámite (del último hecho al primero)."""
+        propios = self._de(camara)
+        rechazo = next((m for m in reversed(self.rechazos()) if m in propios), None)
+        if rechazo:
+            return Estado("rechazado", f"rechazado el {_f(rechazo.fecha)}", rechazo.fecha)
+        sancion = self.ultima_sancion(camara)
+        if sancion:
+            if normalizar(sancion.resultado) == "SANCIONADO":
+                return Estado("sancionado", f"sanción definitiva el {_f(sancion.fecha)}", sancion.fecha)
+            vuelve = any(normalizar(m.movimiento).startswith(f"VUELVE A {normalizar(origen)}")
+                         for m in self.tramite[self.tramite.index(sancion):])
+            if vuelve and normalizar(camara) != normalizar(origen):
+                return Estado("modificado", f"aprobado con modificaciones el {_f(sancion.fecha)}: vuelve "
+                                            f"{'al Senado' if normalizar(origen).startswith('SENAD') else 'a Diputados'}",
+                              sancion.fecha)
+            texto = "media sanción" if normalizar(camara) == normalizar(origen) else "aprobado"
+            return Estado("aprobado", f"{texto} el {_f(sancion.fecha)}", sancion.fecha)
+        dictamenes = self.dictamenes_de(camara)
+        if dictamenes:
+            d = dictamenes[-1]
+            extra = f", {mayoria(d.texto)}" if mayoria(d.texto) else ""
+            return Estado("con_dictamen", f"con dictamen de comisión: Orden del Día N° {_od(d.orden_del_dia)} "
+                                          f"({_f(d.fecha)}){extra}", d.fecha)
+        giros = self.giros_diputados if normalizar(camara).startswith("DIPUT") else self.giros_senado
+        if giros:
+            return Estado("en_comision", "en comisión", None, giros)
+        if any(normalizar(m.movimiento).startswith(f"PASA A {normalizar(camara)}") for m in self.tramite):
+            return Estado("ingresado", "ingresó, todavía sin giro a comisión", None)
+        return None
 
     def articulos_en_particular(self, camara: str) -> tuple[list[str], list[str]]:
         """(modificados, rechazados) en las votaciones en particular de la cámara, si el trámite los nombra."""

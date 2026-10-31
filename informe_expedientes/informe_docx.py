@@ -16,7 +16,7 @@ from docx.shared import Cm, Pt, RGBColor
 from . import __version__
 from .contenido import (
     Linea, alcance_busqueda, bloques_resolucion, comisiones_texto, datos_diputados, datos_generales,
-    datos_diputados_hcdn, descripcion, sesiones_votadas, texto_votaciones,
+    datos_diputados_hcdn, descripcion, sesiones_votadas, texto_votaciones, titulo_etapa_diputados,
 )
 from .modelos import Resultado
 from .util import fmt_fecha, nombre_comision
@@ -370,7 +370,7 @@ class _Escritor:
 
         dip = datos_diputados(f) + datos_diputados_hcdn(r)
         if dip:
-            self.titulo("Etapa en la Cámara de Diputados")
+            self.titulo(titulo_etapa_diputados(r))
             self.pares(dip)
 
         if f.giros:

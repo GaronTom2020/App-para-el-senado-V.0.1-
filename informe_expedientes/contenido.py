@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 
 from . import config
-from . import votaciones as votaciones_mod
+from . import hcdn as hcdn_mod, votaciones as votaciones_mod
 from .modelos import Ficha, Resultado, Votacion
 from .numeros import cantidad
 from .util import fmt_fecha, nombre_comision, normalizar, parsear_fecha, titulo_es
@@ -268,11 +268,24 @@ def _numero_hcdn(numero: str) -> str:
     return f"{int(partes[0])}-{partes[1]}" if len(partes) == 2 and partes[0].isdigit() else numero
 
 
+def titulo_etapa_diputados(resultado: Resultado) -> str:
+    """«Etapa en la Cámara de Diputados (revisión)» si el proyecto viene del Senado; «(origen)» si viene de allí."""
+    if resultado.ficha.id.origen == "CD":
+        return "Etapa en la Cámara de Diputados (origen)"
+    return "Etapa en la Cámara de Diputados (revisión)"
+
+
+def _recortar(texto: str, largo: int = 110) -> str:
+    texto = re.split(r"\s+CONJUNTAMENTE\b", texto)[0].rstrip(" -")
+    return texto if len(texto) <= largo else texto[:largo].rsplit(" ", 1)[0] + "…"
+
+
 def datos_diputados_hcdn(resultado: Resultado) -> list[tuple[str, Linea]]:
     """Lo que registra el sitio de Diputados sobre el paso del proyecto por esa Cámara."""
     p = resultado.diputados
     if p is None:
         return []
+    origen = "Diputados" if resultado.ficha.id.origen == "CD" else "Senado"
     filas: list[tuple[str, Linea]] = []
     if p.expediente_diputados:
         filas.append(("Expediente en Diputados", [Fragmento(_numero_hcdn(p.expediente_diputados),
@@ -281,17 +294,29 @@ def datos_diputados_hcdn(resultado: Resultado) -> list[tuple[str, Linea]]:
         filas.append(("Expediente en Diputados", [Fragmento("pasó a Diputados; todavía sin número propio", p.url)]))
     else:
         return []
+    estado = p.estado("Diputados", origen)
+    if estado is not None:
+        filas.append(("Estado en Diputados", [Fragmento(estado.texto[0].upper() + estado.texto[1:] + ".")]))
     if p.giros_diputados:
         filas.append(("Giro en Diputados", [Fragmento(comisiones_texto([titulo_es(g) for g in p.giros_diputados]))]))
-    for d in p.dictamenes:
-        if normalizar(d.camara).startswith("DIPUT"):
-            filas.append(("Dictamen en Diputados", [Fragmento(f"Orden del Día N° {d.orden_del_dia}"
-                                                             + (f" ({fmt_fecha(d.fecha)})" if d.fecha else ""))]))
-    for m in p.sanciones():
+    for d in p.dictamenes_de("Diputados"):
+        que = hcdn_mod.mayoria(d.texto)
+        filas.append(("Dictamen en Diputados", [Fragmento(
+            f"Orden del Día N° {hcdn_mod._od(d.orden_del_dia)}" + (f" ({fmt_fecha(d.fecha)})" if d.fecha else "")
+            + (f": {que}" if que else ""))]))
+    for m in p.sanciones() + p.rechazos():
         if normalizar(m.camara).startswith("DIPUT"):
-            resultado_dip = {"MEDIA SANCION": "Media sanción", "SANCIONADO": "Sanción definitiva"}.get(
-                normalizar(m.resultado), m.resultado.capitalize())
-            filas.append(("Votación en Diputados", [Fragmento(f"{resultado_dip} el {fmt_fecha(m.fecha)}")]))
+            if normalizar(m.resultado) == "RECHAZADO":
+                texto = f"Rechazado el {fmt_fecha(m.fecha)}"
+            elif normalizar(m.resultado) == "SANCIONADO":
+                texto = f"Sanción definitiva el {fmt_fecha(m.fecha)}"
+            elif origen == "Diputados":
+                texto = f"Media sanción el {fmt_fecha(m.fecha)}"
+            elif estado is not None and estado.clave == "modificado":
+                texto = f"Aprobado con modificaciones el {fmt_fecha(m.fecha)}: vuelve al Senado"
+            else:
+                texto = f"Aprobado el {fmt_fecha(m.fecha)}"
+            filas.append(("Votación en Diputados", [Fragmento(texto)]))
     modificados, rechazados = p.articulos_en_particular("Diputados")
     observaciones = []
     if modificados:
@@ -302,9 +327,8 @@ def datos_diputados_hcdn(resultado: Resultado) -> list[tuple[str, Linea]]:
         filas.append(("En particular", [Fragmento("; ".join(observaciones).capitalize() + ".")]))
     ultimo = next((m for m in reversed(p.tramite) if normalizar(m.camara).startswith("DIPUT")), None)
     if ultimo:
-        movimiento = re.split(r"\s+CONJUNTAMENTE\b", ultimo.movimiento)[0].rstrip(" -")
         filas.append(("Último movimiento en Diputados", [Fragmento(
-            movimiento.capitalize() + (f" ({fmt_fecha(ultimo.fecha)})" if ultimo.fecha else ""))]))
+            _recortar(ultimo.movimiento).capitalize() + (f" ({fmt_fecha(ultimo.fecha)})" if ultimo.fecha else ""))]))
     filas.append(("Fuente", [Fragmento("sitio de la Cámara de Diputados", p.url)]))
     return filas
 
@@ -325,8 +349,12 @@ def texto_resumen(resultado: Resultado) -> str:
         etiqueta = "Caducidad registrada" if s.caducidad.registrada else "Caducidad estimada"
         lineas.append(f"  {etiqueta}: {fmt_fecha(s.caducidad.fecha)}")
     lineas += ["", "Datos del expediente"]
-    for etiqueta, linea in datos_generales(f) + datos_diputados(f) + datos_diputados_hcdn(resultado):
+    for etiqueta, linea in datos_generales(f):
         lineas.append(f"  {etiqueta}: " + "".join(fr.texto for fr in linea))
+    dip = datos_diputados(f) + datos_diputados_hcdn(resultado)
+    if dip:
+        lineas += ["", titulo_etapa_diputados(resultado)]
+        lineas += [f"  {etiqueta}: " + "".join(fr.texto for fr in linea) for etiqueta, linea in dip]
     if f.giros:
         lineas += ["", "Giros a comisiones"]
         for g in f.giros:

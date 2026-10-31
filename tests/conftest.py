@@ -63,6 +63,11 @@ for _n, _t in ((702, "PL"), (718, "PL"), (808, "PL"), (865, "PL"), (645, "PL"), 
     MAPA[f"{B}/parlamentario/comisiones/verExp/{_n}.26/S/{_t}"] = f"ficha_s_{_n}_26.html"
     if _t == "PL":
         MAPA[f"{H}&strNumExp={_n}&strNumExpOrig=S&strNumExpAnio=2026"] = f"hcdn_s_{_n}_26.html"
+# Etapa en Diputados (Fase 3): en comisión, modificado, rechazado y sancionado.
+for _n, _a, _o in ((361, 2026, "S"), (13, 2026, "PE"), (1167, 2025, "S"), (98, 2026, "PE")):
+    _archivo = f"{_o.lower()}_{_n}_{_a % 100:02d}.html"
+    MAPA[f"{B}/parlamentario/comisiones/verExp/{_n}.{_a % 100:02d}/{_o}/PL"] = f"ficha_{_archivo}"
+    MAPA[f"{H}&strNumExp={_n}&strNumExpOrig={_o}&strNumExpAnio={_a}"] = f"hcdn_{_archivo}"
 MAPA[f"{B}/parlamentario/parlamentaria/actas"] = "plenario_labor.html"
 BINARIOS[f"{B}/parlamentario/parlamentaria/Acta%20de%20labor%20parlamentaria%20%2028-10-2026.pdf/download"] = \
     "plan_labor_2026-10-28.pdf"

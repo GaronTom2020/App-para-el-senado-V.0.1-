@@ -18,7 +18,7 @@ from datetime import date, datetime
 from html import escape
 from pathlib import Path
 
-from . import __version__, config
+from . import __version__, config, hcdn
 from .cliente import Cancelado, Cliente
 from .identificador import ErrorIdentificador, parsear
 from .modelos import Resultado
@@ -167,9 +167,13 @@ def foto(r: Resultado) -> dict:
                        for sv in sesiones_votadas(r)],
         "diputados": [[m.camara, m.movimiento, _iso(m.fecha), m.resultado]
                       for m in (r.diputados.tramite if r.diputados is not None else [])
-                      if normalizar(m.resultado) in ("MEDIA SANCION", "SANCIONADO")
+                      if normalizar(m.resultado) in ("MEDIA SANCION", "SANCIONADO", "RECHAZADO")
                       or any(k in normalizar(m.movimiento) for k in _MOVIMIENTOS)],
         "diputados_url": r.diputados.url if r.diputados is not None else None,
+        "diputados_numero": r.diputados.expediente_diputados if r.diputados is not None else None,
+        "diputados_giros": list(r.diputados.giros_diputados) if r.diputados is not None else [],
+        "diputados_dictamenes": [[d.orden_del_dia, _iso(d.fecha), hcdn.mayoria(d.texto)]
+                                 for d in (r.diputados.dictamenes_de("Diputados") if r.diputados is not None else [])],
         "reuniones": [[x.nota_id, _iso(x.fecha), x.titulo, x.url] for x in r.reuniones],
         "reuniones_buscadas": r.busqueda.realizada,
         "convocadas": [[_iso(c.fecha) or c.fecha_texto, c.hora, c.titulo, c.comision, c.url] for c in r.convocadas],
@@ -179,10 +183,17 @@ def foto(r: Resultado) -> dict:
 
 # ================================================================ comparación
 
+def _sin_ceros(numero: str) -> str:
+    n, _, resto = numero.partition("-")
+    return f"{int(n)}-{resto}" if n.isdigit() else numero
+
+
 def _movimiento(camara: str, movimiento: str, fecha: str | None, resultado: str) -> str:
     """«Senado: media sanción (29/10/2026)» · «pasó a Diputados» · «Diputados: veto total del Poder Ejecutivo»."""
     cuando = f" ({fmt_fecha(_fecha(fecha))})" if fecha else ""
     n = normalizar(movimiento)
+    if normalizar(resultado) == "RECHAZADO":
+        return f"{camara}: rechazo total del proyecto{cuando}"
     if normalizar(resultado) in ("MEDIA SANCION", "SANCIONADO"):
         que = "media sanción" if normalizar(resultado) == "MEDIA SANCION" else "sanción definitiva"
         if "MODIFICACION" in n:
@@ -246,6 +257,25 @@ def comparar(anterior: dict | None, nueva: dict, hoy: date) -> list[Novedad]:
             if (camara, movimiento, fecha) not in movimientos_previos:
                 agregar(Novedad("diputados", f"El sitio de Diputados registra: {_movimiento(camara, movimiento, fecha, resultado)}.",
                                 nueva.get("diputados_url")))
+
+        url_dip = nueva.get("diputados_url")
+        if nueva.get("diputados_numero") and not anterior.get("diputados_numero"):
+            agregar(Novedad("diputados", f"Ingresó a Diputados como expediente {_sin_ceros(nueva['diputados_numero'])}.",
+                            url_dip))
+        giros_previos = set(anterior.get("diputados_giros", []))
+        nuevos_giros = [g for g in nueva.get("diputados_giros", []) if g not in giros_previos]
+        if nuevos_giros:
+            nombres = [nombre_comision(titulo_es(g)) for g in nuevos_giros]
+            agregar(Novedad("diputados", "Diputados lo giró a " + ("la comisión de " if len(nombres) == 1 else
+                                                                  "las comisiones de ")
+                            + (nombres[0] if len(nombres) == 1 else ", ".join(nombres[:-1]) + " y " + nombres[-1])
+                            + ".", url_dip))
+        dictamenes_previos = {d[0] for d in anterior.get("diputados_dictamenes", [])}
+        for od, fecha, que in nueva.get("diputados_dictamenes", []):
+            if od not in dictamenes_previos:
+                cuando = f" del {fmt_fecha(_fecha(fecha))}" if fecha else ""
+                agregar(Novedad("diputados", f"Dictamen en Diputados: Orden del Día N° {hcdn._od(od)}{cuando}"
+                                             + (f", {que}" if que else "") + ".", url_dip))
 
         if nueva.get("reuniones_buscadas") and anterior.get("reuniones_buscadas"):
             notas_previas = {x[0] for x in anterior.get("reuniones", [])}

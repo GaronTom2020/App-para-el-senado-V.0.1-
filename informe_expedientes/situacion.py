@@ -132,6 +132,11 @@ def calcular(ficha: Ficha, hoy: date | None = None, votaciones: list[Votacion] |
             if r is not None and r.insistencia == "lograda":
                 nivel = "sancionado"
                 titulo = titulo.replace("(vetada:", "(insistencia ante el veto:")
+    elif "APROB" in sancion and r is not None and r.rechazo and r.rechazo.camara == r.revisora:
+        nivel = "rechazado"
+        titulo = f"Rechazado por {'la Cámara de Diputados' if r.revisora == tramite.DIPUTADOS else 'el Senado'}"
+        if fecha_senado:
+            detalle.append(f"El Senado lo había aprobado el {fmt_fecha(fecha_senado)}.")
     elif "APROB" in sancion:
         nivel = "aprobado"
         cuando = f" el {fmt_fecha(fecha_senado)}" if fecha_senado else ""
@@ -158,7 +163,7 @@ def calcular(ficha: Ficha, hoy: date | None = None, votaciones: list[Votacion] |
             titulo = "Aprobado por el Senado"
             detalle.append(f"Aprobado{cuando}.")
         if nota_senado.strip():
-            detalle.append(f"Nota de la ficha: {nota_senado.strip()}.")
+            detalle.append(f"Nota de la ficha: {nota_senado.strip().rstrip('.')}.")
     elif "RECHAZ" in sancion:
         nivel = "rechazado"
         titulo = "Rechazado por el Senado"
@@ -278,13 +283,23 @@ def _pasos_congreso(r, numero_ley, fecha_ley, b_pe) -> list[Paso]:
     ))
     if r.origen == tramite.SENADO:
         definitiva = r.sancion is not None and r.sancion.camara == tramite.DIPUTADOS
-        pasos.append(Paso(
-            "Cámara de Diputados",
-            "hecho" if diputados else "pendiente",
-            diputados.fecha if diputados else None,
-            _detalle_paso(diputados, "con modificaciones" if r.revision_modifico else
-                          ("sancionó" if definitiva else "aprobó")) if diputados else "",
-        ))
+        rechazo = r.rechazo if r.rechazo and r.rechazo.camara == tramite.DIPUTADOS else None
+        estado = r.estado_revisora
+        if diputados:
+            paso = Paso("Cámara de Diputados", "hecho", diputados.fecha,
+                        _detalle_paso(diputados, "con modificaciones" if r.revision_modifico else
+                                      ("sancionó" if definitiva else "aprobó")))
+        elif rechazo:
+            paso = Paso("Cámara de Diputados", "detenido", rechazo.fecha, "rechazó")
+        else:
+            detalle = ""
+            if estado is not None and estado.clave == "con_dictamen":
+                detalle = estado.texto.replace("con dictamen de comisión: Orden del Día N°", "dictamen, OD")
+                detalle = detalle.split(" (")[0]
+            elif estado is not None and estado.clave in ("en_comision", "ingresado"):
+                detalle = "en comisión" if estado.clave == "en_comision" else "ingresó"
+            paso = Paso("Cámara de Diputados", "pendiente", estado.fecha if estado else None, detalle)
+        pasos.append(paso)
     if r.revision_modifico:
         pasos.append(Paso(
             "Vuelve al Senado" if r.origen == tramite.SENADO else "Vuelve a Diputados",
@@ -368,8 +383,14 @@ def _pasos(ficha, situacion, r, numero_ley, fecha_ley, fecha_senado, sancion, b_
             + (" en el recinto; sin registro en la ficha" if por_votacion else ""),
         ))
 
+    # Comisión y dictamen no se hicieron si se trató sobre tablas: no son donde se detuvo.
+    hechos = [i for i, p in enumerate(pasos) if p.estado == "hecho"]
+    for i, p in enumerate(pasos):
+        if p.nombre in ("Comisión", "Dictamen") and p.estado == "pendiente" and hechos and i < hechos[-1]:
+            p.estado, p.detalle = "hecho", ("sin dictamen" if p.nombre == "Dictamen" else "sin giro")
+
     # Marca dónde está (o dónde se detuvo) el expediente.
-    if situacion.nivel in ("caducado", "archivado", "rechazado"):
+    if situacion.nivel in ("caducado", "archivado", "rechazado") and not any(p.estado == "detenido" for p in pasos):
         for p in pasos:
             if p.estado == "pendiente":
                 p.estado = "detenido"

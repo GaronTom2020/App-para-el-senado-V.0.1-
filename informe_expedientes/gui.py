@@ -20,7 +20,7 @@ from . import __version__, config
 from .cliente import Cancelado, Cliente, ErrorRed
 from .contenido import (
     comisiones_texto, datos_diputados, datos_diputados_hcdn, datos_generales, descripcion, sesiones_votadas,
-    texto_resumen,
+    texto_resumen, titulo_etapa_diputados,
 )
 from .ficha import ExpedienteNoEncontrado
 from .identificador import ErrorIdentificador, parsear, separar_lote
@@ -1445,11 +1445,19 @@ class Aplicacion(tk.Tk):
             t.insert("end", s.caducidad.fundamento + "\n", ("vineta", "suave"))
 
         t.insert("end", "Datos del expediente\n", "rotulo")
-        for etiqueta, linea in datos_generales(f) + datos_diputados(f) + datos_diputados_hcdn(r):
+        for etiqueta, linea in datos_generales(f):
             t.insert("end", f"{etiqueta}: ", ("vineta", "etiqueta"))
             for fragmento in linea:
                 self._enlace(fragmento.texto, fragmento.url)
             t.insert("end", "\n")
+        dip = datos_diputados(f) + datos_diputados_hcdn(r)
+        if dip:
+            t.insert("end", titulo_etapa_diputados(r) + "\n", "rotulo")
+            for etiqueta, linea in dip:
+                t.insert("end", f"{etiqueta}: ", ("vineta", "etiqueta"))
+                for fragmento in linea:
+                    self._enlace(fragmento.texto, fragmento.url)
+                t.insert("end", "\n")
 
         t.insert("end", f"Reuniones de comisión en que se trató ({len(r.reuniones)})\n", "rotulo")
         if not r.reuniones:

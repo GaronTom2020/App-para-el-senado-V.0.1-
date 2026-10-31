@@ -16,7 +16,7 @@ Usa solamente información pública de www.senado.gob.ar y www.hcdn.gob.ar.
 - **Caducidad**: la registrada en la ficha del Senado o, si no figura, una estimación según la Ley 13.640 (proyectos de ley) o la Resolución del Senado del 13/06/1991 (declaración, resolución, comunicación y decreto).
 - **Origen** (Senado, Poder Ejecutivo, Cámara de Diputados…), tipo, extracto, autores, fecha de mesa de entradas, dado cuenta y número de DAE.
 - **Enlaces** a la ficha del Senado, al texto original y al texto sancionado o definitivo.
-- **Etapa en Diputados**: los números de expediente en Diputados enlazados a su sitio, Orden del Día (dictamen), Trámite Parlamentario y fecha de sanción que trae la ficha, y lo que registra el sitio de Diputados: número propio (para los que vienen del Senado, del tipo 65-S-2025), giro, dictamen, votación, artículos modificados o rechazados en particular y último movimiento.
+- **Etapa en la Cámara de Diputados (revisión)**, para los proyectos de ley que salen del Senado, o **(origen)**, para los que vienen de Diputados: el número que le asignó Diputados (del tipo 57-S-2026) enlazado a su sitio, en qué está allí (ingresó, en comisión, con dictamen, aprobado, aprobado con modificaciones y de vuelta al Senado, sancionado o rechazado), el giro a sus comisiones, el dictamen con su Orden del Día y lo que aconseja, la votación, los artículos modificados o rechazados en particular y el último movimiento. Para los que vienen de Diputados se suma lo que trae la ficha del Senado (Trámite Parlamentario, Orden del Día y fecha de sanción). La línea de pasos refleja esa etapa («Cámara de Diputados: en comisión», «dictamen, OD 448/2026», «rechazó») y la situación la explica («En Diputados (expediente 57-S-2026): en las comisiones de …»). Si Diputados lo rechazó, la situación queda «Rechazado por la Cámara de Diputados», con la regla del art. 81.
 - **Giros a comisiones**, con fechas de ingreso y egreso.
 - **Reuniones de comisión** en que se trató: fecha (enlazada a la nota de la reunión), título, comisiones, tipo (comisión, plenario o asesores), versión taquigráfica y video.
 - **Reuniones ya convocadas** en la agenda de las comisiones del giro.
@@ -94,7 +94,7 @@ En la pestaña **Seguimiento** se arma una lista de expedientes para revisar seg
 - giro nuevo a una comisión y egreso de una comisión;
 - dictamen u orden del día nuevos, o cambio de estado de una orden del día;
 - votación en el recinto y sanción registrada en la ficha;
-- media sanción, sanción, pase a la otra cámara, veto o insistencia que registra el sitio de Diputados;
+- media sanción, sanción, rechazo, pase a la otra cámara, veto o insistencia que registra el sitio de Diputados, y en Diputados el número que le asignó, el giro a sus comisiones y el dictamen;
 - reunión convocada con el expediente en el temario y reunión de comisión en que se trató (si se buscan reuniones);
 - cambio de situación y caducidad cercana (menos de 60 días).
 

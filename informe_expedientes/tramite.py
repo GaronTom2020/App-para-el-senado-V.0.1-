@@ -24,7 +24,7 @@ from datetime import date
 
 from .modelos import Ficha, Votacion
 from .numeros import cantidad
-from .util import fmt_fecha, normalizar, parsear_fecha
+from .util import fmt_fecha, nombre_comision, normalizar, parsear_fecha, titulo_es
 
 SENADO, DIPUTADOS = "Senado", "Diputados"
 
@@ -57,6 +57,14 @@ class Recorrido:
     insistencia_fecha: date | None = None
     insistencia_camara: str = ""
     contraste: list[str] = field(default_factory=list)
+    diputados: object | None = None         # hcdn.ProyectoHCDN
+
+    @property
+    def estado_revisora(self):
+        """En qué está el proyecto en la cámara revisora, según el sitio de Diputados."""
+        if self.diputados is None:
+            return None
+        return self.diputados.estado(self.revisora, self.origen)
 
     @property
     def veto(self) -> bool:
@@ -142,6 +150,7 @@ def armar(ficha: Ficha, diputados=None, votada: Votacion | None = None) -> Recor
         r.rechazo = Paso(SENADO, votada.fecha, "votación", votacion=votada)
 
     if diputados is not None:
+        r.diputados = diputados
         _completar_con_diputados(r, diputados)
     return r
 
@@ -188,6 +197,12 @@ def _completar_con_diputados(r: Recorrido, p) -> None:
                                    f"{fmt_fecha(m.fecha)}; la ficha del Senado todavía no.")
             if not r.sancion:
                 r.sancion = Paso(camara, m.fecha, "diputados")
+    for m in p.rechazos():
+        camara = SENADO if normalizar(m.camara).startswith("SENAD") else DIPUTADOS
+        if r.rechazo is None and not r.sancion:
+            r.rechazo = Paso(camara, m.fecha, "diputados")
+            r.contraste.append(f"El sitio de Diputados registra el rechazo {_del(camara)} del {fmt_fecha(m.fecha)}; "
+                               "la ficha del Senado todavía no.")
     if p.ley and r.numero_ley and re.sub(r"\D", "", p.ley) != re.sub(r"\D", "", r.numero_ley):
         r.contraste.append(f"Atención: Diputados registra la Ley {p.ley} y la ficha del Senado, la Ley {r.numero_ley}.")
     if p.ley and not r.numero_ley:
@@ -259,7 +274,24 @@ def lineas(r: Recorrido, hoy: date) -> list[str]:
         return salida
     if r.aprobacion_origen:
         salida.append(f"Pasa {_al(r.revisora)} para su revisión (art. 78 CN).")
+        estado = r.estado_revisora
+        if estado is not None and estado.clave in ("ingresado", "en_comision", "con_dictamen"):
+            numero = r.diputados.expediente_diputados if r.revisora == DIPUTADOS else r.diputados.expediente_senado
+            donde = f" (expediente {_numero(numero)})" if numero else ""
+            texto = estado.texto
+            if estado.clave == "en_comision" and estado.comisiones:
+                texto = "en las comisiones de " + _y([nombre_comision(titulo_es(c)) for c in estado.comisiones])
+            salida.append(f"En {'Diputados' if r.revisora == DIPUTADOS else 'el Senado'}{donde}: {texto}.")
     return salida
+
+
+def _numero(numero: str) -> str:
+    n, _, resto = numero.partition("-")
+    return f"{int(n)}-{resto}" if n.isdigit() else numero
+
+
+def _y(nombres: list[str]) -> str:
+    return nombres[0] if len(nombres) == 1 else ", ".join(nombres[:-1]) + " y " + nombres[-1]
 
 
 __all__ = ["Recorrido", "Paso", "armar", "lineas", "SENADO", "DIPUTADOS"]
