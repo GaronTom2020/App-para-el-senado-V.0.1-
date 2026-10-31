@@ -9,6 +9,17 @@ Programa de escritorio con cuatro modos:
 
 Usa solamente información pública de www.senado.gob.ar y www.hcdn.gob.ar.
 
+### Novedades de la versión 1.1.0
+
+- **Votaciones en el recinto**: una línea por sesión, con el resultado en general y, en particular, solo los artículos rechazados o modificados; aviso si la votación es más reciente que lo que registra la ficha o si el detalle del acta y su PDF no coinciden.
+- **Trámite según la Constitución** (arts. 77 a 84): cámara revisora, vuelta a la cámara de origen y mayorías, promulgación, veto e insistencia, con los pasos que corresponden.
+- **Contraste con la Cámara de Diputados** y sección «Etapa en la Cámara de Diputados (revisión)»: número, estado, giros, dictamen, votación y artículos observados.
+- **Expedientes relacionados**: los tratados en conjunto y los tenidos a la vista, con su situación.
+- **Lista de seguimiento** con novedades, en la ventana, por línea de comandos y en GitHub Actions (un issue por revisión).
+- **Informe de sesión** a partir del plan de labor (Word, PDF, texto o el sitio), con CSV para el tablero de Power BI.
+- **Búsqueda por autor y por bloque** en el modo temático, y una página por bloque en GitHub Pages.
+- El enlace a Diputados usa su buscador (la dirección anterior ya no existe). Nueva dependencia: `pypdf`.
+
 ## Qué incluye el informe
 
 - **Situación actual**: en comisión, con dictamen, aprobado, sancionado, vetado, caducado o archivado, con una línea de pasos del trámite que marca dónde está o dónde se detuvo. En los proyectos de ley, la situación sigue el recorrido de la Constitución (arts. 77 a 84) y dice qué sigue: el pase a la cámara revisora (art. 78), la vuelta a la cámara de origen cuando la revisora lo modificó y las mayorías para aceptar o insistir (art. 81), la promulgación tácita a los diez días útiles y la promulgación parcial (art. 80), el veto y la insistencia con dos tercios (art. 83), y que un proyecto rechazado o con el veto firme no puede repetirse en las sesiones de ese año.
@@ -218,7 +229,7 @@ Las tablas de la ficha se reconocen por su atributo `summary` y, si falta, por l
 
 En `docs/relevamiento-fase0.md` está relevado qué publican el sitio del Senado y el de Diputados sobre votaciones nominales, el plan de labor, los proyectos en revisión en Diputados y la búsqueda por autor y bloque, con las páginas reales guardadas en `tests/fixtures` (las que empiezan con `acta_`, `votaciones_`, `plenario_`, `plan_labor_`, `hcdn_`, `senadores_` y `avanzada_autor_`).
 
-Pruebas: `pip install pytest` y luego `python -m pytest`. Usan páginas de prueba que reproducen la estructura real del sitio, sin conexión a internet.
+Pruebas: `pip install pytest` y luego `python -m pytest`. No usan internet: trabajan con páginas reales del Senado y de Diputados guardadas en `tests/fixtures` (bajadas entre el 30 y el 31/10/2026; de las HTML se quitaron scripts y estilos, y de algunos PDF largos se dejaron las primeras páginas) y con algunas páginas armadas para casos puntuales.
 
 Direcciones que usa: `parlamentario/comisiones/verExp/{número}.{año}/{origen}/{tipo}` (ficha), `parlamentario/parlamentaria/avanzada` (búsqueda) y `micrositios/DatosAbiertosExpedientes/BusquedaAvanzada/XLS` (su exportación completa), `parlamentario/comisiones/info/{id}` y `?Reuniones=N` (reuniones), `micrositios/nota/{id}/noticias` (nota de cada reunión), `parlamentario/comisiones/agenda/{id}` (agenda) `parlamentario/parlamentaria/ordenDelDiaResultadoLink/{año}/{número}` (órdenes del día), `votaciones/actas` (listado anual; otros años por POST con `busqueda_actas[anio]`), `votaciones/detalleActa/{id}` y `votaciones/verActaVotacion/{id}` (detalle y PDF de cada acta), `senadores/listados/agrupados-por-bloques` (bloques actuales) y `parlamentario/parlamentaria/actas` (Plenario de Labor Parlamentaria, con el PDF de cada plan; los nombres de archivo no siguen un patrón, por eso se usa el enlace de la tabla). En Diputados, la búsqueda `proyectos/resultado.html?strNumExp={número}&strNumExpOrig={origen}&strNumExpAnio={año}` (con `strMostrarTramites=on` y las demás opciones para que traiga el trámite), que sirve también como enlace (la dirección `proyecto.jsp` ya no existe). Se busca por el número del Senado; la respuesta puede traer otros proyectos con el mismo número, y se toma el que tiene ese «Expediente Senado».
 
