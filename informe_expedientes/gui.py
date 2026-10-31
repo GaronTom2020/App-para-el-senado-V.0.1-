@@ -41,6 +41,7 @@ P = {
     "papel": "#FFFFFF", "tinta": "#1F2B28", "suave": "#55645F", "linea": "#CBD5D1", "lacre": "#8C2F2F",
     "ambar": "#8A5A10", "apagado": "#9DB7B0", "subtitulo": "#D3E6E0",
 }
+ICONO = Path(__file__).resolve().parent / "recursos" / "icono.ico"
 TIPO_AUTOMATICO = "Detectar automáticamente"
 OPCIONES_TIPO = [TIPO_AUTOMATICO] + [f"{codigo} — {nombre}" for codigo, nombre in config.TIPOS.items()]
 COLOR_NIVEL = {"con_dictamen": "ambar", "vetado": "lacre", "caducado": "lacre", "rechazado": "lacre",
@@ -104,6 +105,7 @@ class Aplicacion(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Informe de expedientes — H. Senado de la Nación")
+        self._icono()
         self.configure(bg=P["piedra"])
         self.minsize(940, 600)
         self.cfg = cargar_config()
@@ -130,6 +132,14 @@ class Aplicacion(tk.Tk):
         self.txt_expedientes.focus_set()
 
     # --------------------------------------------------------------- estilo
+    def _icono(self) -> None:
+        """Logo del Senado en la ventana y la barra de tareas (en el .exe viaja con --add-data)."""
+        if ICONO.exists():
+            try:
+                self.iconbitmap(default=str(ICONO))
+            except tk.TclError:
+                pass                                   # fuera de Windows Tk puede no aceptar .ico
+
     def _fuentes(self) -> None:
         familias = set(tkfont.families(self))
 
@@ -1771,6 +1781,11 @@ def ejecutar() -> None:
         try:
             import ctypes
             ctypes.windll.shcore.SetProcessDpiAwareness(1)   # texto nítido en pantallas con escala
+        except Exception:
+            pass
+        try:
+            # Identidad propia en la barra de tareas: sin esto, con «python app.py» aparece el ícono de Python.
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("HSenado.InformeExpedientes")
         except Exception:
             pass
     app = Aplicacion()

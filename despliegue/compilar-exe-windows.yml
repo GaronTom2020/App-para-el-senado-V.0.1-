@@ -33,7 +33,9 @@ jobs:
         run: >
           python -m PyInstaller --noconfirm --clean --onefile --windowed
           --name InformeExpediente --collect-submodules informe_expedientes --collect-data docx
-          --hidden-import lxml.etree --hidden-import lxml._elementpath app.py
+          --hidden-import lxml.etree --hidden-import lxml._elementpath
+          --icon informe_expedientes/recursos/icono.ico
+          --add-data "informe_expedientes/recursos/icono.ico;informe_expedientes/recursos" app.py
 
       - uses: actions/upload-artifact@v4
         with:
