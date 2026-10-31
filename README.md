@@ -21,6 +21,7 @@ Usa solamente información pública de www.senado.gob.ar y www.hcdn.gob.ar.
 - **Reuniones de comisión** en que se trató: fecha (enlazada a la nota de la reunión), título, comisiones, tipo (comisión, plenario o asesores), versión taquigráfica y video.
 - **Reuniones ya convocadas** en la agenda de las comisiones del giro.
 - **Órdenes del Día del Senado**, con su estado y el PDF del dictamen.
+- **Expedientes relacionados**: los dictaminados o tratados en conjunto y los que se tuvieron a la vista, con su enlace, la relación («Dictaminado en conjunto (Orden del Día N° 366/26)», «Tenido a la vista en el dictamen (Orden del Día N° 146/24)», «Citado en las observaciones de la ficha») y su situación resumida. Salen de los otros expedientes de cada orden del día, del texto del dictamen (PDF: «han considerado…», «teniendo a la vista…»), de las observaciones y notas de la ficha («DICT. CONJ. S. 808/26, 865/26», «aprobado conjuntamente con el P.E. 186/25»), del trámite en el sitio de Diputados y del temario de las reuniones de comisión en que se trató, si es breve (hasta ocho expedientes: «tratado en la misma reunión»). Se lee la ficha de los primeros quince para su situación. En el informe de sesión y en el seguimiento no se buscan, para no alargar la consulta.
 - **Votaciones en el recinto**: una línea por sesión. La votación en general con su resultado («aprobado (42 a 21)»); en particular, solo los artículos rechazados o modificados, en rangos («se rechazaron los arts. 23-24»), o «aprobado sin observaciones»; y las insistencias (art. 83), con si alcanzaron los dos tercios. Las mociones, preferencias y habilitaciones sobre tablas no se incluyen. Si el Senado aprobó con modificaciones y las actas no dicen qué artículos, se aclara y se enlaza el texto aprobado. Si el detalle del acta y su PDF dan totales distintos, se avisa. Si hay una votación más reciente que lo que registra la ficha, la situación lo dice («Votado en el recinto el 29/10/2026 (42 a 21); la ficha oficial todavía no registra la sanción») y la línea de pasos marca la sanción del Senado como hecha.
 - Sanción, número de ley, resolución del Poder Ejecutivo (veto o promulgación, decreto y Boletín Oficial), observaciones de la ficha y notas propias.
 
@@ -201,6 +202,7 @@ Si se quisiera usar desde el navegador sin instalar nada, el mismo paquete puede
 | `situacion.py` | Situación, pasos del trámite y caducidad. |
 | `busqueda.py`, `ejes.py` | Búsqueda por palabras, autor y filtros; ejes temáticos. |
 | `senadores.py` | Autores (selector del buscador) y bloques actuales con sus integrantes. |
+| `relacionados.py` | Expedientes tratados en conjunto o tenidos a la vista (OD, dictamen, ficha, Diputados, temarios). |
 | `tematico.py`, `informe_tematico.py` | Informe temático y su escritura en Word, HTML y Excel. |
 | `votaciones.py` | Listado anual de votaciones, detalle y PDF de cada acta, artículos en rangos, sesiones y el índice guardado. |
 | `hcdn.py` | El proyecto en el sitio de Diputados: número, giros, dictámenes y trámite de las dos cámaras. |

@@ -26,6 +26,7 @@ MAX_EXPEDIENTES = 150
 @dataclass
 class OpcionesSesion:
     buscar_reuniones: bool = False          # lento: una sesión puede tener decenas de expedientes
+    buscar_relacionados: bool = False       # los temas ya agrupan los expedientes tratados en conjunto
     incluir_asesores: bool = True
     formatos: tuple[str, ...] = ("docx", "html", "xlsx", "csv")
     carpeta_salida: Path = field(default_factory=config.carpeta_informes_por_defecto)
@@ -127,6 +128,7 @@ def generar_sesion(plan: plan_labor.PlanDeLabor, opciones: OpcionesSesion, clien
         try:
             hechos[ident.corto] = generar(
                 ident.corto, Opciones(tipo=ident.tipo, buscar_reuniones=opciones.buscar_reuniones,
+                                      buscar_relacionados=opciones.buscar_relacionados,
                                       incluir_asesores=opciones.incluir_asesores, buscar_agenda=False,
                                       formatos=()),
                 cliente, lambda ev, msg="", **d: avisar("log", msg) if ev in ("log", "advertencia") else None,

@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 
 from . import config
-from . import hcdn as hcdn_mod, votaciones as votaciones_mod
+from . import hcdn as hcdn_mod, relacionados as relacionados_mod, votaciones as votaciones_mod
 from .modelos import Ficha, Resultado, Votacion
 from .numeros import cantidad
 from .util import fmt_fecha, nombre_comision, normalizar, parsear_fecha, titulo_es
@@ -260,6 +260,30 @@ def texto_votaciones(resultado: Resultado) -> str:
     return f"Se votó en {cantidad(len(sesiones), 'sesión', 'sesiones', femenino=True)}."
 
 
+# ============================================================== relacionados
+
+def texto_relacionados(resultado: Resultado) -> str:
+    n = len(resultado.relacionados)
+    if not n:
+        return ("No se encontraron expedientes tratados en conjunto ni tenidos a la vista en la orden del día, el "
+                "dictamen, la ficha ni el temario de las reuniones.")
+    texto = f"Se encontraron {cantidad(n, 'expediente relacionado', 'expedientes relacionados')}"
+    sin = n - min(n, relacionados_mod.MAX_RELACIONADOS)
+    if sin:
+        texto += f"; se muestra la situación de los primeros {relacionados_mod.MAX_RELACIONADOS}"
+    return texto + "."
+
+
+def filas_relacionados(resultado: Resultado) -> list[tuple[Fragmento, str, str]]:
+    """(expediente con enlace, relación, situación resumida)."""
+    filas = []
+    for r in resultado.relacionados:
+        url = r.url or (r.ident.url_ficha() if r.ident.tipo else None)
+        situacion = r.situacion or ("no se pudo leer la ficha" if r.error else "—")
+        filas.append((Fragmento(r.ident.corto, url), r.texto_relacion(), situacion))
+    return filas
+
+
 # ================================================================ Diputados
 
 def _numero_hcdn(numero: str) -> str:
@@ -368,6 +392,9 @@ def texto_resumen(resultado: Resultado) -> str:
         lineas += ["", "Próximas reuniones convocadas"]
         for c in resultado.convocadas:
             lineas.append(f"  {fmt_fecha(c.fecha)} {c.hora}  {c.comision}  {c.lugar}")
+    if resultado.relacionados:
+        lineas += ["", "Expedientes relacionados"]
+        lineas += [f"  {e.texto}: {rel} — {sit}" for e, rel, sit in filas_relacionados(resultado)]
     sesiones = sesiones_votadas(resultado)
     if sesiones:
         lineas += ["", "Votaciones en el recinto"]

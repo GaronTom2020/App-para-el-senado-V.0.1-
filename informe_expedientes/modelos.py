@@ -275,6 +275,8 @@ class Resultado:
     votaciones_consultadas: bool = False
     diputados: object | None = None            # hcdn.ProyectoHCDN, si se consultó y se encontró
     diputados_consultado: bool = False
+    relacionados: list = field(default_factory=list)   # relacionados.Relacionado
+    relacionados_consultados: bool = False
     notas_usuario: str = ""
     generado: datetime = field(default_factory=datetime.now)
     archivos: dict[str, Path] = field(default_factory=dict)

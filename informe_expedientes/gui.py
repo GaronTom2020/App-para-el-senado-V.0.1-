@@ -20,7 +20,7 @@ from . import __version__, config
 from .cliente import Cancelado, Cliente, ErrorRed
 from .contenido import (
     comisiones_texto, datos_diputados, datos_diputados_hcdn, datos_generales, descripcion, sesiones_votadas,
-    texto_resumen, titulo_etapa_diputados,
+    filas_relacionados, texto_resumen, titulo_etapa_diputados,
 )
 from .ficha import ExpedienteNoEncontrado
 from .identificador import ErrorIdentificador, parsear, separar_lote
@@ -1546,6 +1546,12 @@ class Aplicacion(tk.Tk):
                 t.insert("end", "  ")
                 self._enlace("Video", v)
             t.insert("end", "\n")
+        if r.relacionados:
+            t.insert("end", f"Expedientes relacionados ({len(r.relacionados)})\n", "rotulo")
+            for e, rel, sit in filas_relacionados(r):
+                t.insert("end", "", "vineta")
+                self._enlace(e.texto, e.url)
+                t.insert("end", f"  {rel}. {sit}\n", "vineta")
         sesiones = sesiones_votadas(r)
         if sesiones:
             t.insert("end", "Votaciones en el recinto\n", "rotulo")

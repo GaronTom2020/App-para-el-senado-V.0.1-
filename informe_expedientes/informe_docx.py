@@ -16,7 +16,8 @@ from docx.shared import Cm, Pt, RGBColor
 from . import __version__
 from .contenido import (
     Linea, alcance_busqueda, bloques_resolucion, comisiones_texto, datos_diputados, datos_generales,
-    datos_diputados_hcdn, descripcion, sesiones_votadas, texto_votaciones, titulo_etapa_diputados,
+    datos_diputados_hcdn, descripcion, filas_relacionados, sesiones_votadas, texto_relacionados, texto_votaciones,
+    titulo_etapa_diputados,
 )
 from .modelos import Resultado
 from .util import fmt_fecha, nombre_comision
@@ -414,6 +415,21 @@ class _Escritor:
                     _hipervinculo(fila.cells[3].paragraphs[0], "Dictamen (PDF)", od.url_pdf, 9.5)
                 else:
                     self._run(fila.cells[3].paragraphs[0], "—", 9.5)
+
+        if r.relacionados_consultados:
+            self.titulo("Expedientes relacionados")
+            self.parrafo(texto_relacionados(r), 10)
+            if r.relacionados:
+                anchos = [2.6, 7.6, self.ancho - 10.2]
+                t = self.tabla(["Expediente", "Relación", "Situación"], anchos)
+                for e, rel, sit in filas_relacionados(r):
+                    fila = self.fila(t, anchos)
+                    if e.url:
+                        _hipervinculo(fila.cells[0].paragraphs[0], e.texto, e.url, 9.5)
+                    else:
+                        self._run(fila.cells[0].paragraphs[0], e.texto, 9.5)
+                    self._run(fila.cells[1].paragraphs[0], rel, 9)
+                    self._run(fila.cells[2].paragraphs[0], sit, 9)
 
         if r.votaciones_consultadas:
             self._votaciones()

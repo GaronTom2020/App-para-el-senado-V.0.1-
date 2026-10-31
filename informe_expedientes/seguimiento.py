@@ -316,6 +316,7 @@ def revisar(lista: Lista, cliente: Cliente, opciones: OpcionesSeguimiento | None
         avisar("progreso", actual=i - 1, total=total)
         try:
             r = generar(s.expediente, Opciones(tipo=s.tipo, buscar_reuniones=opciones.buscar_reuniones,
+                                               buscar_relacionados=False,
                                                incluir_asesores=opciones.incluir_asesores, formatos=()),
                         cliente, lambda ev, msg="", **d: avisar("log", msg) if ev in ("log", "advertencia") else None,
                         hoy=hoy, escribir=False)

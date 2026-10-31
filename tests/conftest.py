@@ -70,6 +70,11 @@ for _n, _a, _o in ((361, 2026, "S"), (13, 2026, "PE"), (1167, 2025, "S"), (98, 2
     MAPA[f"{H}&strNumExp={_n}&strNumExpOrig={_o}&strNumExpAnio={_a}"] = f"hcdn_{_archivo}"
 MAPA[f"{B}/parlamentario/parlamentaria/actas"] = "plenario_labor.html"
 MAPA[f"{B}/senadores/listados/agrupados-por-bloques"] = "senadores_bloques.html"
+# Expedientes relacionados (Fase 5): dictámenes en PDF (primeras páginas) y temarios de reuniones.
+BINARIOS[f"{B}/parlamentario/parlamentaria/36274/downloadOrdenDia"] = "od_2024_146.pdf"
+BINARIOS[f"{B}/parlamentario/parlamentaria/51695/downloadOrdenDia"] = "od_2026_366.pdf"
+MAPA[f"{B}/micrositios/nota/21973/noticias"] = "nota_21973.html"
+MAPA[f"{B}/micrositios/nota/24293/noticias"] = "nota_24293.html"
 BINARIOS[f"{B}/parlamentario/parlamentaria/Acta%20de%20labor%20parlamentaria%20%2028-10-2026.pdf/download"] = \
     "plan_labor_2026-10-28.pdf"
 for _acta in (2848, 2863, 2871, 2872, 2873):

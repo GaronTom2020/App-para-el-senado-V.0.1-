@@ -155,6 +155,7 @@ _EN_TEXTO_ORIGEN = re.compile(
     r"(?<![A-Z0-9/.])(?P<origen>S|C\.?\s?D|P\.?\s?E\.?(?:N\.?)?|J\.?G\.?M|O\.?V\.?D?|P)\.?\s*[-–—]?\s*(?:N[°º]\s*)?"
     r"(?P<nums>\d{1,5}(?:\s*(?:,|-|\bY\b|\bE\b)\s*\d{1,5})*)\s*/\s*(?P<anio>\d{4}|\d{2})(?![\d/])"
 )
+_SIGUIENTE = re.compile(r"\s*(?:,|\bY\b|\bE\b)\s*(?P<num>\d{1,5})\s*/\s*(?P<anio>\d{4}|\d{2})(?![\d/])")
 _EN_TEXTO_NUMERO = re.compile(r"(?<![\d/])(?P<num>\d{1,5})\s*-\s*(?P<origen>S|CD|PE|JGM|OVD?|P)\s*-\s*"
                               r"(?P<anio>\d{4}|\d{2})(?![\d/])")
 
@@ -176,6 +177,14 @@ def encontrar(texto: str) -> list[tuple[int, IdExpediente]]:
                 hallados.append((m.start(), parsear(f"{origen}-{numero}/{m.group('anio')}")))
             except ErrorIdentificador:
                 pass
+        # «S. 808/26, 865/26 y 870/26»: el origen vale para los números siguientes, cada uno con su año.
+        fin = m.end()
+        while (s := _SIGUIENTE.match(t, fin)):
+            try:
+                hallados.append((s.start(), parsear(f"{origen}-{s.group('num')}/{s.group('anio')}")))
+            except ErrorIdentificador:
+                pass
+            fin = s.end()
     for m in _EN_TEXTO_NUMERO.finditer(t):
         try:
             hallados.append((m.start(), parsear(f"{m.group('origen')}-{m.group('num')}/{m.group('anio')}")))

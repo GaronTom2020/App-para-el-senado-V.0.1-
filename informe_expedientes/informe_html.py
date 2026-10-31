@@ -8,7 +8,8 @@ from pathlib import Path
 from . import __version__
 from .contenido import (
     Linea, alcance_busqueda, bloques_resolucion, comisiones_texto, datos_diputados, datos_generales,
-    datos_diputados_hcdn, descripcion, sesiones_votadas, texto_votaciones, titulo_etapa_diputados,
+    datos_diputados_hcdn, descripcion, filas_relacionados, sesiones_votadas, texto_relacionados, texto_votaciones,
+    titulo_etapa_diputados,
 )
 from .modelos import Resultado
 from .util import fmt_fecha, nombre_comision
@@ -264,6 +265,15 @@ def contenido_html(resultado: Resultado, ejemplo: bool = False, incrustado: bool
             for od in f.ordenes_del_dia)
         agregar('<div class="tabla"><table><thead><tr><th>Número</th><th>Fecha</th><th>Estado</th>'
                 f"<th>Texto</th></tr></thead><tbody>{filas}</tbody></table></div>")
+
+    if resultado.relacionados_consultados:
+        agregar("<h2>Expedientes relacionados</h2>")
+        agregar(f"<p>{_e(texto_relacionados(resultado))}</p>")
+        if resultado.relacionados:
+            filas = "".join(f"<tr><td class='docs'>{_enlace(e.texto, e.url)}</td><td>{_e(rel)}</td><td>{_e(sit)}</td></tr>"
+                            for e, rel, sit in filas_relacionados(resultado))
+            agregar("<div class='tabla'><table><thead><tr><th>Expediente</th><th>Relación</th><th>Situación</th>"
+                    f"</tr></thead><tbody>{filas}</tbody></table></div>")
 
     if resultado.votaciones_consultadas:
         agregar(_votaciones(resultado))

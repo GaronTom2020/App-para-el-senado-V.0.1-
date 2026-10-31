@@ -14,7 +14,8 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 
-from . import comisiones, config, ficha as ficha_mod, hcdn, situacion as situacion_mod, votaciones as votaciones_mod
+from . import comisiones, config, ficha as ficha_mod, hcdn, relacionados as relacionados_mod
+from . import situacion as situacion_mod, votaciones as votaciones_mod
 from .cliente import Cancelado, Cliente, ErrorRed
 from .identificador import parsear
 from .modelos import BusquedaReuniones, Resultado
@@ -30,6 +31,7 @@ class Opciones:
     completar_ordenes_del_dia: bool = True
     buscar_votaciones: bool = True
     contrastar_diputados: bool = True     # proyectos de ley: se confronta con hcdn.gob.ar
+    buscar_relacionados: bool = True      # tratados en conjunto y tenidos a la vista
     formatos: tuple[str, ...] = ("docx", "html")
     carpeta_salida: Path = field(default_factory=config.carpeta_informes_por_defecto)
     notas_usuario: str = ""
@@ -104,6 +106,15 @@ def generar(texto: str, opciones: Opciones, cliente: Cliente, avisar=_nada, hoy:
             avisar_y_guardar("advertencia", f"No se pudo consultar el sitio de Diputados: {e}")
 
     situacion = situacion_mod.calcular(ficha, hoy, votaciones, diputados)
+
+    relacionados = []
+    if opciones.buscar_relacionados:
+        avisar("etapa", "Buscando expedientes relacionados…")
+        try:
+            relacionados = relacionados_mod.buscar(cliente, ficha, diputados, reuniones, avisar_y_guardar, hoy)
+            avisar("log", f"Expedientes relacionados: {len(relacionados)}.")
+        except ErrorRed as e:
+            avisar_y_guardar("advertencia", f"No se pudieron buscar los expedientes relacionados: {e}")
     resultado = Resultado(
         ficha=ficha,
         situacion=situacion,
@@ -115,6 +126,8 @@ def generar(texto: str, opciones: Opciones, cliente: Cliente, avisar=_nada, hoy:
         votaciones_consultadas=opciones.buscar_votaciones,
         diputados=diputados,
         diputados_consultado=diputados_consultado,
+        relacionados=relacionados,
+        relacionados_consultados=opciones.buscar_relacionados,
         notas_usuario=opciones.notas_usuario.strip(),
         generado=datetime.now(),
         advertencias=advertencias,
