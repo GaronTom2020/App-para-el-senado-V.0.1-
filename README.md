@@ -9,7 +9,7 @@ Programa de escritorio con cuatro modos:
 
 Usa solamente información pública de www.senado.gob.ar y www.hcdn.gob.ar.
 
-### Novedades de la versión 1.1.0
+### Novedades de la versión 0.2.0
 
 - **Votaciones en el recinto**: una línea por sesión, con el resultado en general y, en particular, solo los artículos rechazados o modificados; aviso si la votación es más reciente que lo que registra la ficha o si el detalle del acta y su PDF no coinciden.
 - **Trámite según la Constitución** (arts. 77 a 84): cámara revisora, vuelta a la cámara de origen y mayorías, promulgación, veto e insistencia, con los pasos que corresponden.
