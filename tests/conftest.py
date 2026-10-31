@@ -69,6 +69,7 @@ for _n, _a, _o in ((361, 2026, "S"), (13, 2026, "PE"), (1167, 2025, "S"), (98, 2
     MAPA[f"{B}/parlamentario/comisiones/verExp/{_n}.{_a % 100:02d}/{_o}/PL"] = f"ficha_{_archivo}"
     MAPA[f"{H}&strNumExp={_n}&strNumExpOrig={_o}&strNumExpAnio={_a}"] = f"hcdn_{_archivo}"
 MAPA[f"{B}/parlamentario/parlamentaria/actas"] = "plenario_labor.html"
+MAPA[f"{B}/senadores/listados/agrupados-por-bloques"] = "senadores_bloques.html"
 BINARIOS[f"{B}/parlamentario/parlamentaria/Acta%20de%20labor%20parlamentaria%20%2028-10-2026.pdf/download"] = \
     "plan_labor_2026-10-28.pdf"
 for _acta in (2848, 2863, 2871, 2872, 2873):
@@ -91,6 +92,14 @@ class ClienteFalso:
     def get(self, url, ttl=None, binario=False):
         self.pedidos.append(url)
         if url == f"{B}/micrositios/DatosAbiertosExpedientes/BusquedaAvanzada/XLS":
+            # Las búsquedas por autor (2026) tienen su propia exportación real; las demás, la general.
+            autor = getattr(self, "ultimo_post", {}).get("busqueda_proyectos[autor]", "")
+            anio = getattr(self, "ultimo_post", {}).get("busqueda_proyectos[expedienteNumeroPos]", "")
+            if autor:
+                archivo = FIXTURES / f"avanzada_autor_{autor}_{anio}.xls"
+                if not archivo.exists():
+                    raise ErrorRed(f"El sitio respondió con el código 404 para {url}.")
+                return Respuesta(url, 200, contenido=archivo.read_bytes())
             return Respuesta(url, 200, contenido=(FIXTURES / "busqueda_avanzada.xls").read_bytes())
         if url in BINARIOS:
             return Respuesta(url, 200, contenido=(FIXTURES / BINARIOS[url]).read_bytes())

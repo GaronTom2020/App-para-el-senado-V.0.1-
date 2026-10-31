@@ -12,6 +12,14 @@
 #
 # Ejes propios del equipo: guardá un ejes.json en el repositorio y agregá
 # --ejes ../ejes.json a la línea de python app.py.
+#
+# Páginas por bloque: el segundo paso publica DESTINO/bloques/index.html (el índice) y una
+# página por bloque en DESTINO/bloques/<bloque>/index.html, con los proyectos que llevan la
+# firma de alguno de sus integrantes actuales. BLOQUES puede ser "todos" o una lista separada
+# por punto y coma ("Justicialista;La Libertad Avanza"); EJE_BLOQUES, si no está vacío, limita
+# las páginas a un eje temático. Cada senador es una consulta por año: con todos los bloques
+# son unas 72 consultas por año más las fichas, por eso conviene acotar con --tipos.
+# Para no publicar páginas por bloque, dejá BLOQUES vacío.
 
 name: Informes temáticos
 
@@ -34,6 +42,8 @@ jobs:
     env:
       DESTINO: informes
       EJES: "Educación y universidades;Salud;Transferencia de inmuebles"
+      BLOQUES: "todos"
+      EJE_BLOQUES: ""
     steps:
       - uses: actions/checkout@v4
 
@@ -54,6 +64,17 @@ jobs:
             python app.py --tema "$EJE" --anios "$DESDE-$ANIO" --formatos html,xlsx \
                           --nombre index --salida "$CARPETA" --sin-cache
           done
+
+      - name: Generar una página por bloque
+        if: env.BLOQUES != ''
+        working-directory: informe_expedientes
+        run: |
+          ANIO=$(date +%Y)
+          EXTRA=()
+          if [ "$BLOQUES" != "todos" ]; then EXTRA+=(--bloque "$BLOQUES"); fi
+          if [ -n "$EJE_BLOQUES" ]; then EXTRA+=(--tema "$EJE_BLOQUES"); fi
+          python app.py --por-bloque "${EXTRA[@]}" --tipos PL --anios "$ANIO" --formatos html,xlsx \
+                        --salida "../$DESTINO/bloques" --sin-cache
 
       - name: Publicar los cambios
         run: |

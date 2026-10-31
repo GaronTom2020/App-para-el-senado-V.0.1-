@@ -8,6 +8,9 @@ Sin argumentos abre la ventana. Con argumentos funciona por línea de comandos:
     Informe temático (por eje guardado o por palabras):
         python app.py --tema "Salud" --anios 2025-2026
         python app.py --palabras "litio, minería" --tipos PL,PC --comision "Minería"
+        python app.py --autor "Mendoza" --anios 2026 --tipos PL
+        python app.py --tema "Salud" --bloque "Justicialista"
+        python app.py --por-bloque --tipos PL --anios 2026 --salida informes/bloques
 
     Lista de seguimiento:
         python app.py --seguimiento agregar PE-99/26 S-351/25
@@ -67,6 +70,13 @@ def linea_de_comandos(argumentos: list[str]) -> int:
     t.add_argument("--individuales", action="store_true", help="Generar además el informe completo de cada uno")
     t.add_argument("--limite", type=int, default=200, help="Máximo de fichas a consultar (200)")
     t.add_argument("--ejes", type=Path, help="Archivo de ejes temáticos a usar (JSON)")
+    t.add_argument("--autor", help="Senador autor o coautor: apellido (o apellido y nombre) o su número; "
+                                   "varios, separados por punto y coma")
+    t.add_argument("--bloque", help="Bloque actual: los proyectos con la firma de alguno de sus integrantes "
+                                    "(con --por-bloque, varios separados por punto y coma)")
+    t.add_argument("--por-bloque", action="store_true", help="Una página por bloque (todos, o los de --bloque) "
+                                                             "y un índice, en la carpeta de --salida")
+    t.add_argument("--listar-bloques", action="store_true", help="Mostrar los bloques actuales y salir")
     s = p.add_argument_group("lista de seguimiento")
     s.add_argument("--seguimiento", choices=["revisar", "agregar", "quitar", "listar"],
                    help="revisar la lista y anotar las novedades; agregar o quitar los expedientes indicados; listar")
@@ -78,7 +88,7 @@ def linea_de_comandos(argumentos: list[str]) -> int:
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     a = p.parse_args(argumentos)
 
-    tematico = bool(a.tema or a.palabras or a.comision)
+    tematico = bool(a.tema or a.palabras or a.comision or a.autor or a.bloque or a.por_bloque or a.listar_bloques)
     if not tematico and not a.expedientes and a.seguimiento not in ("revisar", "listar") and not a.sesion:
         p.error("indicá uno o más expedientes, o --tema / --palabras / --comision, o --seguimiento revisar")
 
@@ -260,6 +270,14 @@ def _tematico(a, cliente: Cliente, avisar) -> int:
     tipos = None if tipos_texto == "TODOS" else {t if t != "OTROS" else OTROS for t in tipos_texto.split(",") if t}
     consulta = Consulta(palabras=palabras, modo=modo, excluir=excluir, anio_desde=a.anios[0], anio_hasta=a.anios[1],
                         origen=a.origen, tipos=tipos, comision_id=comision_id, eje=eje)
+    if a.listar_bloques or a.por_bloque or a.bloque or a.autor:
+        try:
+            filtro = _autores_y_bloques(a, cliente, consulta)
+        except Exception as e:  # noqa: BLE001 - sin conexión con el sitio
+            print(f"No se pudo leer la lista de senadores o de bloques: {e}", file=sys.stderr)
+            return 1
+        if filtro is not None:
+            return filtro
     formatos = tuple(f.strip().lower() for f in (a.formatos or "docx,html,xlsx").split(",") if f.strip())
     opciones = OpcionesTematicas(
         detallar=not a.sin_detalle or a.con_reuniones or a.individuales, buscar_reuniones=a.con_reuniones,
@@ -276,6 +294,69 @@ def _tematico(a, cliente: Cliente, avisar) -> int:
     print("\n" + resumen(res))
     for ruta in res.archivos.values():
         print(f"  {ruta}")
+    return 0
+
+
+def _autores_y_bloques(a, cliente: Cliente, consulta) -> int | None:
+    """Completa la consulta con autores o bloque. Devuelve un código de salida si ya terminó."""
+    from dataclasses import replace
+
+    from informe_expedientes import senadores
+    from informe_expedientes.informe_tematico import escribir_indice_bloques
+    from informe_expedientes.tematico import OpcionesTematicas, generar_tematico, resumen
+
+    bloques = senadores.bloques(cliente)
+    if a.listar_bloques:
+        for nombre, integrantes in bloques.items():
+            print(f"{nombre} ({len(integrantes)})")
+        return 0
+    if a.autor:
+        lista = senadores.con_integrantes(senadores.autores(cliente), bloques)
+        elegidos = []
+        for texto in [x.strip() for x in a.autor.split(";") if x.strip()]:
+            hallados = senadores.buscar_senador(texto, lista)
+            if len(hallados) != 1:
+                opciones = "; ".join(f"{s.legible} ({s.id})" for s in hallados[:12]) or "ninguno"
+                print(f"«{texto}» coincide con {len(hallados)} senadores: {opciones}. Usá el apellido y el nombre "
+                      "o el número.", file=sys.stderr)
+                return 2
+            elegidos.append(hallados[0])
+        consulta.autores = elegidos
+    nombres_bloque = [x.strip() for x in (a.bloque or "").split(";") if x.strip()]
+    elegidos_bloque = []
+    for texto in nombres_bloque:
+        nombre = senadores.buscar_bloque(texto, bloques)
+        if not nombre:
+            print(f"No se reconoce el bloque «{texto}». Bloques actuales: {', '.join(bloques)}", file=sys.stderr)
+            return 2
+        elegidos_bloque.append(nombre)
+    if not a.por_bloque:
+        if elegidos_bloque:
+            if len(elegidos_bloque) > 1:
+                print("Para varios bloques usá --por-bloque.", file=sys.stderr)
+                return 2
+            consulta.bloque, consulta.autores = elegidos_bloque[0], bloques[elegidos_bloque[0]]
+        return None
+    formatos = tuple(f.strip().lower() for f in (a.formatos or "html,xlsx").split(",") if f.strip())
+    paginas = []
+    for nombre in elegidos_bloque or list(bloques):
+        carpeta = a.salida / senadores.carpeta_bloque(nombre)
+        opciones = OpcionesTematicas(detallar=not a.sin_detalle, buscar_reuniones=a.con_reuniones,
+                                     incluir_asesores=not a.sin_asesores, limite=a.limite, formatos=formatos,
+                                     carpeta_salida=carpeta, nombre_archivo="index")
+        print(f"\n— Bloque {nombre}", flush=True)
+        try:
+            res = generar_tematico(replace(consulta, bloque=nombre, autores=bloques[nombre]), opciones, cliente,
+                                   lambda ev, msg="", **d: print(msg, flush=True) if ev in ("etapa",) else None)
+        except Cancelado:
+            return 130
+        except Exception as e:  # noqa: BLE001 - un bloque que falla no corta los demás
+            print(f"Error con el bloque {nombre}: {e}", file=sys.stderr)
+            continue
+        print(resumen(res))
+        paginas.append((nombre, len(bloques[nombre]), resumen(res), f"{senadores.carpeta_bloque(nombre)}/index.html"))
+    indice = escribir_indice_bloques(paginas, consulta, a.salida / "index.html")
+    print(f"\nÍndice: {indice}")
     return 0
 
 

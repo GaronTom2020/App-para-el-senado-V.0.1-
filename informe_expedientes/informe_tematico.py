@@ -184,6 +184,33 @@ def generar_html(res: ResultadoTematico, carpeta: Path | None = None, ejemplo: b
             + "".join(p) + "</main></body></html>\n")
 
 
+def escribir_indice_bloques(paginas: list[tuple[str, int, str, str]], consulta, destino: Path) -> Path:
+    """Índice de las páginas por bloque: (bloque, integrantes, resumen, enlace relativo)."""
+    from .informe_html import ESTILOS
+    from datetime import datetime
+
+    base = consulta.titulo() if (consulta.eje or consulta.palabras or consulta.comision_id) else ""
+    filas = "".join(
+        f"<tr><td>{_a(b, enlace)}</td><td class='n'>{n}</td><td>{_e(texto)}</td></tr>"
+        for b, n, texto, enlace in paginas)
+    cuerpo = (
+        '<div class="membrete"><span>H. Senado de la Nación</span>'
+        f"<span>Actualizado el {datetime.now():%d/%m/%Y, %H:%M} h</span></div>"
+        '<p class="antetitulo">Informe por bloque</p>'
+        f'<h1 class="titulo-tema">{_e(base or "Proyectos por bloque")}</h1>'
+        "<p>Cada página reúne los proyectos con la firma de alguno de los integrantes actuales del bloque.</p>"
+        "<div class='tabla'><table><thead><tr><th>Bloque</th><th>Integrantes</th><th>Resumen</th></tr></thead>"
+        f"<tbody>{filas}</tbody></table></div>"
+        "<footer><p>Datos públicos del sitio del H. Senado de la Nación. Programa Informe de Expedientes.</p></footer>")
+    html = ('<!DOCTYPE html>\n<html lang="es"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            f"<title>{_e(base or 'Proyectos por bloque')} — H. Senado de la Nación</title>"
+            f"<style>{ESTILOS}{ESTILOS_TEMA}</style></head><body><main class='hoja'>{cuerpo}</main></body></html>\n")
+    Path(destino).parent.mkdir(parents=True, exist_ok=True)
+    Path(destino).write_text(html, encoding="utf-8")
+    return Path(destino)
+
+
 def escribir_html(res: ResultadoTematico, destino: Path, ejemplo: bool = False) -> Path:
     destino = Path(destino)
     destino.write_text(generar_html(res, destino.parent, ejemplo), encoding="utf-8")

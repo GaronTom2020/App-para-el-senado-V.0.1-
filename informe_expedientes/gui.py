@@ -26,7 +26,7 @@ from .ficha import ExpedienteNoEncontrado
 from .identificador import ErrorIdentificador, parsear, separar_lote
 from .busqueda import OTROS, Consulta, separar_palabras
 from .ejes import Eje, buscar_eje, cargar_ejes, guardar_ejes
-from . import plan_labor
+from . import plan_labor, senadores
 from .seguimiento import Lista, OpcionesSeguimiento, ResultadoSeguimiento, markdown, revisar
 from .sesion import OpcionesSesion, ResultadoSesion, etiqueta_referencias, generar_sesion
 from .sesion import resumen as resumen_sesion
@@ -49,6 +49,9 @@ MARCA_PASO = {"hecho": "✓", "actual": "●", "detenido": "×", "pendiente": "�
 SIN_EJE = "(ninguno: escribir palabras)"
 TODOS_ORIGENES = "Todos"
 CUALQUIER_COMISION = "Cualquiera"
+CUALQUIER_AUTOR = "Cualquier senador"
+CUALQUIER_BLOQUE = "Cualquier bloque"
+CARGANDO = "Cargando la lista del sitio…"
 OPCIONES_ORIGEN = [TODOS_ORIGENES] + [f"{c} — {n}" for c, n in config.ORIGENES.items()]
 TIPOS_TEMA = [("PL", "Ley"), ("PR", "Resolución"), ("PC", "Comunicación"), ("PD", "Declaración"), (OTROS, "Otros")]
 
@@ -209,6 +212,11 @@ class Aplicacion(tk.Tk):
         self.var_hasta = tk.StringVar(value=str(anio))
         self.var_origen = tk.StringVar(value=TODOS_ORIGENES)
         self.var_comision = tk.StringVar(value=CUALQUIER_COMISION)
+        self.var_autor = tk.StringVar(value=CUALQUIER_AUTOR)
+        self.var_bloque = tk.StringVar(value=CUALQUIER_BLOQUE)
+        self.lista_autores: list = []
+        self.lista_bloques: dict = {}
+        self._cargando_senadores = False
         tipos_guardados = c.get("tema_tipos", ["PL", "PR", "PC"])
         self.vars_tipos = {t: tk.BooleanVar(value=t in tipos_guardados) for t, _ in TIPOS_TEMA}
         self.var_detallar = tk.BooleanVar(value=c.get("tema_detallar", True))
@@ -384,6 +392,19 @@ class Aplicacion(tk.Tk):
                      values=[CUALQUIER_COMISION] + list(self.comisiones_por_nombre)).grid(
             row=fila, column=0, columnspan=3, sticky="ew")
         fila += 1
+
+        etiqueta("Autor o bloque (opcional)")
+        self.combo_autor = ttk.Combobox(marco, textvariable=self.var_autor, values=[CUALQUIER_AUTOR],
+                                        postcommand=self._cargar_senadores)
+        self.combo_autor.grid(row=fila, column=0, columnspan=3, sticky="ew")
+        fila += 1
+        self.combo_bloque = ttk.Combobox(marco, textvariable=self.var_bloque, values=[CUALQUIER_BLOQUE],
+                                         state="readonly", postcommand=self._cargar_senadores)
+        self.combo_bloque.grid(row=fila, column=0, columnspan=3, sticky="ew", pady=(5, 0))
+        fila += 1
+        ayuda("Escribí el apellido del senador y elegilo de la lista, o elegí un bloque (si elegís los dos, se usa "
+              "el bloque). Se toman los proyectos con su firma, como autor o coautor; el bloque usa sus "
+              "integrantes actuales.")
 
         etiqueta("Tipos de proyecto")
         for k, (codigo, nombre) in enumerate(TIPOS_TEMA):
@@ -860,6 +881,11 @@ class Aplicacion(tk.Tk):
                 self._contando = False
         elif evento in ("log", "advertencia"):
             self._registro(("Aviso: " if evento == "advertencia" else "") + mensaje)
+        elif evento == "senadores":
+            self._cargando_senadores = False
+            self.lista_autores, self.lista_bloques = datos["autores"], datos["bloques"]
+            self.combo_autor.configure(values=[CUALQUIER_AUTOR] + [f"{s.legible} ({s.id})" for s in self.lista_autores])
+            self.combo_bloque.configure(values=[CUALQUIER_BLOQUE] + list(self.lista_bloques))
         elif evento == "planes":
             self.planes_publicados = datos["planes"]
             self.combo_planes.configure(values=[x.etiqueta for x in self.planes_publicados[:60]],
@@ -1339,13 +1365,58 @@ class Aplicacion(tk.Tk):
             self._actualizar_combo_ejes()
             self.var_eje.set(SIN_EJE)
 
+    def _cargar_senadores(self) -> None:
+        """Al abrir la lista de autores o de bloques, la trae del sitio (una vez por sesión)."""
+        if self.lista_autores or self._cargando_senadores:
+            return
+        self._cargando_senadores = True
+        self.combo_autor.configure(values=[CARGANDO])
+        self.combo_bloque.configure(values=[CARGANDO])
+
+        def trabajo():
+            try:
+                cliente = self._nuevo_cliente()
+                todos = senadores.bloques(cliente)
+                self.cola.put(("senadores", "", {"autores": senadores.con_integrantes(senadores.autores(cliente), todos),
+                                                 "bloques": todos}))
+            except Exception as e:  # noqa: BLE001
+                self.cola.put(("log", f"No se pudo traer la lista de senadores: {mensaje_de_error(e)}", {}))
+                self.cola.put(("senadores", "", {"autores": [], "bloques": {}}))
+
+        threading.Thread(target=trabajo, daemon=True).start()
+
+    def _autores_elegidos(self):
+        """(autores, bloque) elegidos; (None, None) si lo escrito no se puede resolver."""
+        bloque = self.var_bloque.get()
+        if bloque and bloque not in (CUALQUIER_BLOQUE, CARGANDO) and bloque in self.lista_bloques:
+            return list(self.lista_bloques[bloque]), bloque
+        texto = self.var_autor.get().strip()
+        if not texto or texto in (CUALQUIER_AUTOR, CARGANDO):
+            return [], None
+        if not self.lista_autores:
+            messagebox.showinfo("Autor", "Abrí la lista de autores para traerla del sitio y elegí el senador.")
+            return None, None
+        elegido = next((s for s in self.lista_autores if f"{s.legible} ({s.id})" == texto), None)
+        hallados = [elegido] if elegido else senadores.buscar_senador(texto, self.lista_autores)
+        if len(hallados) != 1:
+            opciones = "\n".join(f"{s.legible} ({s.id})" for s in hallados[:12])
+            messagebox.showinfo("Autor", f"«{texto}» coincide con {len(hallados)} senadores."
+                                         + (f"\n\n{opciones}\n\nElegí uno de la lista." if hallados else
+                                            " Revisá el apellido."))
+            return None, None
+        return hallados, None
+
     def _generar_tematico(self) -> None:
         if self.hilo and self.hilo.is_alive():
             return
         palabras = separar_palabras(self.var_palabras.get())
         comision_id = self.comisiones_por_nombre.get(self.var_comision.get())
-        if not palabras and not comision_id:
-            messagebox.showinfo("Falta el tema", "Elegí un eje, escribí al menos una palabra clave o elegí una comisión.")
+        autores, bloque = self._autores_elegidos()
+        if autores is None:
+            return
+        if not palabras and not comision_id and not autores:
+            messagebox.showinfo("Falta el tema", "Elegí un eje, escribí al menos una palabra clave, o elegí una "
+                                                 "comisión, un senador o un bloque.")
             return
         try:
             desde, hasta = int(self.var_desde.get()), int(self.var_hasta.get())
@@ -1377,6 +1448,7 @@ class Aplicacion(tk.Tk):
             anio_desde=desde, anio_hasta=hasta, origen=None if origen == TODOS_ORIGENES else origen.split(" ")[0],
             tipos=None if tipos == {c for c, _ in TIPOS_TEMA} else tipos, comision_id=comision_id,
             eje=None if eje == SIN_EJE or not buscar_eje(eje, self.ejes) else eje,
+            autores=autores, bloque=bloque,
         )
         opciones = OpcionesTematicas(
             detallar=self.var_detallar.get() or self.var_reuniones_tema.get() or self.var_individuales.get(),

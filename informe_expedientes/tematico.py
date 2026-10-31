@@ -129,7 +129,12 @@ def resumen(res: ResultadoTematico) -> str:
         cuales = "todas estas palabras" if c.modo == "todas" else "alguna de estas palabras"
         objeto = f"que mencionan {cuales} en su extracto: {', '.join(c.palabras)}"
     else:
-        objeto = "con los criterios indicados"
+        objeto = "" if c.autores else "con los criterios indicados"
+    if c.autores:
+        firma = (f"la firma de algún integrante del bloque {c.bloque}" if c.bloque else
+                 f"la firma de {c.autores[0].legible}" if len(c.autores) == 1 else
+                 f"la firma de alguno de estos senadores: {'; '.join(s.legible for s in c.autores)}")
+        objeto = f"{objeto} y llevan {firma}" if objeto else f"con {firma}"
     periodo = f"en {c.anio_desde}" if c.anio_desde == c.anio_hasta else f"entre {c.anio_desde} y {c.anio_hasta}"
     if not total:
         return f"No se identificaron expedientes {objeto} entre los ingresados {periodo}."

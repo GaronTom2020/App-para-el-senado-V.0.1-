@@ -59,15 +59,31 @@ class Consulta:
     tipos: set[str] | None = None              # None = todos; OTROS = los no principales
     comision_id: int | None = None
     eje: str | None = None
+    autores: list = field(default_factory=list)  # senadores.Senador: proyectos con su firma
+    bloque: str | None = None                  # si los autores son los integrantes actuales de un bloque
+
+    def quien(self) -> str:
+        """«Bloque Justicialista» · «Mendoza, Sandra Mariela» · «3 senadores»."""
+        if self.bloque:
+            return f"Bloque {self.bloque}"
+        if len(self.autores) == 1:
+            return self.autores[0].legible
+        if self.autores:
+            return f"{len(self.autores)} senadores"
+        return ""
 
     def titulo(self) -> str:
         if self.eje:
-            return self.eje
-        if self.palabras:
-            return ", ".join(self.palabras)
-        if self.comision_id:
-            return f"Comisión de {nombre_comision(config.COMISIONES.get(self.comision_id, str(self.comision_id)))}"
-        return "Búsqueda de expedientes"
+            base = self.eje
+        elif self.palabras:
+            base = ", ".join(self.palabras)
+        elif self.comision_id:
+            base = f"Comisión de {nombre_comision(config.COMISIONES.get(self.comision_id, str(self.comision_id)))}"
+        else:
+            base = ""
+        if self.quien():
+            return f"{base} — {self.quien()}" if base else self.quien()
+        return base or "Búsqueda de expedientes"
 
     def criterios(self) -> list[tuple[str, str]]:
         filas = []
@@ -90,6 +106,12 @@ class Consulta:
         if self.comision_id:
             filas.append(("Comisión del giro",
                           nombre_comision(config.COMISIONES.get(self.comision_id, str(self.comision_id)))))
+        if self.bloque:
+            filas.append(("Bloque", f"{self.bloque}: proyectos con la firma de alguno de sus integrantes actuales ("
+                                    + "; ".join(s.legible for s in self.autores) + ")"))
+        elif self.autores:
+            filas.append(("Autor" if len(self.autores) == 1 else "Autores",
+                          "; ".join(s.legible for s in self.autores) + " (como autor o coautor)"))
         return filas
 
 
@@ -135,8 +157,14 @@ def cumple(h: Hallazgo, c: Consulta) -> bool:
     return True
 
 
-def planificar(c: Consulta) -> list[tuple[str, int]]:
-    """Consultas al sitio: (palabra, año). Con «todas» basta la palabra más larga."""
+def planificar(c: Consulta) -> list[tuple[str, int, int | None]]:
+    """Consultas al sitio: (palabra, año, autor). Con «todas» basta la palabra más larga.
+
+    Con autores se pide una consulta por autor y año, sin palabra: las palabras se filtran
+    después sobre el extracto (son muchas menos consultas que palabra × autor × año).
+    """
+    if c.autores:
+        return [("", anio, s.id) for s in c.autores for anio in range(c.anio_desde, c.anio_hasta + 1)]
     if c.palabras:
         terminos = list(c.palabras) if c.modo == "alguna" else [max(c.palabras, key=len)]
     else:
@@ -146,7 +174,7 @@ def planificar(c: Consulta) -> list[tuple[str, int]]:
         for v in (t, sin_acentos(t)):          # el sitio puede no igualar tildes
             if v not in variantes:
                 variantes.append(v)
-    return [(v, anio) for anio in range(c.anio_desde, c.anio_hasta + 1) for v in variantes]
+    return [(v, anio, None) for anio in range(c.anio_desde, c.anio_hasta + 1) for v in variantes]
 
 
 class Buscador:
@@ -165,7 +193,7 @@ class Buscador:
         actualizar_mapa_comisiones(r.texto)
         return m.group(1) or m.group(2)
 
-    def consultar(self, palabra: str, anio: int, c: Consulta) -> list[dict]:
+    def consultar(self, palabra: str, anio: int, c: Consulta, autor: int | None = None) -> list[dict]:
         unico_tipo = ""
         if c.tipos and len(c.tipos) == 1 and next(iter(c.tipos)) in TIPOS_PRINCIPALES:
             unico_tipo = next(iter(c.tipos))
@@ -178,6 +206,7 @@ class Buscador:
             "busqueda_proyectos[expedienteLugar]": c.origen or "",
             "busqueda_proyectos[expedienteNumeroPos]": str(anio),
             "busqueda_proyectos[expedienteTipo]": unico_tipo,
+            "busqueda_proyectos[autor]": str(autor or ""),
         })
         ultimo_error = None
         for _intento in range(2):
@@ -262,11 +291,12 @@ def buscar(cliente: Cliente, c: Consulta, avisar=None) -> tuple[list[Hallazgo], 
     buscador = Buscador(cliente)
     vistos: dict[tuple, Hallazgo] = {}
     filas_recibidas = 0
-    for i, (palabra, anio) in enumerate(plan, 1):
+    nombres = {s.id: s.legible for s in c.autores}
+    for i, (palabra, anio, autor) in enumerate(plan, 1):
         cliente.verificar_cancelacion()
         avisar("progreso", actual=i - 1, total=len(plan))
-        etiqueta = f"«{palabra}»" if palabra else "todos"
-        filas = buscador.consultar(palabra, anio, c)
+        etiqueta = f"«{palabra}»" if palabra else (nombres.get(autor, str(autor)) if autor else "todos")
+        filas = buscador.consultar(palabra, anio, c, autor)
         filas_recibidas += len(filas)
         avisar("log", f"Búsqueda {etiqueta} en {anio}: {len(filas)} resultados del sitio.")
         for fila in filas:

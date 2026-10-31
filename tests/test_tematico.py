@@ -39,12 +39,12 @@ def test_palabras_y_filtros():
 
 def test_plan_de_consultas():
     assert planificar(Consulta(palabras=["universidad"], anio_desde=2025, anio_hasta=2026)) == \
-        [("universidad", 2025), ("universidad", 2026)]
+        [("universidad", 2025, None), ("universidad", 2026, None)]
     assert planificar(Consulta(palabras=["educación", "escuela"], anio_desde=2026, anio_hasta=2026)) == \
-        [("educación", 2026), ("educacion", 2026), ("escuela", 2026)]
+        [("educación", 2026, None), ("educacion", 2026, None), ("escuela", 2026, None)]
     assert planificar(Consulta(palabras=["universidad", "nacional"], modo="todas", anio_desde=2026,
-                               anio_hasta=2026)) == [("universidad", 2026)]
-    assert planificar(Consulta(comision_id=75, anio_desde=2026, anio_hasta=2026)) == [("", 2026)]
+                               anio_hasta=2026)) == [("universidad", 2026, None)]
+    assert planificar(Consulta(comision_id=75, anio_desde=2026, anio_hasta=2026)) == [("", 2026, None)]
 
 
 def test_resaltado_sin_tildes():

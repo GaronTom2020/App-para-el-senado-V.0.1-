@@ -53,10 +53,13 @@ En la pestaña **Por tema**:
 1. Elegí un **eje temático** (completa solo las palabras) o escribí tus propias **palabras clave**, separadas por coma.
 2. Indicá si el extracto tiene que tener **alguna** o **todas** las palabras, y si querés **excluir** los que mencionen otras (por ejemplo, el eje «Consumo» excluye «consumo problemático»).
 3. Ajustá los **años** de los expedientes, el **origen**, la **comisión del giro** y los **tipos** (por defecto: ley, resolución y comunicación; las declaraciones quedan afuera porque suelen ser muy numerosas).
-4. Elegí qué hacer con cada expediente encontrado: consultar su ficha (para saber su etapa y comisión, recomendado), buscar sus reuniones de comisión (lento) o generar además su informe completo.
-5. Presioná **Generar informe temático**. La lista aparece en la pestaña *Expedientes*: doble clic abre la ficha, clic derecho genera el informe completo de ese expediente.
+4. Si querés, elegí un **senador** (escribí el apellido y elegilo de la lista) o un **bloque**: se toman los proyectos con su firma, como autor o coautor. Se puede combinar con un eje o con palabras clave, o usar solo (todos los proyectos del senador o del bloque en esos años).
+5. Elegí qué hacer con cada expediente encontrado: consultar su ficha (para saber su etapa y comisión, recomendado), buscar sus reuniones de comisión (lento) o generar además su informe completo.
+6. Presioná **Generar informe temático**. La lista aparece en la pestaña *Expedientes*: doble clic abre la ficha, clic derecho genera el informe completo de ese expediente.
 
 **Cómo busca.** Consulta la búsqueda avanzada del Senado por extracto, una vez por año y por palabra, y descarga la exportación completa de resultados. Sobre eso aplica un filtro propio que no distingue tildes ni mayúsculas y busca el **comienzo** de cada palabra: «universidad» encuentra «universidades», pero «penal» no encuentra «despenalizar». Con «todas», consulta al sitio por la palabra más larga y exige las demás en el extracto.
+
+**Por autor y por bloque.** El buscador del Senado tiene un campo de autor (un número por senador, el mismo de su página en el sitio); con él se hace una consulta por senador y por año y las palabras se filtran después sobre el extracto. La exportación trae también los proyectos que el senador firmó como coautor («MOISES Y OTROS: …»). El bloque se arma con sus integrantes **actuales** (listado «agrupados por bloques» del sitio): un proyecto de alguien que cambió de bloque figura en el bloque de hoy, no en el de la fecha del proyecto, y el informe lo aclara en los criterios. Cada integrante es una consulta por año: un bloque grande en dos años son unas cuarenta consultas antes de abrir las fichas. Los senadores recién incorporados que el buscador todavía no lista se toman del listado de bloques.
 
 **Cuánto tarda.** Hace una consulta por año y por palabra (dos si la palabra lleva tilde, para no perder extractos cargados sin tilde), más una por cada ficha. Un eje de seis palabras en dos años son unas 15 consultas de búsqueda y luego una por expediente encontrado: entre uno y tres minutos. Para períodos largos conviene acotar con comisión o tipo. Se consultan como máximo 200 fichas; el resto figura en el informe sin etapa.
 
@@ -141,6 +144,10 @@ python app.py S-351/25 CD-35/23 --salida "C:\Informes"
 python app.py PE-107/24 --tipo PL --sin-reuniones --formatos html
 python app.py --tema "Salud" --anios 2025-2026
 python app.py --palabras "litio, minería" --tipos PL,PC --comision "Minería" --formatos xlsx
+python app.py --autor "Mendoza" --anios 2026 --tipos PL
+python app.py --tema "Salud" --bloque "Justicialista"
+python app.py --listar-bloques
+python app.py --por-bloque --tipos PL --anios 2026 --formatos html,xlsx --salida informes/bloques
 python app.py --tema "Educación y universidades" --nombre index --salida informes/educacion
 python app.py --seguimiento agregar PE-99/26 S-351/25
 python app.py --seguimiento revisar --salida "C:\Informes" --formatos html,md
@@ -169,6 +176,8 @@ python app.py --help
 
 Para tener informes temáticos siempre actualizados en un sitio del equipo, el archivo `despliegue/informe-tematico.yml` es un flujo de GitHub Actions que, de lunes a viernes a las 8:00, corre el programa por línea de comandos para los ejes elegidos y publica el HTML y el Excel con nombre fijo (`informes/<eje>/index.html`). Las instrucciones están al comienzo del archivo.
 
+El mismo flujo publica además una página por bloque: `--por-bloque` genera `informes/bloques/<bloque>/index.html` (y su Excel) para cada bloque actual, o para los indicados en `BLOQUES`, y un índice en `informes/bloques/index.html` con el resumen de cada uno. Con `EJE_BLOQUES` las páginas se limitan a un eje temático.
+
 No se puede publicar el programa como una página web que consulte al Senado desde el navegador: los navegadores no dejan que una página de otro dominio lea `senado.gob.ar`. Por eso la consulta corre en la PC o en GitHub Actions, y lo que se publica es el informe ya armado.
 
 Lo que se publica en GitHub Pages es público. Los datos ya lo son, pero conviene acordarlo con la Prosecretaría antes de sumarlo al sitio institucional.
@@ -190,7 +199,8 @@ Si se quisiera usar desde el navegador sin instalar nada, el mismo paquete puede
 | `ficha.py` | Lee la ficha (`verExp`) y resuelve el tipo con la búsqueda avanzada del sitio. |
 | `comisiones.py` | Listados de reuniones por comisión, análisis de cada nota y agenda. |
 | `situacion.py` | Situación, pasos del trámite y caducidad. |
-| `busqueda.py`, `ejes.py` | Búsqueda por palabras y filtros; ejes temáticos. |
+| `busqueda.py`, `ejes.py` | Búsqueda por palabras, autor y filtros; ejes temáticos. |
+| `senadores.py` | Autores (selector del buscador) y bloques actuales con sus integrantes. |
 | `tematico.py`, `informe_tematico.py` | Informe temático y su escritura en Word, HTML y Excel. |
 | `votaciones.py` | Listado anual de votaciones, detalle y PDF de cada acta, artículos en rangos, sesiones y el índice guardado. |
 | `hcdn.py` | El proyecto en el sitio de Diputados: número, giros, dictámenes y trámite de las dos cámaras. |
@@ -208,6 +218,6 @@ En `docs/relevamiento-fase0.md` está relevado qué publican el sitio del Senado
 
 Pruebas: `pip install pytest` y luego `python -m pytest`. Usan páginas de prueba que reproducen la estructura real del sitio, sin conexión a internet.
 
-Direcciones que usa: `parlamentario/comisiones/verExp/{número}.{año}/{origen}/{tipo}` (ficha), `parlamentario/parlamentaria/avanzada` (búsqueda) y `micrositios/DatosAbiertosExpedientes/BusquedaAvanzada/XLS` (su exportación completa), `parlamentario/comisiones/info/{id}` y `?Reuniones=N` (reuniones), `micrositios/nota/{id}/noticias` (nota de cada reunión), `parlamentario/comisiones/agenda/{id}` (agenda) `parlamentario/parlamentaria/ordenDelDiaResultadoLink/{año}/{número}` (órdenes del día), `votaciones/actas` (listado anual; otros años por POST con `busqueda_actas[anio]`), `votaciones/detalleActa/{id}` y `votaciones/verActaVotacion/{id}` (detalle y PDF de cada acta) y `parlamentario/parlamentaria/actas` (Plenario de Labor Parlamentaria, con el PDF de cada plan; los nombres de archivo no siguen un patrón, por eso se usa el enlace de la tabla). En Diputados, la búsqueda `proyectos/resultado.html?strNumExp={número}&strNumExpOrig={origen}&strNumExpAnio={año}` (con `strMostrarTramites=on` y las demás opciones para que traiga el trámite), que sirve también como enlace (la dirección `proyecto.jsp` ya no existe). Se busca por el número del Senado; la respuesta puede traer otros proyectos con el mismo número, y se toma el que tiene ese «Expediente Senado».
+Direcciones que usa: `parlamentario/comisiones/verExp/{número}.{año}/{origen}/{tipo}` (ficha), `parlamentario/parlamentaria/avanzada` (búsqueda) y `micrositios/DatosAbiertosExpedientes/BusquedaAvanzada/XLS` (su exportación completa), `parlamentario/comisiones/info/{id}` y `?Reuniones=N` (reuniones), `micrositios/nota/{id}/noticias` (nota de cada reunión), `parlamentario/comisiones/agenda/{id}` (agenda) `parlamentario/parlamentaria/ordenDelDiaResultadoLink/{año}/{número}` (órdenes del día), `votaciones/actas` (listado anual; otros años por POST con `busqueda_actas[anio]`), `votaciones/detalleActa/{id}` y `votaciones/verActaVotacion/{id}` (detalle y PDF de cada acta), `senadores/listados/agrupados-por-bloques` (bloques actuales) y `parlamentario/parlamentaria/actas` (Plenario de Labor Parlamentaria, con el PDF de cada plan; los nombres de archivo no siguen un patrón, por eso se usa el enlace de la tabla). En Diputados, la búsqueda `proyectos/resultado.html?strNumExp={número}&strNumExpOrig={origen}&strNumExpAnio={año}` (con `strMostrarTramites=on` y las demás opciones para que traiga el trámite), que sirve también como enlace (la dirección `proyecto.jsp` ya no existe). Se busca por el número del Senado; la respuesta puede traer otros proyectos con el mismo número, y se toma el que tiene ese «Expediente Senado».
 
 Los PDF de actas se leen con `pypdf`, incluida en `requirements.txt`; sin ella, las votaciones de sesiones recientes figuran solo con su resultado.
