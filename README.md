@@ -9,16 +9,17 @@ Usa solamente información pública de www.senado.gob.ar y www.hcdn.gob.ar.
 
 ## Qué incluye el informe
 
-- **Situación actual**: en comisión, con dictamen, aprobado, sancionado, vetado, caducado o archivado, con una línea de pasos del trámite que marca dónde está o dónde se detuvo.
+- **Situación actual**: en comisión, con dictamen, aprobado, sancionado, vetado, caducado o archivado, con una línea de pasos del trámite que marca dónde está o dónde se detuvo. En los proyectos de ley, la situación sigue el recorrido de la Constitución (arts. 77 a 84) y dice qué sigue: el pase a la cámara revisora (art. 78), la vuelta a la cámara de origen cuando la revisora lo modificó y las mayorías para aceptar o insistir (art. 81), la promulgación tácita a los diez días útiles y la promulgación parcial (art. 80), el veto y la insistencia con dos tercios (art. 83), y que un proyecto rechazado o con el veto firme no puede repetirse en las sesiones de ese año.
+- **Contraste con la Cámara de Diputados**: en los proyectos de ley se consulta también el sitio de Diputados (hcdn.gob.ar), que suele registrar antes la media sanción, el pase a la otra cámara, el veto y la insistencia. Lo que figura allí y todavía no en la ficha del Senado se avisa en la situación («El sitio de Diputados registra la media sanción del Senado del 29/10/2026, con modificaciones al dictamen; la ficha del Senado todavía no»), igual que si los números de ley no coinciden.
 - **Caducidad**: la registrada en la ficha del Senado o, si no figura, una estimación según la Ley 13.640 (proyectos de ley) o la Resolución del Senado del 13/06/1991 (declaración, resolución, comunicación y decreto).
 - **Origen** (Senado, Poder Ejecutivo, Cámara de Diputados…), tipo, extracto, autores, fecha de mesa de entradas, dado cuenta y número de DAE.
 - **Enlaces** a la ficha del Senado, al texto original y al texto sancionado o definitivo.
-- **Etapa en Diputados** (expedientes que vienen de la HCDN): números de expediente enlazados al sitio de Diputados, número de Orden del Día (dictamen), Trámite Parlamentario y fecha de sanción.
+- **Etapa en Diputados**: los números de expediente en Diputados enlazados a su sitio, Orden del Día (dictamen), Trámite Parlamentario y fecha de sanción que trae la ficha, y lo que registra el sitio de Diputados: número propio (para los que vienen del Senado, del tipo 65-S-2025), giro, dictamen, votación, artículos modificados o rechazados en particular y último movimiento.
 - **Giros a comisiones**, con fechas de ingreso y egreso.
 - **Reuniones de comisión** en que se trató: fecha (enlazada a la nota de la reunión), título, comisiones, tipo (comisión, plenario o asesores), versión taquigráfica y video.
 - **Reuniones ya convocadas** en la agenda de las comisiones del giro.
 - **Órdenes del Día del Senado**, con su estado y el PDF del dictamen.
-- **Votaciones en el recinto**: cada votación nominal del expediente o de su orden del día, con fecha, tipo (en general, en particular, moción), resultado, afirmativos, negativos, abstenciones y ausentes, enlace al acta, al PDF y al video, y una tabla de cómo votó cada bloque en las votaciones en general. Si hay una votación más reciente que lo que registra la ficha, la situación lo avisa («Votado en el recinto el 29/10/2026 (42 a 21); la ficha oficial todavía no registra la sanción») y la línea de pasos marca la sanción del Senado como hecha.
+- **Votaciones en el recinto**: una línea por sesión. La votación en general con su resultado («aprobado (42 a 21)»); en particular, solo los artículos rechazados o modificados, en rangos («se rechazaron los arts. 23-24»), o «aprobado sin observaciones»; y las insistencias (art. 83), con si alcanzaron los dos tercios. Las mociones, preferencias y habilitaciones sobre tablas no se incluyen. Si el Senado aprobó con modificaciones y las actas no dicen qué artículos, se aclara y se enlaza el texto aprobado. Si el detalle del acta y su PDF dan totales distintos, se avisa. Si hay una votación más reciente que lo que registra la ficha, la situación lo dice («Votado en el recinto el 29/10/2026 (42 a 21); la ficha oficial todavía no registra la sanción») y la línea de pasos marca la sanción del Senado como hecha.
 - Sanción, número de ley, resolución del Poder Ejecutivo (veto o promulgación, decreto y Boletín Oficial), observaciones de la ficha y notas propias.
 
 ## Instalación
@@ -77,6 +78,7 @@ En la pestaña **Seguimiento** se arma una lista de expedientes para revisar seg
 - giro nuevo a una comisión y egreso de una comisión;
 - dictamen u orden del día nuevos, o cambio de estado de una orden del día;
 - votación en el recinto y sanción registrada en la ficha;
+- media sanción, sanción, pase a la otra cámara, veto o insistencia que registra el sitio de Diputados;
 - reunión convocada con el expediente en el temario y reunión de comisión en que se trató (si se buscan reuniones);
 - cambio de situación y caducidad cercana (menos de 60 días).
 
@@ -84,7 +86,9 @@ La primera revisión de cada expediente solo guarda su estado («Primera revisi�
 
 ## Cómo se buscan las votaciones
 
-El programa lee el listado anual de votaciones del Senado (`votaciones/actas`), desde el año de ingreso del expediente hasta hoy, y toma las filas que enlazan el expediente o su orden del día, o que lo nombran en el título. De cada una abre el detalle del acta, que trae los totales y el bloque de cada senador. En las sesiones recientes el detalle se publica vacío durante unos días: mientras tanto se usa el PDF del acta, que ya trae la lista nominal, el quórum y la mayoría, y el bloque se completa por nombre con el listado de bloques actual (el informe lo aclara).
+El programa lee el listado anual de votaciones del Senado (`votaciones/actas`), desde el año de ingreso del expediente hasta hoy, y toma las filas que enlazan el expediente o su orden del día, o que lo nombran en el título. Solo se tienen en cuenta las votaciones sobre el contenido (en general, en particular e insistencias). De las votaciones en general abre el detalle del acta, que trae los totales, y lo contrasta con el PDF. En las sesiones recientes el detalle se publica vacío durante unos días: mientras tanto se usa el PDF, que ya trae la lista nominal, el quórum y, en el título, los artículos votados («ART. 1 AL 22»). De las votaciones en particular basta el listado, salvo en esas sesiones recientes.
+
+Las actas del Senado no dicen qué artículos se modificaron respecto del dictamen. Eso sale del sitio de Diputados, que en sus votaciones en particular sí los nombra («APROBACION CON MODIFICACIONES EN PARTICULAR DE LOS ARTICULOS 2, 3, 4, 5 Y 6»), y de la ficha o del trámite cuando el Senado aprobó «con modificaciones».
 
 Los listados y las actas ya leídas se guardan en un índice (`indice_votaciones.json`, en la carpeta de caché): el año en curso se vuelve a leer cada 3 horas, los anteriores cada 30 días, y un acta completa no se vuelve a pedir. Se detallan hasta 40 votaciones por expediente (las en general, siempre); las demás figuran solo con su resultado. Los datos abiertos del Senado no publican votaciones, por eso se leen estas páginas.
 
@@ -169,7 +173,9 @@ Si se quisiera usar desde el navegador sin instalar nada, el mismo paquete puede
 | `situacion.py` | Situación, pasos del trámite y caducidad. |
 | `busqueda.py`, `ejes.py` | Búsqueda por palabras y filtros; ejes temáticos. |
 | `tematico.py`, `informe_tematico.py` | Informe temático y su escritura en Word, HTML y Excel. |
-| `votaciones.py` | Listado anual de votaciones, detalle y PDF de cada acta, bloques y el índice guardado. |
+| `votaciones.py` | Listado anual de votaciones, detalle y PDF de cada acta, artículos en rangos, sesiones y el índice guardado. |
+| `hcdn.py` | El proyecto en el sitio de Diputados: número, giros, dictámenes y trámite de las dos cámaras. |
+| `tramite.py` | Recorrido del proyecto de ley según la Constitución (arts. 77 a 84), con la ficha, Diputados y las actas. |
 | `seguimiento.py` | Lista de seguimiento, foto del estado, comparación y resumen de novedades (HTML y Markdown). |
 | `numeros.py` | Cantidades en letras («VEINTIÚN (21)»). |
 | `contenido.py`, `informe_docx.py`, `informe_html.py` | Contenido y escritura de los informes. |
@@ -181,6 +187,6 @@ En `docs/relevamiento-fase0.md` está relevado qué publican el sitio del Senado
 
 Pruebas: `pip install pytest` y luego `python -m pytest`. Usan páginas de prueba que reproducen la estructura real del sitio, sin conexión a internet.
 
-Direcciones que usa: `parlamentario/comisiones/verExp/{número}.{año}/{origen}/{tipo}` (ficha), `parlamentario/parlamentaria/avanzada` (búsqueda) y `micrositios/DatosAbiertosExpedientes/BusquedaAvanzada/XLS` (su exportación completa), `parlamentario/comisiones/info/{id}` y `?Reuniones=N` (reuniones), `micrositios/nota/{id}/noticias` (nota de cada reunión), `parlamentario/comisiones/agenda/{id}` (agenda) `parlamentario/parlamentaria/ordenDelDiaResultadoLink/{año}/{número}` (órdenes del día), `votaciones/actas` (listado anual; otros años por POST con `busqueda_actas[anio]`), `votaciones/detalleActa/{id}` y `votaciones/verActaVotacion/{id}` (detalle y PDF de cada acta) y `senadores/listados/agrupados-por-bloques` (bloques actuales). En Diputados, la búsqueda `proyectos/resultado.html?strNumExp={número}&strNumExpOrig={origen}&strNumExpAnio={año}`, que sirve como enlace (la dirección `proyecto.jsp` ya no existe).
+Direcciones que usa: `parlamentario/comisiones/verExp/{número}.{año}/{origen}/{tipo}` (ficha), `parlamentario/parlamentaria/avanzada` (búsqueda) y `micrositios/DatosAbiertosExpedientes/BusquedaAvanzada/XLS` (su exportación completa), `parlamentario/comisiones/info/{id}` y `?Reuniones=N` (reuniones), `micrositios/nota/{id}/noticias` (nota de cada reunión), `parlamentario/comisiones/agenda/{id}` (agenda) `parlamentario/parlamentaria/ordenDelDiaResultadoLink/{año}/{número}` (órdenes del día), `votaciones/actas` (listado anual; otros años por POST con `busqueda_actas[anio]`), `votaciones/detalleActa/{id}` y `votaciones/verActaVotacion/{id}` (detalle y PDF de cada acta). En Diputados, la búsqueda `proyectos/resultado.html?strNumExp={número}&strNumExpOrig={origen}&strNumExpAnio={año}` (con `strMostrarTramites=on` y las demás opciones para que traiga el trámite), que sirve también como enlace (la dirección `proyecto.jsp` ya no existe). Se busca por el número del Senado; la respuesta puede traer otros proyectos con el mismo número, y se toma el que tiene ese «Expediente Senado».
 
 Los PDF de actas se leen con `pypdf`, incluida en `requirements.txt`; sin ella, las votaciones de sesiones recientes figuran solo con su resultado.

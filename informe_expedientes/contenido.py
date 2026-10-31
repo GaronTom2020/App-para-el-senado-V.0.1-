@@ -6,8 +6,9 @@ import re
 from dataclasses import dataclass
 
 from . import config
+from . import votaciones as votaciones_mod
 from .modelos import Ficha, Resultado, Votacion
-from .numeros import cantidad, en_letras
+from .numeros import cantidad
 from .util import fmt_fecha, nombre_comision, normalizar, parsear_fecha, titulo_es
 
 
@@ -163,80 +164,149 @@ def alcance_busqueda(resultado: Resultado) -> str:
 
 # ================================================================ votaciones
 
-def tipo_votacion(v: Votacion) -> str:
-    return (v.tipo or "votación").capitalize()
+@dataclass
+class SesionVotada:
+    fecha: str
+    lineas: list[str]
+    enlaces: list[Fragmento]
 
 
-def resultado_votacion(v: Votacion) -> str:
-    return v.resultado.capitalize() if v.resultado else "—"
+def _cuenta(v: Votacion) -> str:
+    return f" ({v.afirmativos} a {v.negativos})" if v.con_totales else ""
 
 
-def descripcion_votacion(v: Votacion) -> str:
-    titulo = normalizar(v.titulo)
-    partes = [v.titulo or "Votación sin título publicado"]
-    ods = [od for od in v.ordenes_del_dia if od not in v.titulo]
-    if ods:
-        partes.append("OD " + ", ".join(ods))
-    articulos = [a.strip() for a in v.articulos.split(",") if a.strip()]
-    if articulos and "ART" not in titulo:
-        partes.append(", ".join(articulos) if len(articulos) <= 3 else f"{articulos[0]} a {articulos[-1]}")
-    return " · ".join(partes)
+def _resultado(v: Votacion) -> str:
+    return "aprobado" if v.aprobada else ("rechazado" if v.rechazada else (v.resultado or "sin resultado").lower())
 
 
-def enlaces_votacion(v: Votacion) -> list[Fragmento]:
-    enlaces = []
-    if v.url_detalle:
-        enlaces.append(Fragmento("Acta", v.url_detalle))
-    if v.url_pdf:
-        enlaces.append(Fragmento("PDF", v.url_pdf))
-    if v.video:
-        enlaces.append(Fragmento("Video", v.video))
-    return enlaces
+def _modificaciones_del_senado(resultado: Resultado, fecha) -> tuple[bool, list[str]]:
+    """¿El Senado aprobó con modificaciones ese día? Y, si Diputados los nombra, qué artículos."""
+    dip = resultado.diputados
+    modif, articulos = False, []
+    if dip is not None:
+        for m in dip.tramite:
+            if normalizar(m.camara).startswith("SENAD") and m.fecha == fecha and "MODIFICACION" in normalizar(m.movimiento):
+                modif = True
+        articulos = dip.articulos_en_particular("Senado")[0] if modif else []
+    b = resultado.ficha.bloque("SENADO", exacto=True)
+    if b and parsear_fecha(b.valor("FECHA DE SANCION")) in (fecha, None) and \
+            "MODIFICACION" in normalizar(b.valor("COMENTARIO") or ""):
+        modif = True
+    return modif, articulos
 
 
-def totales_votacion(v: Votacion) -> list[str]:
-    if not v.con_totales:
-        return ["—"] * 4
-    return [str(x if x is not None else "—") for x in (v.afirmativos, v.negativos, v.abstenciones, v.ausentes)]
+def _texto_aprobado(resultado: Resultado, fecha) -> Fragmento | None:
+    """El texto que aprobó el Senado ese día, según los enlaces del sitio de Diputados."""
+    dip = resultado.diputados
+    if dip is None:
+        return None
+    definitiva = any(normalizar(m.camara).startswith("SENAD") and m.fecha == fecha
+                     and normalizar(m.resultado) == "SANCIONADO" for m in dip.tramite)
+    buscado = "SANCION SENADO" if definitiva else "MEDIA SANCION SENADO"
+    for etiqueta, url in dip.textos:
+        if normalizar(etiqueta) == buscado:
+            return Fragmento("Texto sancionado" if definitiva else "Texto de la media sanción", url)
+    return None
+
+
+def sesiones_votadas(resultado: Resultado) -> list[SesionVotada]:
+    """Cada sesión en que se votó el expediente, en pocas líneas (arts. 81 y 83 de la Constitución)."""
+    salida = []
+    for s in votaciones_mod.sesiones(resultado.votaciones):
+        lineas: list[str] = []
+        enlaces: list[Fragmento] = []
+        for v in s.general:
+            una_sola = normalizar(v.tipo) == "EN GENERAL Y EN PARTICULAR"
+            lineas.append(("En general y en particular, en una sola votación: " if una_sola else "En general: ")
+                          + _resultado(v) + _cuenta(v) + ".")
+            if v.discrepancia:
+                lineas.append(f"Atención: {v.discrepancia}.")
+        modif, modificados = _modificaciones_del_senado(resultado, s.fecha)
+        if s.particular or (modif and s.general):
+            observaciones = []
+            if s.articulos_rechazados:
+                observaciones.append(("se rechazó " if len(s.articulos_rechazados) == 1 else "se rechazaron ")
+                                     + votaciones_mod.describir_articulos(s.articulos_rechazados))
+            for parte in s.partes_rechazadas:
+                observaciones.append(f"se rechazó {parte}")
+            if modificados:
+                observaciones.append(("se modificó " if len(modificados) == 1 else "se modificaron ")
+                                     + votaciones_mod.describir_articulos(modificados))
+            elif modif:
+                observaciones.append("se aprobó con modificaciones respecto del dictamen (las actas no indican qué "
+                                     "artículos: ver el texto aprobado)")
+            if observaciones:
+                lineas.append("En particular: " + "; ".join(observaciones) + ".")
+            elif s.particular:
+                lineas.append("En particular: aprobado sin observaciones.")
+        for v in s.insistencias:
+            tercios = {True: ", con los dos tercios de los presentes", False: ", sin los dos tercios de los presentes",
+                       None: ""}[v.dos_tercios]
+            lineas.append(f"Insistencia (art. 83 CN): {_resultado(v)}{_cuenta(v)}{tercios}.")
+        acta = s.acta
+        if acta is not None and acta.url:
+            enlaces.append(Fragmento("Acta", acta.url))
+        texto_aprobado = _texto_aprobado(resultado, s.fecha) if modif else None
+        if texto_aprobado:
+            enlaces.append(texto_aprobado)
+        salida.append(SesionVotada(fmt_fecha(s.fecha), lineas, enlaces))
+    return salida
 
 
 def texto_votaciones(resultado: Resultado) -> str:
-    """Párrafo de la sección, con las cantidades en forma normativa."""
-    vs = resultado.votaciones
-    if not vs:
-        return ("No se encontraron votaciones nominales del recinto sobre este expediente ni sobre sus "
-                "órdenes del día.")
-    generales = sum(1 for v in vs if v.en_general)
-    texto = f"Se registran {cantidad(len(vs), 'votación nominal', 'votaciones nominales', femenino=True)} en el recinto"
-    if generales and generales < len(vs):
-        otras = len(vs) - generales
-        texto += (f": {en_letras(generales, True)} ({generales}) en general y {en_letras(otras, True)} ({otras}) "
-                  "en particular o sobre mociones")
-    elif generales:
-        texto += " en general" if generales == 1 else ", todas en general"
-    return texto + "."
+    sesiones = sesiones_votadas(resultado)
+    if not sesiones:
+        return "No se encontraron votaciones del recinto sobre este expediente ni sobre sus órdenes del día."
+    return f"Se votó en {cantidad(len(sesiones), 'sesión', 'sesiones', femenino=True)}."
 
 
-def nota_votacion(v: Votacion) -> str:
-    """Fuente y datos de quórum de una votación, para el pie de su tabla por bloque."""
-    partes = []
-    if v.mayoria:
-        partes.append(f"Mayoría requerida: {v.mayoria.lower()}")
-    if v.quorum:
-        partes.append(f"quórum: {v.quorum}")
-    if v.presentes:
-        partes.append(f"presentes: {v.presentes}")
-    if v.presidente:
-        partes.append(f"presidencia: {titulo_es(v.presidente)}")
-    texto = "; ".join(partes) + "." if partes else ""
-    if v.fuente == "pdf":
-        texto += (" El detalle oficial del acta todavía no se publicó: los votos salen del PDF del acta"
-                  + (" y el bloque de cada senador, del listado de bloques actual." if v.bloques_actuales else "."))
-    return texto.strip()
+# ================================================================ Diputados
+
+def _numero_hcdn(numero: str) -> str:
+    """«0065-S-2025» → «65-S-2025»."""
+    partes = numero.split("-", 1)
+    return f"{int(partes[0])}-{partes[1]}" if len(partes) == 2 and partes[0].isdigit() else numero
 
 
-def votaciones_con_bloques(resultado: Resultado) -> list[Votacion]:
-    return [v for v in resultado.votaciones if v.en_general and v.votos]
+def datos_diputados_hcdn(resultado: Resultado) -> list[tuple[str, Linea]]:
+    """Lo que registra el sitio de Diputados sobre el paso del proyecto por esa Cámara."""
+    p = resultado.diputados
+    if p is None:
+        return []
+    filas: list[tuple[str, Linea]] = []
+    if p.expediente_diputados:
+        filas.append(("Expediente en Diputados", [Fragmento(_numero_hcdn(p.expediente_diputados),
+                                                            config.url_hcdn(p.expediente_diputados))]))
+    elif any(normalizar(m.movimiento).startswith("PASA A DIPUTADOS") for m in p.tramite):
+        filas.append(("Expediente en Diputados", [Fragmento("pasó a Diputados; todavía sin número propio", p.url)]))
+    else:
+        return []
+    if p.giros_diputados:
+        filas.append(("Giro en Diputados", [Fragmento(comisiones_texto([titulo_es(g) for g in p.giros_diputados]))]))
+    for d in p.dictamenes:
+        if normalizar(d.camara).startswith("DIPUT"):
+            filas.append(("Dictamen en Diputados", [Fragmento(f"Orden del Día N° {d.orden_del_dia}"
+                                                             + (f" ({fmt_fecha(d.fecha)})" if d.fecha else ""))]))
+    for m in p.sanciones():
+        if normalizar(m.camara).startswith("DIPUT"):
+            resultado_dip = {"MEDIA SANCION": "Media sanción", "SANCIONADO": "Sanción definitiva"}.get(
+                normalizar(m.resultado), m.resultado.capitalize())
+            filas.append(("Votación en Diputados", [Fragmento(f"{resultado_dip} el {fmt_fecha(m.fecha)}")]))
+    modificados, rechazados = p.articulos_en_particular("Diputados")
+    observaciones = []
+    if modificados:
+        observaciones.append("modificó " + votaciones_mod.describir_articulos(modificados))
+    if rechazados:
+        observaciones.append("rechazó " + votaciones_mod.describir_articulos(rechazados))
+    if observaciones:
+        filas.append(("En particular", [Fragmento("; ".join(observaciones).capitalize() + ".")]))
+    ultimo = next((m for m in reversed(p.tramite) if normalizar(m.camara).startswith("DIPUT")), None)
+    if ultimo:
+        movimiento = re.split(r"\s+CONJUNTAMENTE\b", ultimo.movimiento)[0].rstrip(" -")
+        filas.append(("Último movimiento en Diputados", [Fragmento(
+            movimiento.capitalize() + (f" ({fmt_fecha(ultimo.fecha)})" if ultimo.fecha else ""))]))
+    filas.append(("Fuente", [Fragmento("sitio de la Cámara de Diputados", p.url)]))
+    return filas
 
 
 def texto_resumen(resultado: Resultado) -> str:
@@ -250,11 +320,12 @@ def texto_resumen(resultado: Resultado) -> str:
         f"Situación: {s.titulo}",
     ]
     lineas += [f"  {d}" for d in s.detalle]
+    lineas += [f"  {d}" for d in s.contraste]
     if s.caducidad:
         etiqueta = "Caducidad registrada" if s.caducidad.registrada else "Caducidad estimada"
         lineas.append(f"  {etiqueta}: {fmt_fecha(s.caducidad.fecha)}")
     lineas += ["", "Datos del expediente"]
-    for etiqueta, linea in datos_generales(f) + datos_diputados(f):
+    for etiqueta, linea in datos_generales(f) + datos_diputados(f) + datos_diputados_hcdn(resultado):
         lineas.append(f"  {etiqueta}: " + "".join(fr.texto for fr in linea))
     if f.giros:
         lineas += ["", "Giros a comisiones"]
@@ -269,12 +340,13 @@ def texto_resumen(resultado: Resultado) -> str:
         lineas += ["", "Próximas reuniones convocadas"]
         for c in resultado.convocadas:
             lineas.append(f"  {fmt_fecha(c.fecha)} {c.hora}  {c.comision}  {c.lugar}")
-    if resultado.votaciones:
+    sesiones = sesiones_votadas(resultado)
+    if sesiones:
         lineas += ["", "Votaciones en el recinto"]
-        for v in resultado.votaciones:
-            totales = "-".join(totales_votacion(v)) if v.con_totales else "sin totales publicados"
-            lineas.append(f"  {fmt_fecha(v.fecha)}  {tipo_votacion(v)}: {resultado_votacion(v)} ({totales})")
-            lineas.append(f"      {descripcion_votacion(v)}  {v.url or ''}")
+        for sv in sesiones:
+            lineas.append(f"  Sesión del {sv.fecha}")
+            lineas += [f"    {x}" for x in sv.lineas]
+            lineas += [f"    {e.texto}: {e.url}" for e in sv.enlaces]
     if f.ordenes_del_dia:
         lineas += ["", "Órdenes del Día del Senado"]
         for od in f.ordenes_del_dia:

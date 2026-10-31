@@ -20,7 +20,7 @@ from __future__ import annotations
 import re
 from datetime import date
 
-from . import config
+from . import config, tramite
 from .modelos import Caducidad, Ficha, Paso, Situacion, Votacion
 from .util import (
     anio_parlamentario, fin_anio_parlamentario, fmt_fecha, fmt_numero_ley, nombre_comision,
@@ -67,14 +67,15 @@ def _resultado_votacion(v: Votacion) -> str:
     return ""
 
 
-def calcular(ficha: Ficha, hoy: date | None = None, votaciones: list[Votacion] | None = None) -> Situacion:
+def calcular(ficha: Ficha, hoy: date | None = None, votaciones: list[Votacion] | None = None,
+             diputados=None) -> Situacion:
+    """`diputados` es el proyecto en hcdn.gob.ar (hcdn.ProyectoHCDN), si se consultó."""
     hoy = hoy or date.today()
     tipo, origen = ficha.id.tipo, ficha.id.origen
 
     b_senado = ficha.bloque("SENADO", exacto=True)
     b_ley = ficha.bloque("SANCION DE LEY")
     b_pe = ficha.bloque("PODER EJECUTIVO")
-    b_dip = next((b for b in ficha.resoluciones if "DIPUTADOS" in normalizar(b.titulo)), None)
 
     numero_ley = b_ley.valor("NUMERO DE LEY") if b_ley else None
     fecha_ley = parsear_fecha(b_ley.valor("FECHA DE SANCION")) if b_ley else None
@@ -91,15 +92,30 @@ def calcular(ficha: Ficha, hoy: date | None = None, votaciones: list[Votacion] |
     ods_caducas = [od for od in ficha.ordenes_del_dia if od.situacion == "caduca"]
 
     detalle: list[str] = []
-    votada = None if (numero_ley or "APROB" in sancion or "RECHAZ" in sancion) else         votacion_sin_registrar(ficha, votaciones)
+    votada = None
+    if not (numero_ley or "APROB" in sancion or "RECHAZ" in sancion):
+        votada = votacion_sin_registrar(ficha, votaciones)
+    r = tramite.armar(ficha, diputados, votada) if tipo == "PL" else None
+    if r is not None and r.revision is not None and r.revision.camara == tramite.SENADO and not r.revision.votacion:
+        r.revision.votacion = next((v for v in votaciones or [] if v.en_general and v.fecha == r.revision.fecha), None)
+    segun_diputados = None
+    if r is not None and not votada:
+        paso_senado = r.aprobacion_origen if r.origen == tramite.SENADO else r.revision
+        if paso_senado is not None and paso_senado.fuente == "diputados":
+            segun_diputados = paso_senado
 
-    if numero_ley:
-        titulo = f"Sancionado: Ley N° {fmt_numero_ley(numero_ley)}"
+    if numero_ley or (r is not None and r.sancion and r.sancion.fuente == "diputados"):
+        numero = numero_ley or (r.numero_ley if r else None)
+        titulo = f"Sancionado: Ley N° {fmt_numero_ley(numero)}" if numero else "Sancionado por el Congreso"
         nivel = "sancionado"
-        if fecha_ley:
+        if numero_ley and fecha_ley:
             detalle.append(f"Sanción definitiva el {fmt_fecha(fecha_ley)}.")
+        elif not numero_ley:
+            fecha_ley = r.sancion.fecha
+            detalle.append(f"Sanción definitiva el {fmt_fecha(fecha_ley)}, según el sitio de Diputados; la ficha del "
+                           "Senado todavía no la registra.")
+        resolucion = (b_pe.valor("RESOLUCION") if b_pe else None) or (r.pe if r else None) or ""
         if b_pe:
-            resolucion = b_pe.valor("RESOLUCION") or ""
             decreto = b_pe.valor("DECRETO NUMERO")
             fecha_dec = parsear_fecha(b_pe.valor("FECHA DEL DECRETO") or b_pe.valor("FECHA"))
             bo = b_pe.valor("BOLETIN OFICIAL NUMERO")
@@ -110,24 +126,31 @@ def calcular(ficha: Ficha, hoy: date | None = None, votaciones: list[Votacion] |
             if bo:
                 partes.append(f"Boletín Oficial N° {bo}" + (f" ({fmt_fecha(fecha_bo)})" if fecha_bo else ""))
             detalle.append(". ".join(partes) + ".")
-            if "VETO" in normalizar(resolucion):
-                nivel = "vetado"
-                titulo += f" (vetada: {resolucion.lower()})"
+        if "VETO" in normalizar(resolucion):
+            nivel = "vetado"
+            titulo += f" (vetada: {resolucion.lower()})"
+            if r is not None and r.insistencia == "lograda":
+                nivel = "sancionado"
+                titulo = titulo.replace("(vetada:", "(insistencia ante el veto:")
     elif "APROB" in sancion:
         nivel = "aprobado"
         cuando = f" el {fmt_fecha(fecha_senado)}" if fecha_senado else ""
         if tipo == "PL" and origen == "CD":
             if "MODIFIC" in normalizar(nota_senado):
-                titulo = "Aprobado por el Senado con modificaciones"
-                detalle.append(f"El Senado, como cámara revisora, lo aprobó con modificaciones{cuando}: vuelve a Diputados.")
+                titulo = "Aprobado por el Senado con modificaciones: vuelve a Diputados"
             else:
                 titulo = "Aprobado por el Senado como cámara revisora"
-                detalle.append(f"Aprobado{cuando}.")
+            detalle.append(f"Aprobado{cuando}.")
         elif tipo == "PL":
-            titulo = "Media sanción del Senado"
-            detalle.append(f"Aprobado{cuando}; pasa a la Cámara de Diputados para su revisión.")
-            if b_dip:
-                detalle.append("Diputados: " + "; ".join(f"{k.lower()} {v}" for k, v in b_dip.campos if v) + ".")
+            if r is not None and r.revision_modifico and not r.vuelta:
+                titulo = "Con modificaciones de Diputados: vuelve al Senado"
+            elif r is not None and r.revision:
+                titulo = "Aprobado por las dos cámaras"
+            else:
+                titulo = "Media sanción del Senado"
+            modif = " con modificaciones al dictamen" if r is not None and r.aprobacion_origen and \
+                r.aprobacion_origen.con_modificaciones else ""
+            detalle.append(f"Aprobado por el Senado{cuando}{modif}.")
         elif tipo in config.INSTRUMENTO:
             titulo = f"Aprobado por el Senado ({config.INSTRUMENTO[tipo]})"
             detalle.append(f"Aprobado{cuando}.")
@@ -139,7 +162,7 @@ def calcular(ficha: Ficha, hoy: date | None = None, votaciones: list[Votacion] |
     elif "RECHAZ" in sancion:
         nivel = "rechazado"
         titulo = "Rechazado por el Senado"
-        if fecha_senado:
+        if fecha_senado and tipo != "PL":
             detalle.append(f"Rechazado el {fmt_fecha(fecha_senado)}.")
     elif votada and votada.aprobada:
         nivel = "aprobado"
@@ -152,8 +175,13 @@ def calcular(ficha: Ficha, hoy: date | None = None, votaciones: list[Votacion] |
             titulo = "Aprobado en el recinto"
         detalle.append(f"Votado en el recinto el {fmt_fecha(votada.fecha)}{_resultado_votacion(votada)}; "
                        "la ficha oficial todavía no registra la sanción.")
-        if tipo == "PL" and origen != "CD":
-            detalle.append("Pasa a la Cámara de Diputados para su revisión.")
+    elif segun_diputados is not None:
+        nivel = "aprobado"
+        fecha_senado, sancion = segun_diputados.fecha, "APROBO"
+        titulo = ("Media sanción del Senado (según Diputados)" if origen != "CD"
+                  else "Aprobado por el Senado como cámara revisora (según Diputados)")
+        detalle.append(f"Aprobado por el Senado el {fmt_fecha(segun_diputados.fecha)}, según el sitio de Diputados; "
+                       "la ficha oficial todavía no registra la sanción.")
     elif votada and votada.rechazada:
         nivel = "rechazado"
         fecha_senado, sancion = votada.fecha, "RECHAZO"
@@ -205,6 +233,8 @@ def calcular(ficha: Ficha, hoy: date | None = None, votaciones: list[Votacion] |
         nivel = "desconocido"
         titulo = "No se pudo determinar la situación con los datos de la ficha"
 
+    if r is not None and nivel not in ("caducado", "archivado"):
+        detalle += tramite.lineas(r, hoy)
     if ficha.fecha_archivo and nivel != "archivado":
         detalle.append(f"Enviado al archivo el {fmt_fecha(ficha.fecha_archivo)}.")
     if ficha.mocion_preferencia:
@@ -212,8 +242,8 @@ def calcular(ficha: Ficha, hoy: date | None = None, votaciones: list[Votacion] |
         descripcion = _descripcion_mocion(ficha.mocion_para)
         detalle.append(texto + (f", {descripcion}." if descripcion else "."))
 
-    situacion = Situacion(titulo=titulo, nivel=nivel, detalle=detalle)
-    situacion.pasos = _pasos(ficha, situacion, numero_ley, fecha_ley, fecha_senado, sancion, b_pe, b_dip,
+    situacion = Situacion(titulo=titulo, nivel=nivel, detalle=detalle, contraste=list(r.contraste) if r else [])
+    situacion.pasos = _pasos(ficha, situacion, r, numero_ley, fecha_ley, fecha_senado, sancion, b_pe,
                              votada is not None)
     situacion.caducidad = estimar_caducidad(ficha, situacion, hoy, fecha_senado, nota_senado)
     return situacion
@@ -221,17 +251,85 @@ def calcular(ficha: Ficha, hoy: date | None = None, votaciones: list[Votacion] |
 
 # ======================================================================= pasos
 
-def _pasos(ficha, situacion, numero_ley, fecha_ley, fecha_senado, sancion, b_pe, b_dip,
+def _detalle_paso(paso, base: str) -> str:
+    partes = [base] if base else []
+    if paso is not None and paso.con_modificaciones and "modific" not in base:
+        partes.append("con modificaciones")
+    if paso is not None and paso.fuente == "votación":
+        partes.append("en el recinto; sin registro en la ficha")
+    elif paso is not None and paso.fuente == "diputados":
+        partes.append("según Diputados")
+    return ", ".join(partes)
+
+
+def _pasos_congreso(r, numero_ley, fecha_ley, b_pe) -> list[Paso]:
+    """Sanción en cada cámara, vuelta a la de origen, Poder Ejecutivo e insistencia (arts. 78 a 83 CN)."""
+    pasos: list[Paso] = []
+    if r.origen == tramite.SENADO:
+        senado, diputados = r.aprobacion_origen, r.revision
+    else:
+        senado, diputados = r.revision, None
+    rechazo_senado = r.rechazo if r.rechazo and r.rechazo.camara == tramite.SENADO else None
+    pasos.append(Paso(
+        "Sanción del Senado",
+        "hecho" if senado else "pendiente",
+        senado.fecha if senado else (rechazo_senado.fecha if rechazo_senado else None),
+        _detalle_paso(senado, "aprobado") if senado else ("rechazado" if rechazo_senado else ""),
+    ))
+    if r.origen == tramite.SENADO:
+        definitiva = r.sancion is not None and r.sancion.camara == tramite.DIPUTADOS
+        pasos.append(Paso(
+            "Cámara de Diputados",
+            "hecho" if diputados else "pendiente",
+            diputados.fecha if diputados else None,
+            _detalle_paso(diputados, "con modificaciones" if r.revision_modifico else
+                          ("sancionó" if definitiva else "aprobó")) if diputados else "",
+        ))
+    if r.revision_modifico:
+        pasos.append(Paso(
+            "Vuelve al Senado" if r.origen == tramite.SENADO else "Vuelve a Diputados",
+            "hecho" if r.vuelta else "pendiente",
+            r.vuelta.fecha if r.vuelta else None,
+            ("insistió en su texto" if r.vuelta_insistio else "aceptó las modificaciones") if r.vuelta else "art. 81 CN",
+        ))
+    ley = numero_ley or r.numero_ley
+    detalle_ley = f"Ley {fmt_numero_ley(ley)}" if ley else ""
+    resolucion = (b_pe.valor("RESOLUCION") if b_pe else None) or r.pe
+    if resolucion:
+        detalle_ley += ("; " if detalle_ley else "") + resolucion.lower()
+    pasos.append(Paso(
+        "Ley y Poder Ejecutivo",
+        "hecho" if (ley or r.sancion) else "pendiente",
+        fecha_ley or (r.sancion.fecha if r.sancion else None),
+        detalle_ley,
+    ))
+    if r.veto:
+        if r.insistencia is None:
+            pasos[-1].estado = "detenido"
+        pasos.append(Paso(
+            "Insistencia",
+            {"lograda": "hecho", "rechazada": "detenido"}.get(r.insistencia or "", "pendiente"),
+            r.insistencia_fecha,
+            {"lograda": "dos tercios en ambas cámaras", "rechazada": "sin los dos tercios"}.get(
+                r.insistencia or "", "art. 83 CN"),
+        ))
+    return pasos
+
+
+def _pasos(ficha, situacion, r, numero_ley, fecha_ley, fecha_senado, sancion, b_pe,
            por_votacion: bool = False) -> list[Paso]:
     tipo, origen = ficha.id.tipo, ficha.id.origen
     pasos: list[Paso] = []
     etapa = ficha.etapa_diputados
 
     if origen == "CD":
+        hecha = (r.aprobacion_origen is not None) if r is not None else bool(
+            etapa and (etapa.fecha_sancion or etapa.expedientes))
         pasos.append(Paso(
             "Sanción de Diputados",
-            "hecho" if (etapa and (etapa.fecha_sancion or etapa.expedientes)) else "pendiente",
-            etapa.fecha_sancion if etapa else None,
+            "hecho" if hecha else "pendiente",
+            (r.aprobacion_origen.fecha if r is not None and r.aprobacion_origen else None)
+            or (etapa.fecha_sancion if etapa else None),
             f"OD {etapa.orden_del_dia}" if etapa and etapa.orden_del_dia else "",
         ))
     pasos.append(Paso(
@@ -259,30 +357,15 @@ def _pasos(ficha, situacion, numero_ley, fecha_ley, fecha_senado, sancion, b_pe,
             od.fecha if od else None,
             f"OD {od.numero}" if od else "",
         ))
-    senado_hecho = bool(sancion) or bool(numero_ley and origen == "CD")
-    pasos.append(Paso(
-        "Sanción del Senado",
-        "hecho" if senado_hecho else "pendiente",
-        fecha_senado,
-        ("aprobado" if "APROB" in sancion else ("rechazado" if "RECHAZ" in sancion else ""))
-        + (" en el recinto; sin registro en la ficha" if por_votacion else ""),
-    ))
-    if tipo == "PL":
-        if origen != "CD":
-            pasos.append(Paso(
-                "Cámara de Diputados",
-                "hecho" if (numero_ley or b_dip) else "pendiente",
-                fecha_ley if numero_ley else None,
-                "sancionó" if numero_ley else "",
-            ))
-        detalle_ley = f"Ley {fmt_numero_ley(numero_ley)}" if numero_ley else ""
-        if b_pe and b_pe.valor("RESOLUCION"):
-            detalle_ley += f"; {b_pe.valor('RESOLUCION').lower()}"
+    if r is not None:
+        pasos += _pasos_congreso(r, numero_ley, fecha_ley, b_pe)
+    else:
         pasos.append(Paso(
-            "Ley y Poder Ejecutivo",
-            "hecho" if numero_ley else "pendiente",
-            fecha_ley,
-            detalle_ley,
+            "Sanción del Senado",
+            "hecho" if sancion else "pendiente",
+            fecha_senado,
+            ("aprobado" if "APROB" in sancion else ("rechazado" if "RECHAZ" in sancion else ""))
+            + (" en el recinto; sin registro en la ficha" if por_votacion else ""),
         ))
 
     # Marca dónde está (o dónde se detuvo) el expediente.
@@ -291,7 +374,7 @@ def _pasos(ficha, situacion, numero_ley, fecha_ley, fecha_senado, sancion, b_pe,
             if p.estado == "pendiente":
                 p.estado = "detenido"
                 break
-    elif situacion.nivel not in NIVELES_FINALES:
+    elif situacion.nivel not in NIVELES_FINALES or (situacion.nivel == "aprobado" and tipo == "PL"):
         for p in pasos:
             if p.estado == "pendiente":
                 p.estado = "actual"
@@ -303,12 +386,6 @@ def _pasos(ficha, situacion, numero_ley, fecha_ley, fecha_senado, sancion, b_pe,
                 p.estado = "actual"
             elif p.nombre != "Ingreso al Senado" and p.nombre != "Sanción de Diputados" and p.estado == "actual":
                 p.estado = "pendiente"
-    if situacion.nivel == "aprobado" and tipo == "PL" and origen != "CD":
-        for p in pasos:
-            if p.nombre == "Cámara de Diputados" and p.estado == "pendiente":
-                p.estado = "actual"
-    if situacion.nivel == "vetado":
-        pasos[-1].estado = "detenido"
     return pasos
 
 

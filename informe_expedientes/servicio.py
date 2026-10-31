@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 
-from . import comisiones, config, ficha as ficha_mod, situacion as situacion_mod, votaciones as votaciones_mod
+from . import comisiones, config, ficha as ficha_mod, hcdn, situacion as situacion_mod, votaciones as votaciones_mod
 from .cliente import Cancelado, Cliente, ErrorRed
 from .identificador import parsear
 from .modelos import BusquedaReuniones, Resultado
@@ -29,6 +29,7 @@ class Opciones:
     buscar_agenda: bool = True
     completar_ordenes_del_dia: bool = True
     buscar_votaciones: bool = True
+    contrastar_diputados: bool = True     # proyectos de ley: se confronta con hcdn.gob.ar
     formatos: tuple[str, ...] = ("docx", "html")
     carpeta_salida: Path = field(default_factory=config.carpeta_informes_por_defecto)
     notas_usuario: str = ""
@@ -90,7 +91,19 @@ def generar(texto: str, opciones: Opciones, cliente: Cliente, avisar=_nada, hoy:
         except (ErrorRed, votaciones_mod.ErrorVotaciones) as e:
             avisar_y_guardar("advertencia", f"No se pudieron revisar las votaciones del recinto: {e}")
 
-    situacion = situacion_mod.calcular(ficha, hoy, votaciones)
+    diputados, diputados_consultado = None, False
+    if opciones.contrastar_diputados and ficha.id.tipo == "PL":
+        avisar("etapa", "Contrastando con el sitio de la Cámara de Diputados…")
+        try:
+            diputados = hcdn.buscar(cliente, ficha.id)
+            diputados_consultado = True
+            avisar("log", f"Diputados: {diputados.expediente_diputados or 'sin número propio'}, "
+                          f"{len(diputados.tramite)} movimientos." if diputados else
+                   "Diputados: el proyecto no figura en su buscador.")
+        except ErrorRed as e:
+            avisar_y_guardar("advertencia", f"No se pudo consultar el sitio de Diputados: {e}")
+
+    situacion = situacion_mod.calcular(ficha, hoy, votaciones, diputados)
     resultado = Resultado(
         ficha=ficha,
         situacion=situacion,
@@ -100,6 +113,8 @@ def generar(texto: str, opciones: Opciones, cliente: Cliente, avisar=_nada, hoy:
         agenda_consultada=opciones.buscar_agenda,
         votaciones=votaciones,
         votaciones_consultadas=opciones.buscar_votaciones,
+        diputados=diputados,
+        diputados_consultado=diputados_consultado,
         notas_usuario=opciones.notas_usuario.strip(),
         generado=datetime.now(),
         advertencias=advertencias,

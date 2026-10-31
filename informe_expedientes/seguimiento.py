@@ -1,7 +1,7 @@
 """Lista de seguimiento: expedientes que se revisan seguido para avisar qué cambió.
 
 De cada expediente se guarda una «foto» del último estado conocido (situación, giros,
-órdenes del día, sanción, votaciones, reuniones y convocatorias). Al revisar, se arma
+órdenes del día, sanción, votaciones, movimientos en Diputados, reuniones y convocatorias). Al revisar, se arma
 el informe de nuevo, sin escribir archivos, y se compara con la foto anterior.
 
 La lista se guarda en `seguimiento.json`, en la carpeta de configuración del programa
@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from html import escape
@@ -22,15 +23,18 @@ from .cliente import Cancelado, Cliente
 from .identificador import ErrorIdentificador, parsear
 from .modelos import Resultado
 from .numeros import cantidad, en_letras
+from .contenido import sesiones_votadas
 from .servicio import Opciones, generar
-from .util import fmt_fecha, nombre_comision, nombre_archivo_seguro
+from .util import fmt_fecha, nombre_comision, nombre_archivo_seguro, normalizar, titulo_es
 
 DIAS_AVISO_CADUCIDAD = 60
 VERSION = 1
 
 # Orden en que se listan las novedades de un expediente.
-CLASES = ("error", "alta", "situacion", "sancion", "votacion", "dictamen", "egreso", "giro", "convocatoria",
-          "reunion", "caducidad")
+CLASES = ("error", "alta", "situacion", "sancion", "votacion", "diputados", "dictamen", "egreso", "giro",
+          "convocatoria", "reunion", "caducidad")
+# Movimientos del sitio de Diputados que interesan para el seguimiento.
+_MOVIMIENTOS = ("PASA A", "VUELVE A", "VETO", "INSISTENCIA", "OBSERVA")
 
 
 def archivo_por_defecto() -> Path:
@@ -159,8 +163,13 @@ def foto(r: Resultado) -> dict:
         "giros": [[g.comision, _iso(g.ingreso), _iso(g.egreso)] for g in f.giros],
         "ordenes": [[od.numero, od.estado, _iso(od.fecha), od.url] for od in f.ordenes_del_dia],
         "resoluciones": [[b.titulo, [list(c) for c in b.campos if c[1]]] for b in f.resoluciones],
-        "votaciones": [[v.id, _iso(v.fecha), v.tipo, v.resultado, v.afirmativos, v.negativos, v.url]
-                       for v in r.votaciones],
+        "votaciones": [[sv.fecha, " ".join(sv.lineas), sv.enlaces[0].url if sv.enlaces else None]
+                       for sv in sesiones_votadas(r)],
+        "diputados": [[m.camara, m.movimiento, _iso(m.fecha), m.resultado]
+                      for m in (r.diputados.tramite if r.diputados is not None else [])
+                      if normalizar(m.resultado) in ("MEDIA SANCION", "SANCIONADO")
+                      or any(k in normalizar(m.movimiento) for k in _MOVIMIENTOS)],
+        "diputados_url": r.diputados.url if r.diputados is not None else None,
         "reuniones": [[x.nota_id, _iso(x.fecha), x.titulo, x.url] for x in r.reuniones],
         "reuniones_buscadas": r.busqueda.realizada,
         "convocadas": [[_iso(c.fecha) or c.fecha_texto, c.hora, c.titulo, c.comision, c.url] for c in r.convocadas],
@@ -169,6 +178,26 @@ def foto(r: Resultado) -> dict:
 
 
 # ================================================================ comparación
+
+def _movimiento(camara: str, movimiento: str, fecha: str | None, resultado: str) -> str:
+    """«Senado: media sanción (29/10/2026)» · «pasó a Diputados» · «Diputados: veto total del Poder Ejecutivo»."""
+    cuando = f" ({fmt_fecha(_fecha(fecha))})" if fecha else ""
+    n = normalizar(movimiento)
+    if normalizar(resultado) in ("MEDIA SANCION", "SANCIONADO"):
+        que = "media sanción" if normalizar(resultado) == "MEDIA SANCION" else "sanción definitiva"
+        if "MODIFICACION" in n:
+            que += ", con modificaciones"
+        return f"{camara}: {que}{cuando}"
+    destino = re.match(r"(PASA|VUELVE) A (SENADO|DIPUTADOS)", n)
+    if destino:
+        return ("pasó a " if destino.group(1) == "PASA" else "volvió a ") + destino.group(2).capitalize() + cuando
+    if "VETO" in n or "OBSERVA" in n:
+        return f"{camara}: {'veto parcial' if 'PARCIAL' in n else 'veto total'} del Poder Ejecutivo{cuando}"
+    if "INSISTENCIA" in n:
+        rechazada = "RECHAZO" in n or "ACEPTA VETO" in n
+        return f"{camara}: {'no alcanzó los dos tercios para insistir' if rechazada else 'insistencia'}{cuando}"
+    return f"{camara}: {titulo_es(movimiento.rstrip(' -')).lower()}{cuando}"
+
 
 def comparar(anterior: dict | None, nueva: dict, hoy: date) -> list[Novedad]:
     novedades: list[Novedad] = []
@@ -207,13 +236,16 @@ def comparar(anterior: dict | None, nueva: dict, hoy: date) -> list[Novedad]:
                 detalle = "; ".join(f"{k.lower()}: {v}" for k, v in campos)
                 agregar(Novedad("sancion", f"La ficha registra {titulo.lower()}: {detalle}.", nueva.get("url")))
 
-        votos_previos = {v[0] for v in anterior.get("votaciones", [])}
-        for vid, fecha, tipo, resultado, af, neg, url in nueva["votaciones"]:
-            if vid not in votos_previos:
-                cuenta = f" ({af} a {neg})" if (af or neg) else ""
-                agregar(Novedad("votacion", f"Votación en el recinto el {fmt_fecha(_fecha(fecha))}, "
-                                            f"{(tipo or 'votación').lower()}: {(resultado or 'sin resultado').lower()}"
-                                            f"{cuenta}.", url))
+        sesiones_previas = {v[0] for v in anterior.get("votaciones", []) if len(v) == 3}
+        for fecha, texto, url in nueva["votaciones"]:
+            if fecha not in sesiones_previas:
+                agregar(Novedad("votacion", f"Votación en el recinto el {fecha}. {texto}", url))
+
+        movimientos_previos = {tuple(m[:3]) for m in anterior.get("diputados", [])}
+        for camara, movimiento, fecha, resultado in nueva.get("diputados", []):
+            if (camara, movimiento, fecha) not in movimientos_previos:
+                agregar(Novedad("diputados", f"El sitio de Diputados registra: {_movimiento(camara, movimiento, fecha, resultado)}.",
+                                nueva.get("diputados_url")))
 
         if nueva.get("reuniones_buscadas") and anterior.get("reuniones_buscadas"):
             notas_previas = {x[0] for x in anterior.get("reuniones", [])}

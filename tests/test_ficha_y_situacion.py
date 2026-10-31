@@ -183,7 +183,10 @@ def test_situacion_ley_vetada():
     assert any("Decreto 879/24" in d for d in s.detalle)
     assert any("sin despacho de comisión" in d for d in s.detalle)
     assert s.caducidad is None
-    assert [p.estado for p in s.pasos] == ["hecho"] * 5 + ["detenido"]
+    # Con veto, el último paso es la insistencia del art. 83 de la Constitución.
+    assert [p.nombre for p in s.pasos][-2:] == ["Ley y Poder Ejecutivo", "Insistencia"]
+    assert [p.estado for p in s.pasos] == ["hecho"] * 5 + ["detenido", "pendiente"]
+    assert any("puede insistir con dos tercios" in d and "art. 83 CN" in d for d in s.detalle)
 
 
 def test_situacion_en_comision_tras_renovacion():

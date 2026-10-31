@@ -8,8 +8,7 @@ from pathlib import Path
 from . import __version__
 from .contenido import (
     Linea, alcance_busqueda, bloques_resolucion, comisiones_texto, datos_diputados, datos_generales,
-    descripcion, descripcion_votacion, enlaces_votacion, nota_votacion, resultado_votacion, texto_votaciones,
-    tipo_votacion, totales_votacion, votaciones_con_bloques,
+    datos_diputados_hcdn, descripcion, sesiones_votadas, texto_votaciones,
 )
 from .modelos import Resultado
 from .util import fmt_fecha, nombre_comision
@@ -72,9 +71,12 @@ table{width:100%;border-collapse:collapse;font-size:14px}
 th{text-align:left;font-weight:600;color:var(--tinta-suave);background:var(--piedra);padding:8px 10px;white-space:nowrap}
 td{padding:9px 10px;border-bottom:1px solid var(--linea);vertical-align:top}
 td.fecha{white-space:nowrap;font-variant-numeric:tabular-nums}
-td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-h3.votacion{font-family:var(--serif);font-weight:normal;font-size:16px;margin:24px 0 8px}
-.resultado.negativo{color:var(--lacre)}
+.sesiones{list-style:none;margin:0;padding:0}
+.sesiones li{display:grid;grid-template-columns:110px 1fr;gap:4px 18px;padding:10px 0;border-bottom:1px solid var(--linea)}
+.sesiones .fecha{font-variant-numeric:tabular-nums;color:var(--tinta-suave)}
+.sesiones p{margin:0}
+.situacion .contraste{margin:8px 0 0;padding-left:20px;font-size:13.5px;color:var(--tinta-suave)}
+@media (max-width:680px){.sesiones li{grid-template-columns:1fr}}
 .tipo{display:inline-block;font-size:12px;padding:1px 9px;border-radius:999px;background:var(--cupula-tenue);color:var(--cupula-oscura);white-space:nowrap}
 .tipo.asesores{background:var(--piedra);color:var(--tinta-suave)}
 .secundario{color:var(--tinta-suave);font-size:13px;margin:4px 0 0}
@@ -164,6 +166,9 @@ def generar_html(resultado: Resultado, ejemplo: bool = False) -> str:
     agregar(f'<h2 id="situacion">{_e(s.titulo)}</h2>')
     if s.detalle:
         agregar("<ul>" + "".join(f"<li>{_e(d)}</li>" for d in s.detalle) + "</ul>")
+    if s.contraste:
+        agregar('<ul class="contraste" aria-label="Contraste con el sitio de Diputados">'
+                + "".join(f"<li>{_e(d)}</li>" for d in s.contraste) + "</ul>")
     if s.pasos:
         agregar(f'<ol class="pasos" style="--n:{len(s.pasos)}" aria-label="Recorrido del trámite">')
         for p in s.pasos:
@@ -187,7 +192,7 @@ def generar_html(resultado: Resultado, ejemplo: bool = False) -> str:
     agregar("<h2>Datos del expediente</h2>")
     agregar(_dl(datos_generales(f)))
 
-    dip = datos_diputados(f)
+    dip = datos_diputados(f) + datos_diputados_hcdn(resultado)
     if dip:
         agregar("<h2>Etapa en la Cámara de Diputados</h2>")
         agregar(_dl(dip))
@@ -286,32 +291,15 @@ def generar_html(resultado: Resultado, ejemplo: bool = False) -> str:
 
 def _votaciones(resultado: Resultado) -> str:
     partes = ["<h2>Votaciones en el recinto</h2>", f"<p>{_e(texto_votaciones(resultado))}</p>"]
-    if resultado.votaciones:
-        filas = []
-        for v in resultado.votaciones:
-            clase = " negativo" if v.rechazada else ""
-            numeros = "".join(f'<td class="num">{x}</td>' for x in totales_votacion(v))
-            enlaces = " ".join(_enlace(fr.texto, fr.url) for fr in enlaces_votacion(v))
-            filas.append(
-                f'<tr><td class="fecha">{fmt_fecha(v.fecha)}</td><td>{_e(descripcion_votacion(v))}</td>'
-                f"<td>{_e(tipo_votacion(v))}</td><td class='resultado{clase}'>{_e(resultado_votacion(v))}</td>"
-                f'{numeros}<td class="docs">{enlaces or "—"}</td></tr>')
-        partes.append('<div class="tabla"><table><thead><tr><th>Fecha</th><th>Votación</th><th>Tipo</th>'
-                      '<th>Resultado</th><th class="num">Afirm.</th><th class="num">Neg.</th>'
-                      '<th class="num">Abst.</th><th class="num">Aus.</th><th>Acta</th></tr></thead>'
-                      f"<tbody>{''.join(filas)}</tbody></table></div>")
-    for v in votaciones_con_bloques(resultado):
-        partes.append(f'<h3 class="votacion">Cómo votó cada bloque: {_e(tipo_votacion(v).lower())}, '
-                      f"{fmt_fecha(v.fecha)}</h3>")
-        filas = "".join(
-            f"<tr><td>{_e(b)}</td>" + "".join(f'<td class="num">{n}</td>' for n in numeros) + "</tr>"
-            for b, *numeros in v.por_bloque())
-        partes.append('<div class="tabla"><table><thead><tr><th>Bloque</th><th class="num">Afirmativos</th>'
-                      '<th class="num">Negativos</th><th class="num">Abstenciones</th><th class="num">Ausentes</th>'
-                      f"</tr></thead><tbody>{filas}</tbody></table></div>")
-        nota = nota_votacion(v)
-        if nota:
-            partes.append(f'<p class="secundario">{_e(nota)}</p>')
+    sesiones = sesiones_votadas(resultado)
+    if sesiones:
+        partes.append('<ul class="sesiones">')
+        for sv in sesiones:
+            enlaces = " ".join(_enlace(fr.texto, fr.url) for fr in sv.enlaces)
+            partes.append(f'<li><span class="fecha">{_e(sv.fecha)}</span><div>'
+                          + "".join(f"<p>{_e(x)}</p>" for x in sv.lineas)
+                          + (f'<p class="secundario docs">{enlaces}</p>' if enlaces else "") + "</div></li>")
+        partes.append("</ul>")
     return "".join(partes)
 
 

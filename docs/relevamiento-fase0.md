@@ -123,12 +123,12 @@ No hace falta recorrer los ID uno por uno.
   0159-PE-2025». El año es el del expediente del Senado, no el del ingreso a Diputados (que fue en
   febrero de 2026). Los expedientes del Senado sin media sanción aparecen solo como «Expediente Senado:
   1247-S-2026».
-- El resultado (`hcdn_resultado_pe_159_25.html`) trae en una sola página: giro a comisiones en Diputados y
+- El resultado (`hcdn_pe_159_25_post.html`) trae en una sola página: giro a comisiones en Diputados y
   en el Senado, dictámenes de las dos cámaras («Diputados · Orden del Dia 0006/2025 · … · 18/02/2026»), el
   trámite completo con cámara, movimiento, fecha y resultado («MEDIA SANCION», «SANCIONADO»), firmantes y
   enlaces al texto. No hace falta otra página.
 - **PE-99/26 (Salud Mental)**: Diputados ya lo tiene como «Expediente Senado: 0099-PE-2026», pero **todavía
-  sin número de Diputados** (`hcdn_resultado_pe_99_26.html`): la media sanción fue en la madrugada del 30/10.
+  sin número de Diputados** (`hcdn_pe_99_26_antes.html`): la media sanción fue en la madrugada del 30/10.
   Lo mismo pasa en la ficha del Senado (`ficha_pe_99_26.html`), que muestra la OD 409/26 «PENDIENTE» y ninguna
   sanción.
 - **Problema en el programa actual:** el enlace que arma hoy para Diputados,
@@ -164,3 +164,22 @@ No hace falta recorrer los ID uno por uno.
    `ficha.py:102`; son importaciones a propósito para comprobar que está instalado). Propongo resolverlos en la
    Fase 1 con `importlib.util.find_spec("xlrd")`.
 4. **CSV para Power BI (Fase 2):** sigue pendiente que me pases el formato exacto del tablero.
+
+## Adenda (31/10/2026)
+
+- **El trámite de Diputados detalla el recorrido constitucional.** La tabla «TRÁMITE» de hcdn.gob.ar registra,
+  para las dos cámaras, la media sanción, «PASA A DIPUTADOS»/«VUELVE A SENADO», la sanción, el veto («SE OBSERVA
+  TOTALMENTE… (VETO TOTAL …)») y la insistencia («RECHAZO DE LA INSISTENCIA (NO ALCANZA MAYORIA NECESARIA PARA
+  INSISTIR - ACEPTA VETO)») (`hcdn_cd_14_24.html`, `hcdn_1888_d_2024.html`). Para que la traiga hay que pedir la
+  búsqueda con `strMostrarTramites=on`; por GET funciona igual que por POST.
+- **Artículos modificados.** Las actas del Senado no dicen qué artículos se modificaron. Diputados sí los nombra en
+  sus votaciones en particular («CONSIDERACION Y APROBACION CON MODIFICACIONES EN PARTICULAR DE LOS ARTICULOS 2, 3,
+  4, 5 Y 6»); para el Senado solo anota «CON MODIFICACIONES» o «POR TITULO». Los rechazos en particular del Senado
+  sí se ven en las actas (resultado NEGATIVO de la votación del artículo o título).
+- **Insistencias** (art. 83): figuran en el listado como «OTRA» o «EN GENERAL Y EN PARTICULAR» con «Insistencia» en el
+  título (2025: actas 2576, 2582, 2597, 2598).
+- **PE-99/26**: el 31/10 la ficha del Senado ya registra la sanción (30/10/2026, «CON MODIFICACIONES», «PASA A DIP.»)
+  y Diputados, la media sanción del 29/10 y el pase (`ficha_pe_99_26_registrada.html`, `hcdn_pe_99_26.html`).
+- **El detalle del acta y su PDF no coinciden.** El detalle del acta 2867 (Salud Mental en general), publicado el
+  31/10, cuenta 52 afirmativos, 15 negativos y 5 ausentes; el PDF del mismo acta, sin cambios desde el 30/10, cuenta
+  42, 21 y 9 (`acta_2867_completa.html`, `acta_2867.pdf`). No hay forma de saber desde el sitio cuál es la correcta.

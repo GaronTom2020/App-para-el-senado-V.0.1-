@@ -36,7 +36,6 @@ MAPA = {
     f"{B}/votaciones/detalleActa/2623": "acta_2623.html",
     f"{B}/votaciones/detalleActa/2867": "acta_2867_pendiente.html",
     f"{B}/votaciones/detalleActa/2874": "acta_2874_inexistente.html",
-    f"{B}/senadores/listados/agrupados-por-bloques": "senadores_bloques.html",
     f"{B}/parlamentario/comisiones/verExp/99.26/PE/PL": "ficha_pe_99_26.html",
     f"{B}/parlamentario/comisiones/verExp/159.25/PE/PL": "ficha_pe_159_25.html",
     f"{B}/parlamentario/parlamentaria/ordenDelDiaResultadoLink/2026/409": "od_2026_409.html",
@@ -48,6 +47,15 @@ BINARIOS = {
     f"{B}/votaciones/verActaVotacion/2869": "acta_2869.pdf",
     f"{B}/votaciones/verActaVotacion/2870": "acta_2870.pdf",
 }
+H = ("https://www.hcdn.gob.ar/proyectos/resultado.html?zezion=true&strTipo=todos&strCantPagina=20"
+     "&strMostrarTramites=on&strMostrarDictamenes=on&strMostrarFirmantes=on&strMostrarComisiones=on")
+MAPA.update({
+    f"{H}&strNumExp=99&strNumExpOrig=PE&strNumExpAnio=2026": "hcdn_pe_99_26.html",
+    f"{H}&strNumExp=159&strNumExpOrig=PE&strNumExpAnio=2025": "hcdn_pe_159_25.html",
+    f"{H}&strNumExp=14&strNumExpOrig=CD&strNumExpAnio=2024": "hcdn_cd_14_24.html",
+    f"{H}&strNumExp=351&strNumExpOrig=S&strNumExpAnio=2025": "hcdn_s_351_25.html",
+    f"{H}&strNumExp=35&strNumExpOrig=CD&strNumExpAnio=2023": "hcdn_cd_35_23.html",
+})
 MAPA_POST = {f"{B}/parlamentario/parlamentaria/avanzada": "resultados_avanzada.html"}
 
 

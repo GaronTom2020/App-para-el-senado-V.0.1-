@@ -172,6 +172,7 @@ class Situacion:
     detalle: list[str] = field(default_factory=list)
     pasos: list[Paso] = field(default_factory=list)
     caducidad: Caducidad | None = None
+    contraste: list[str] = field(default_factory=list)   # lo que agrega o corrige el sitio de Diputados
 
 
 @dataclass
@@ -184,15 +185,6 @@ class BusquedaReuniones:
     notas_revisadas: int = 0
     incluye_asesores: bool = True
     motivo: str = ""
-
-
-@dataclass
-class VotoNominal:
-    nombre: str                    # APELLIDO, NOMBRES
-    voto: str                      # AFIRMATIVO · NEGATIVO · ABSTENCION · AUSENTE
-    bloque: str = ""
-    provincia: str = ""
-    senador_id: int | None = None
 
 
 @dataclass
@@ -216,9 +208,8 @@ class Votacion:
     negativos: int | None = None
     abstenciones: int | None = None
     ausentes: int | None = None
-    votos: list[VotoNominal] = field(default_factory=list)
     fuente: str = "listado"        # listado · detalle · pdf
-    bloques_actuales: bool = False  # el bloque salió del listado de bloques de hoy, no del acta
+    discrepancia: str = ""         # si el detalle y el PDF del acta no coinciden
     url_detalle: str | None = None
     url_pdf: str | None = None
     video: str | None = None
@@ -234,7 +225,34 @@ class Votacion:
     @property
     def en_general(self) -> bool:
         """Votación que decide sobre el proyecto (no un artículo ni una moción)."""
-        return normalizar(self.tipo) in ("EN GENERAL", "EN GENERAL Y EN PARTICULAR")
+        return normalizar(self.tipo) in ("EN GENERAL", "EN GENERAL Y EN PARTICULAR") and not self.insistencia
+
+    @property
+    def en_particular(self) -> bool:
+        return normalizar(self.tipo) == "EN PARTICULAR"
+
+    @property
+    def insistencia(self) -> bool:
+        """Insistencia ante un veto o en la sanción original (arts. 81 y 83 de la Constitución)."""
+        tipo = normalizar(self.tipo)
+        return ("INSISTENCIA" in normalizar(self.titulo) and not normalizar(self.titulo).startswith("HABILITACION")
+                and "HABILITACION" not in tipo and "MOCION" not in tipo)
+
+    @property
+    def presentes_contados(self) -> int | None:
+        if self.presentes:
+            return self.presentes
+        if self.con_totales:
+            return (self.afirmativos or 0) + (self.negativos or 0) + (self.abstenciones or 0)
+        return None
+
+    @property
+    def dos_tercios(self) -> bool | None:
+        """¿Los afirmativos alcanzan las dos terceras partes de los presentes?"""
+        presentes = self.presentes_contados
+        if not presentes or self.afirmativos is None:
+            return None
+        return 3 * self.afirmativos >= 2 * presentes
 
     @property
     def con_totales(self) -> bool:
@@ -243,17 +261,6 @@ class Votacion:
     @property
     def url(self) -> str | None:
         return self.url_detalle if self.fuente == "detalle" else (self.url_pdf or self.url_detalle)
-
-    def por_bloque(self) -> list[tuple[str, int, int, int, int]]:
-        """(bloque, afirmativos, negativos, abstenciones, ausentes), de mayor a menor."""
-        cuenta: dict[str, list[int]] = {}
-        orden = {"AFIRMATIVO": 0, "NEGATIVO": 1, "ABSTENCION": 2, "AUSENTE": 3}
-        for v in self.votos:
-            fila = cuenta.setdefault(v.bloque or "Sin datos de bloque", [0, 0, 0, 0])
-            if v.voto in orden:
-                fila[orden[v.voto]] += 1
-        filas = [(b, *n) for b, n in cuenta.items()]
-        return sorted(filas, key=lambda f: (-sum(f[1:]), f[0]))
 
 
 @dataclass
@@ -266,6 +273,8 @@ class Resultado:
     agenda_consultada: bool = False
     votaciones: list[Votacion] = field(default_factory=list)
     votaciones_consultadas: bool = False
+    diputados: object | None = None            # hcdn.ProyectoHCDN, si se consultó y se encontró
+    diputados_consultado: bool = False
     notas_usuario: str = ""
     generado: datetime = field(default_factory=datetime.now)
     archivos: dict[str, Path] = field(default_factory=dict)

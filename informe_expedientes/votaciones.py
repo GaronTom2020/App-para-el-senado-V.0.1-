@@ -4,10 +4,15 @@ Dónde está cada dato (relevado en docs/relevamiento-fase0.md):
 - El listado del año (`votaciones/actas`; otros años, con POST del formulario) trae
   una fila por votación con fecha, título, expedientes y órdenes del día enlazados,
   tipo, resultado y mayoría. Alcanza para saber qué actas tocan a un expediente.
-- El detalle (`detalleActa/{id}`) trae los totales y cómo votó cada senador, con su
-  bloque. En las sesiones recientes se publica vacío y se completa días después.
-- El PDF (`verActaVotacion/{id}`) sale enseguida con la lista nominal y el quórum,
-  pero sin bloques: se cruzan por nombre con el listado de bloques actual.
+- El detalle (`detalleActa/{id}`) trae los totales. En las sesiones recientes se
+  publica vacío y se completa días después.
+- El PDF (`verActaVotacion/{id}`) sale enseguida con la lista nominal, el quórum y,
+  en el título, los artículos votados («ART. 1 AL 22»).
+
+Solo interesan las votaciones sobre el contenido del expediente: en general, en
+particular y las insistencias (arts. 81 y 83 de la Constitución). Las mociones,
+preferencias y habilitaciones sobre tablas quedan afuera. De la votación en particular
+importan los artículos rechazados; los aprobados se informan «sin observaciones».
 
 Lo ya leído se guarda en un índice (JSON en la carpeta de caché) para no volver a
 recorrer los listados ni las actas completas en cada consulta.
@@ -20,33 +25,30 @@ import json
 import os
 import re
 import time
-from dataclasses import asdict, fields
+from dataclasses import asdict, dataclass, field, fields
 from datetime import date
 from pathlib import Path
 
 from . import config
 from .cliente import Cliente, ErrorRed
 from .identificador import RE_URL_FICHA, IdExpediente
-from .modelos import Ficha, Votacion, VotoNominal
+from .modelos import Ficha, Votacion
 from .paginas import sopa, texto
 from .util import anio_cuatro_digitos, limpiar, normalizar, parsear_fecha
 
 URL_ACTAS = config.BASE + "/votaciones/actas"
 URL_DETALLE = config.BASE + "/votaciones/detalleActa/{id}"
 URL_PDF = config.BASE + "/votaciones/verActaVotacion/{id}"
-URL_BLOQUES = config.BASE + "/senadores/listados/agrupados-por-bloques"
 
 TTL_ANIO_EN_CURSO = 3 * 3600
 TTL_ANIO_CERRADO = 30 * 86400
-TTL_BLOQUES = 86400
 MAX_ACTAS_POR_EXPEDIENTE = 40
-VERSION_INDICE = 1
+VERSION_INDICE = 3
 
 _RE_ID = re.compile(r"(?:verActaVotacion|detalleActa)/(\d+)|mostrar\((\d+)\)")
 _RE_OD = re.compile(r"ordenDelDiaResultadoLink/(\d{4})/(\d+)")
 _RE_ARTICULO = re.compile(r"\bArt\.\s*[\w ]+?(?=\s*(?:,|$))")
-_VOTOS = {"AFIRMATIVO": "AFIRMATIVO", "SI": "AFIRMATIVO", "NEGATIVO": "NEGATIVO", "NO": "NEGATIVO",
-          "ABSTENCION": "ABSTENCION", "AUSENTE": "AUSENTE"}
+_VOTOS = {"SI": "AFIRMATIVO", "NO": "NEGATIVO", "ABSTENCION": "ABSTENCION", "AUSENTE": "AUSENTE"}
 
 
 class ErrorVotaciones(Exception):
@@ -180,19 +182,6 @@ def parsear_detalle(html: str, vid: int) -> Votacion | None:
     v.negativos = totales.get("NEGATIVOS")
     v.abstenciones = totales.get("ABSTENCIONES")
     v.ausentes = totales.get("AUSENTES")
-    tabla = s.find("table", id="tabla")
-    if tabla is not None:
-        for tr in tabla.find_all("tr"):
-            tds = tr.find_all("td")
-            if len(tds) < 5:
-                continue
-            enlace = tds[0].find("a", href=True)
-            sid = re.search(r"/senador/(\d+)", enlace["href"]) if enlace else None
-            v.votos.append(VotoNominal(
-                nombre=texto(tds[1]), bloque=texto(tds[2]), provincia=texto(tds[3]),
-                voto=_VOTOS.get(normalizar(texto(tds[4])), normalizar(texto(tds[4]))),
-                senador_id=int(sid.group(1)) if sid else None,
-            ))
     return v
 
 
@@ -228,14 +217,10 @@ def parsear_pdf(texto_acta: str, vid: int) -> Votacion:
     lista = lista[:pie_inicio] if pie_inicio >= 0 else lista
     lista = " " + lista.replace("Nombre Completo Voto", " ")
     partes = _RE_VOTO_PDF.split(lista)
-    for nombre, voto in zip(partes[0::2], partes[1::2]):
-        nombre = limpiar(nombre)
-        if "," in nombre:
-            v.votos.append(VotoNominal(nombre=nombre, voto=_VOTOS[normalizar(voto)]))
-    cuenta = {k: sum(1 for x in v.votos if x.voto == k) for k in ("AFIRMATIVO", "NEGATIVO", "ABSTENCION", "AUSENTE")}
-    if v.votos:
-        v.afirmativos, v.negativos = cuenta["AFIRMATIVO"], cuenta["NEGATIVO"]
-        v.abstenciones, v.ausentes = cuenta["ABSTENCION"], cuenta["AUSENTE"]
+    votos = [_VOTOS[normalizar(voto)] for nombre, voto in zip(partes[0::2], partes[1::2]) if "," in nombre]
+    if votos:
+        v.afirmativos, v.negativos = votos.count("AFIRMATIVO"), votos.count("NEGATIVO")
+        v.abstenciones, v.ausentes = votos.count("ABSTENCION"), votos.count("AUSENTE")
 
     def campo(patron):
         x = re.search(patron, pie)
@@ -252,60 +237,6 @@ def parsear_pdf(texto_acta: str, vid: int) -> Votacion:
     return v
 
 
-# ==================================================================== bloques
-
-def _clave(nombre: str) -> tuple[str, set[str]]:
-    n = normalizar(nombre).replace("H.S.N.", "").strip()
-    apellido, _, nombres = n.partition(",")
-    return apellido.strip(), set(nombres.split())
-
-
-def parsear_bloques(html: str) -> dict[str, list[tuple[str, int | None]]]:
-    """Listado de bloques actual: bloque → [(«APELLIDO, NOMBRES», id del senador)]."""
-    s = sopa(html)
-    bloques: dict[str, list[tuple[str, int | None]]] = {}
-    for a in s.find_all("a", onclick=re.compile(r"ver\('?\w+'?\)")):
-        nombre = texto(a)
-        clave = re.search(r"ver\('?(\w+)'?\)", a["onclick"]).group(1)
-        integrantes = []
-        fila = a.find_parent("tr")
-        oculta = s.find("tr", id=clave)
-        for zona in (fila, oculta):
-            if zona is None:
-                continue
-            for enlace in zona.find_all("a", href=re.compile(r"/senadores/senador/\d+")):
-                titulo = limpiar((enlace.get("title") or "").replace("H.S.N.", ""))
-                sid = int(re.search(r"/senador/(\d+)", enlace["href"]).group(1))
-                if titulo and all(sid != x[1] for x in integrantes):
-                    integrantes.append((titulo, sid))
-        if nombre:
-            bloques[nombre] = integrantes
-    return bloques
-
-
-def asignar_bloques(v: Votacion, bloques: dict[str, list[tuple[str, int | None]]]) -> int:
-    """Completa el bloque de cada voto por nombre. Devuelve cuántos no se pudieron asignar."""
-    candidatos: dict[str, list[tuple[set[str], str]]] = {}
-    for bloque, integrantes in bloques.items():
-        for nombre, _sid in integrantes:
-            apellido, nombres = _clave(nombre)
-            candidatos.setdefault(apellido, []).append((nombres, bloque))
-    sin_bloque = 0
-    for voto in v.votos:
-        if voto.bloque:
-            continue
-        apellido, nombres = _clave(voto.nombre)
-        opciones = candidatos.get(apellido, [])
-        if len(opciones) > 1:
-            opciones = [o for o in opciones if o[0] & nombres] or []
-        if len(opciones) == 1:
-            voto.bloque = opciones[0][1]
-        else:
-            sin_bloque += 1
-    v.bloques_actuales = True
-    return sin_bloque
-
-
 # ===================================================================== índice
 
 def _a_dict(v: Votacion) -> dict:
@@ -318,7 +249,6 @@ def _de_dict(d: dict) -> Votacion:
     nombres = {f.name for f in fields(Votacion)}
     datos = {k: val for k, val in d.items() if k in nombres}
     datos["fecha"] = date.fromisoformat(d["fecha"]) if d.get("fecha") else None
-    datos["votos"] = [VotoNominal(**x) for x in d.get("votos") or []]
     return Votacion(**datos)
 
 
@@ -327,7 +257,7 @@ class Indice:
 
     def __init__(self, archivo: Path | None = None):
         self.archivo = Path(archivo) if archivo else None
-        self.datos = {"version": VERSION_INDICE, "anios": {}, "actas": {}, "bloques": None}
+        self.datos = {"version": VERSION_INDICE, "anios": {}, "actas": {}}
         if self.archivo and self.archivo.exists():
             try:
                 cargado = json.loads(self.archivo.read_text(encoding="utf-8"))
@@ -368,18 +298,9 @@ class Indice:
         self.datos["anios"][str(anio)] = {"guardado": time.time(), "filas": [_a_dict(f) for f in filas]}
         return filas
 
-    # ---- bloques actuales
-    def bloques(self, cliente: Cliente) -> dict[str, list[tuple[str, int | None]]]:
-        guardado = self.datos.get("bloques")
-        if guardado and time.time() - guardado["guardado"] < TTL_BLOQUES:
-            return {b: [tuple(x) for x in xs] for b, xs in guardado["bloques"].items()}
-        bloques = parsear_bloques(cliente.get(URL_BLOQUES).texto)
-        self.datos["bloques"] = {"guardado": time.time(), "bloques": bloques}
-        return bloques
-
     # ---- acta completa
     def completar(self, cliente: Cliente, fila: Votacion, avisar=None) -> Votacion:
-        """Totales y votos de una fila del listado: del detalle si ya está publicado, si no del PDF."""
+        """Totales de una fila del listado: del detalle si ya está publicado, si no del PDF."""
         avisar = avisar or (lambda *a, **k: None)
         guardada = self.datos["actas"].get(str(fila.id))
         if guardada and guardada.get("fuente") == "detalle":
@@ -392,25 +313,38 @@ class Indice:
                 leida = parsear_detalle(cliente.get(fila.url_detalle).texto, fila.id)
             except ErrorRed as e:
                 avisar("log", f"No se pudo abrir el detalle del acta {fila.id}: {e}")
-            if leida is not None and not leida.votos:
+            if leida is not None and not leida.con_totales:
                 leida = None            # todavía no se cargó: se usa el PDF
+        pdf = _de_dict(guardada) if guardada and guardada.get("fuente") == "pdf" else None
         if leida is None and fila.url_pdf:
-            if guardada and guardada.get("fuente") == "pdf":
-                return _mezclar(fila, _de_dict(guardada))
+            if pdf is not None:
+                return _mezclar(fila, pdf)
             r = cliente.get(fila.url_pdf, binario=True)
             leida = parsear_pdf(texto_pdf(r.contenido or b""), fila.id)
-            if leida.votos:
-                try:
-                    faltan = asignar_bloques(leida, self.bloques(cliente))
-                    if faltan:
-                        avisar("log", f"Acta {fila.id}: {faltan} senadores sin bloque identificado.")
-                except (ErrorRed, ErrorVotaciones) as e:
-                    avisar("log", f"No se pudo leer el listado de bloques: {e}")
+        elif leida is not None and fila.url_pdf and (fila.en_general or fila.insistencia):
+            # Las dos fuentes oficiales a veces no coinciden: se contrastan en las votaciones que deciden.
+            try:
+                pdf = pdf or parsear_pdf(texto_pdf(cliente.get(fila.url_pdf, binario=True).contenido or b""), fila.id)
+                leida.discrepancia = discrepancia(leida, pdf)
+            except (ErrorRed, ErrorVotaciones) as e:
+                avisar("log", f"No se pudo contrastar el acta {fila.id} con su PDF: {e}")
         if leida is None:
             return fila
-        if leida.votos:
+        if leida.con_totales:
             self.datos["actas"][str(fila.id)] = _a_dict(leida)
         return _mezclar(fila, leida)
+
+
+def discrepancia(detalle: Votacion, pdf: Votacion) -> str:
+    """Texto de aviso si el detalle publicado y el PDF del acta dan totales distintos."""
+    if not (detalle.con_totales and pdf.con_totales):
+        return ""
+    a = (detalle.afirmativos, detalle.negativos, detalle.abstenciones, detalle.ausentes)
+    b = (pdf.afirmativos, pdf.negativos, pdf.abstenciones, pdf.ausentes)
+    if a == b:
+        return ""
+    return (f"el detalle del acta registra {a[0]} a {a[1]} ({a[3]} ausentes) y su PDF, {b[0]} a {b[1]} "
+            f"({b[3]} ausentes): verificar con la Secretaría Parlamentaria")
 
 
 def _mezclar(fila: Votacion, leida: Votacion) -> Votacion:
@@ -445,6 +379,16 @@ def corresponde(fila: Votacion, ficha: Ficha) -> bool:
     return bool(fila.titulo and ficha.id.patron_texto().search(fila.titulo))
 
 
+def relevante(v: Votacion) -> bool:
+    """Votaciones sobre el contenido del proyecto: en general, en particular e insistencias."""
+    return v.en_general or v.en_particular or v.insistencia
+
+
+def hace_falta_el_acta(v: Votacion) -> bool:
+    """Totales para las votaciones que deciden; artículos, si el listado no los trae."""
+    return v.en_general or v.insistencia or (v.en_particular and not articulos(v) and not v.titulo)
+
+
 def anios_a_revisar(ficha: Ficha, hoy: date) -> list[int]:
     inicio = ficha.fecha_mesa_entradas.year if ficha.fecha_mesa_entradas else ficha.id.anio
     inicio = min(inicio, ficha.id.anio)
@@ -466,15 +410,14 @@ def buscar(cliente: Cliente, ficha: Ficha, hoy: date | None = None, avisar=None,
             except ErrorVotaciones as e:
                 avisar("advertencia", f"No se pudo leer el listado de votaciones de {anio}: {e}")
                 continue
-            encontradas += [f for f in filas if corresponde(f, ficha)]
+            encontradas += [f for f in filas if relevante(f) and corresponde(f, ficha)]
         encontradas.sort(key=lambda v: (v.fecha or date.min, v.id))
-        if len(encontradas) > MAX_ACTAS_POR_EXPEDIENTE:
-            avisar("advertencia", f"Se encontraron {len(encontradas)} votaciones; se detallan las primeras "
-                                  f"{MAX_ACTAS_POR_EXPEDIENTE} en general y las demás solo con su resultado.")
         completas, fallidas = [], []
-        for i, fila in enumerate(encontradas):
+        pedidas = 0
+        for fila in encontradas:
             cliente.verificar_cancelacion()
-            if i < MAX_ACTAS_POR_EXPEDIENTE or fila.en_general:
+            if hace_falta_el_acta(fila) and pedidas < MAX_ACTAS_POR_EXPEDIENTE:
+                pedidas += 1
                 try:
                     fila = indice.completar(cliente, fila, avisar)
                 except (ErrorRed, ErrorVotaciones) as e:
@@ -496,7 +439,104 @@ def ultima_votacion_general(votaciones: list[Votacion]) -> Votacion | None:
     return max(generales, key=lambda v: (v.fecha or date.min, v.id)) if generales else None
 
 
+# ================================================================ artículos
+
+_RE_ARTS = re.compile(
+    r"\bART(?:ICULO)?S?\.?\s*((?:\d+\s*(?:BIS|TER)?\s*(?:,|Y|AL|A|-)?\s*)+)", re.I)
+
+
+def articulos(v: Votacion) -> list[str]:
+    """Artículos votados, de los enlaces del listado o del título: ['1', '2', '6 bis', …]."""
+    fuente = v.articulos if v.articulos else v.titulo
+    salida: list[str] = []
+    for m in _RE_ARTS.finditer(normalizar(fuente)):
+        lista = m.group(1)
+        for a, b in re.findall(r"(\d+)\s*(?:AL|A|-)\s*(\d+)", lista):
+            if int(b) >= int(a):
+                salida += [str(i) for i in range(int(a), int(b) + 1)]
+        lista = re.sub(r"(\d+)\s*(?:AL|A|-)\s*(\d+)", " ", lista)
+        salida += [f"{x} {y.lower()}".strip() for x, y in re.findall(r"(\d+)\s*(BIS|TER)?", lista)]
+    return list(dict.fromkeys(salida))
+
+
+def _orden(articulo: str) -> tuple[int, str]:
+    numero, _, sufijo = articulo.partition(" ")
+    return int(numero), sufijo
+
+
+def rango(lista: list[str]) -> str:
+    """['1', '2', '3', '5', '6 bis'] → '1-3, 5 y 6 bis' (los «bis» y «ter» van aparte)."""
+    enteros = sorted({int(a) for a in lista if a.isdigit()})
+    tramos, inicio = [], None
+    for i, n in enumerate(enteros):
+        if inicio is None:
+            inicio = n
+        if i + 1 == len(enteros) or enteros[i + 1] != n + 1:
+            tramos.append(str(inicio) if inicio == n else f"{inicio}-{n}")
+            inicio = None
+    tramos += sorted({a for a in lista if not a.isdigit()}, key=_orden)
+    if len(tramos) <= 1:
+        return "".join(tramos)
+    return ", ".join(tramos[:-1]) + " y " + tramos[-1]
+
+
+def describir_articulos(lista: list[str]) -> str:
+    """«el art. 7» · «los arts. 2-6»."""
+    if len(lista) == 1:
+        return f"el art. {lista[0]}"
+    return f"los arts. {rango(lista)}"
+
+
+_RE_PARTE = re.compile(r"\b(T[ÍI]TULO|CAP[ÍI]TULO|SECCI[ÓO]N)\s+[IVXLC\d]+\b[^.]*", re.I)
+
+
+def parte_votada(v: Votacion) -> str:
+    """Lo que se votó en particular, si no son artículos: «Título V: Impuesto a las Ganancias»."""
+    m = _RE_PARTE.search(v.titulo or "")
+    return limpiar(m.group(0)) if m else limpiar(v.titulo)
+
+
+# ================================================================== sesiones
+
+@dataclass
+class Sesion:
+    """Las votaciones de un expediente en una misma sesión."""
+    fecha: date | None
+    general: list[Votacion] = field(default_factory=list)
+    particular: list[Votacion] = field(default_factory=list)
+    insistencias: list[Votacion] = field(default_factory=list)
+
+    @property
+    def rechazos(self) -> list[Votacion]:
+        return [v for v in self.particular if v.rechazada]
+
+    @property
+    def articulos_rechazados(self) -> list[str]:
+        return [a for v in self.rechazos for a in articulos(v)]
+
+    @property
+    def partes_rechazadas(self) -> list[str]:
+        return [parte_votada(v) for v in self.rechazos if not articulos(v)]
+
+    @property
+    def acta(self) -> Votacion | None:
+        return (self.general or self.insistencias or self.particular or [None])[0]
+
+
+def sesiones(votaciones: list[Votacion]) -> list[Sesion]:
+    por_fecha: dict[date | None, Sesion] = {}
+    for v in sorted(votaciones, key=lambda x: (x.fecha or date.min, x.id)):
+        s = por_fecha.setdefault(v.fecha, Sesion(v.fecha))
+        if v.insistencia:
+            s.insistencias.append(v)
+        elif v.en_general:
+            s.general.append(v)
+        elif v.en_particular:
+            s.particular.append(v)
+    return list(por_fecha.values())
+
+
 __all__ = [
-    "Indice", "ErrorVotaciones", "buscar", "corresponde", "parsear_listado", "parsear_detalle", "parsear_pdf",
-    "parsear_bloques", "asignar_bloques", "texto_pdf", "ultima_votacion_general",
+    "Indice", "ErrorVotaciones", "Sesion", "buscar", "corresponde", "relevante", "parsear_listado", "parsear_detalle",
+    "parsear_pdf", "texto_pdf", "ultima_votacion_general", "articulos", "rango", "describir_articulos", "sesiones",
 ]

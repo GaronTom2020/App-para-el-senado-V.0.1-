@@ -19,8 +19,8 @@ from tkinter import font as tkfont
 from . import __version__, config
 from .cliente import Cancelado, Cliente, ErrorRed
 from .contenido import (
-    comisiones_texto, datos_diputados, datos_generales, descripcion, descripcion_votacion, resultado_votacion,
-    texto_resumen, tipo_votacion, totales_votacion,
+    comisiones_texto, datos_diputados, datos_diputados_hcdn, datos_generales, descripcion, sesiones_votadas,
+    texto_resumen,
 )
 from .ficha import ExpedienteNoEncontrado
 from .identificador import ErrorIdentificador, parsear, separar_lote
@@ -1192,6 +1192,8 @@ class Aplicacion(tk.Tk):
         t.insert("end", s.titulo + "\n", f"situacion_{color}" if color else "situacion")
         for d in s.detalle:
             t.insert("end", f"• {d}\n", "vineta")
+        for d in s.contraste:
+            t.insert("end", f"• {d}\n", ("vineta", "suave"))
         if s.pasos:
             linea = "   ".join(f"{MARCA_PASO[p.estado]} {p.nombre}" for p in s.pasos)
             t.insert("end", linea + "\n", ("vineta", "suave"))
@@ -1201,7 +1203,7 @@ class Aplicacion(tk.Tk):
             t.insert("end", s.caducidad.fundamento + "\n", ("vineta", "suave"))
 
         t.insert("end", "Datos del expediente\n", "rotulo")
-        for etiqueta, linea in datos_generales(f) + datos_diputados(f):
+        for etiqueta, linea in datos_generales(f) + datos_diputados(f) + datos_diputados_hcdn(r):
             t.insert("end", f"{etiqueta}: ", ("vineta", "etiqueta"))
             for fragmento in linea:
                 self._enlace(fragmento.texto, fragmento.url)
@@ -1222,13 +1224,15 @@ class Aplicacion(tk.Tk):
                 t.insert("end", "  ")
                 self._enlace("Video", v)
             t.insert("end", "\n")
-        if r.votaciones:
-            t.insert("end", f"Votaciones en el recinto ({len(r.votaciones)})\n", "rotulo")
-            for v in r.votaciones:
-                totales = " · ".join(totales_votacion(v)) if v.con_totales else "sin totales publicados"
-                t.insert("end", f"{fmt_fecha(v.fecha)}  {tipo_votacion(v)}: {resultado_votacion(v)} ({totales})  ",
-                         "vineta")
-                self._enlace(descripcion_votacion(v)[:80], v.url)
+        sesiones = sesiones_votadas(r)
+        if sesiones:
+            t.insert("end", "Votaciones en el recinto\n", "rotulo")
+            for sv in sesiones:
+                t.insert("end", f"{sv.fecha}  ", ("vineta", "etiqueta"))
+                t.insert("end", " ".join(sv.lineas), "vineta")
+                for fr in sv.enlaces:
+                    t.insert("end", "  ")
+                    self._enlace(fr.texto, fr.url)
                 t.insert("end", "\n")
         if r.convocadas:
             t.insert("end", "Próximas reuniones convocadas\n", "rotulo")
@@ -1273,14 +1277,20 @@ class Aplicacion(tk.Tk):
                 iid = a.insert(o_id, "end", values=(f"N° {od.numero}", fmt_fecha(od.fecha), od.estado.capitalize()))
                 if od.url_pdf or od.url:
                     self._urls_tramite[iid] = od.url_pdf or od.url
-        if r.votaciones:
+        sesiones = sesiones_votadas(r)
+        if sesiones:
             v_id = a.insert("", "end", values=("Votaciones en el recinto", "", ""), open=True, tags=("grupo",))
-            for v in r.votaciones:
-                totales = f" ({v.afirmativos} a {v.negativos})" if v.con_totales else ""
-                iid = a.insert(v_id, "end", values=(descripcion_votacion(v), fmt_fecha(v.fecha),
-                                                    f"{tipo_votacion(v)}: {resultado_votacion(v)}{totales}"))
-                if v.url:
-                    self._urls_tramite[iid] = v.url
+            for sv in sesiones:
+                iid = a.insert(v_id, "end", values=(" ".join(sv.lineas), sv.fecha, ""))
+                if sv.enlaces:
+                    self._urls_tramite[iid] = sv.enlaces[0].url
+        if r.diputados is not None and r.diputados.tramite:
+            d_id = a.insert("", "end", values=("Trámite según el sitio de Diputados", "", ""), open=False,
+                            tags=("grupo",))
+            for m in r.diputados.tramite:
+                iid = a.insert(d_id, "end", values=(f"{m.camara}: {m.movimiento.rstrip(' -')}", fmt_fecha(m.fecha, ""),
+                                                    m.resultado.capitalize()))
+                self._urls_tramite[iid] = r.diputados.url
         if r.convocadas:
             c_id = a.insert("", "end", values=("Reuniones convocadas", "", ""), open=True, tags=("grupo",))
             for c in r.convocadas:
