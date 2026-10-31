@@ -139,12 +139,28 @@ def _dl(filas: list[tuple[str, Linea]]) -> str:
 
 
 def generar_html(resultado: Resultado, ejemplo: bool = False) -> str:
+    return pagina(f"Informe {resultado.ficha.id.corto} — H. Senado de la Nación", contenido_html(resultado, ejemplo))
+
+
+def pagina(titulo: str, cuerpo: str) -> str:
+    return (
+        '<!DOCTYPE html>\n<html lang="es"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        f"<title>{_e(titulo)}</title>"
+        f"<style>{ESTILOS}</style></head><body><main class='hoja'>"
+        + cuerpo + "</main></body></html>\n"
+    )
+
+
+def contenido_html(resultado: Resultado, ejemplo: bool = False, incrustado: bool = False) -> str:
+    """La ficha del expediente. `incrustado`: sin membrete ni pie, para sumarla a otro informe."""
     f, s = resultado.ficha, resultado.situacion
     partes: list[str] = []
     agregar = partes.append
 
-    agregar('<div class="membrete"><span>H. Senado de la Nación</span>'
-            f'<span>Informe del {resultado.generado:%d/%m/%Y, %H:%M} h</span></div>')
+    if not incrustado:
+        agregar('<div class="membrete"><span>H. Senado de la Nación</span>'
+                f'<span>Informe del {resultado.generado:%d/%m/%Y, %H:%M} h</span></div>')
     if ejemplo:
         agregar('<p class="secundario"><strong>Ejemplo generado con páginas de prueba.</strong> '
                 'No reemplaza una consulta real.</p>')
@@ -270,6 +286,11 @@ def generar_html(resultado: Resultado, ejemplo: bool = False) -> str:
     if resultado.notas_usuario:
         agregar(f"<h2>Notas</h2><p class='notas'>{_e(resultado.notas_usuario)}</p>")
 
+    if incrustado:
+        if resultado.advertencias:
+            agregar("<p class='secundario'>Avisos de la consulta: "
+                    + " ".join(_e(a) for a in resultado.advertencias) + "</p>")
+        return "".join(partes)
     agregar("<footer>")
     agregar(f"<p>Informe generado automáticamente con datos públicos del sitio del H. Senado de la Nación "
             f"({_enlace('ficha del expediente', f.url)}). Antes de usarlo en un trámite oficial, "
@@ -279,14 +300,7 @@ def generar_html(resultado: Resultado, ejemplo: bool = False) -> str:
         agregar("<p>Durante la consulta hubo avisos:</p><ul>"
                 + "".join(f"<li>{_e(a)}</li>" for a in resultado.advertencias) + "</ul>")
     agregar("</footer>")
-
-    return (
-        '<!DOCTYPE html>\n<html lang="es"><head><meta charset="utf-8">'
-        '<meta name="viewport" content="width=device-width, initial-scale=1">'
-        f"<title>Informe {_e(f.id.corto)} — H. Senado de la Nación</title>"
-        f"<style>{ESTILOS}</style></head><body><main class='hoja'>"
-        + "".join(partes) + "</main></body></html>\n"
-    )
+    return "".join(partes)
 
 
 def _votaciones(resultado: Resultado) -> str:

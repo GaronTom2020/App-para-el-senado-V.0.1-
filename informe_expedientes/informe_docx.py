@@ -328,7 +328,29 @@ class _Escritor:
         if ejemplo:
             p = self.parrafo("Ejemplo generado con páginas de prueba. ", 9, "lacre", negrita=True, antes=4)
             self._run(p, "No reemplaza una consulta real.", 9, "lacre")
-        self.parrafo(f.id.corto, 32, "tinta", SERIF, antes=14, despues=2)
+        self.cuerpo()
+
+        p = self.parrafo(antes=22)
+        self._run(p, "Informe generado automáticamente con datos públicos del sitio del H. Senado de la Nación. "
+                     "Antes de usarlo en un trámite oficial, verificá los datos en la ", 8.5, "suave")
+        _hipervinculo(p, "ficha del expediente", f.url, 8.5)
+        self._run(p, f". Programa Informe de Expedientes, versión {__version__}.", 8.5, "suave")
+        if r.advertencias:
+            self.parrafo("Durante la consulta hubo avisos:", 8.5, "suave", antes=4)
+            for a in r.advertencias:
+                p = self.doc.add_paragraph(style="List Bullet")
+                self._run(p, a, 8.5, "suave")
+
+        self.doc.core_properties.title = f"Informe del expediente {f.id.corto}"
+        self.doc.core_properties.subject = f.extracto[:250]
+        self.doc.core_properties.author = "Informe de Expedientes"
+        self.doc.save(str(destino))
+        return Path(destino)
+
+    def cuerpo(self, numero_grande: bool = True) -> None:
+        """La ficha del expediente `self.r` (todo menos membrete y pie): se reutiliza en el informe de sesión."""
+        r, f = self.r, self.r.ficha
+        self.parrafo(f.id.corto, 32 if numero_grande else 22, "tinta", SERIF, antes=14, despues=2)
         self.parrafo(descripcion(f), 11, "suave", despues=8)
         if f.extracto:
             self.parrafo(f.extracto, 11, "tinta", SERIF, despues=8)
@@ -414,23 +436,6 @@ class _Escritor:
             self.titulo("Notas")
             for linea in r.notas_usuario.splitlines():
                 self.parrafo(linea, 10.5, fuente=SERIF)
-
-        p = self.parrafo(antes=22)
-        self._run(p, "Informe generado automáticamente con datos públicos del sitio del H. Senado de la Nación. "
-                     "Antes de usarlo en un trámite oficial, verificá los datos en la ", 8.5, "suave")
-        _hipervinculo(p, "ficha del expediente", f.url, 8.5)
-        self._run(p, f". Programa Informe de Expedientes, versión {__version__}.", 8.5, "suave")
-        if r.advertencias:
-            self.parrafo("Durante la consulta hubo avisos:", 8.5, "suave", antes=4)
-            for a in r.advertencias:
-                p = self.doc.add_paragraph(style="List Bullet")
-                self._run(p, a, 8.5, "suave")
-
-        self.doc.core_properties.title = f"Informe del expediente {f.id.corto}"
-        self.doc.core_properties.subject = f.extracto[:250]
-        self.doc.core_properties.author = "Informe de Expedientes"
-        self.doc.save(str(destino))
-        return Path(destino)
 
     def _situacion(self) -> None:
         s = self.r.situacion

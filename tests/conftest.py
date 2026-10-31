@@ -56,6 +56,18 @@ MAPA.update({
     f"{H}&strNumExp=351&strNumExpOrig=S&strNumExpAnio=2025": "hcdn_s_351_25.html",
     f"{H}&strNumExp=35&strNumExpOrig=CD&strNumExpAnio=2023": "hcdn_cd_35_23.html",
 })
+# Sesión del 29/10/2026 (plan de labor del 28/10): órdenes del día, fichas y Diputados.
+for _od in (413, 366, 241, 132, 370):
+    MAPA[f"{B}/parlamentario/parlamentaria/ordenDelDiaResultadoLink/2026/{_od}"] = f"od_2026_{_od}.html"
+for _n, _t in ((702, "PL"), (718, "PL"), (808, "PL"), (865, "PL"), (645, "PL"), (695, "PL"), (700, "CO"), (255, "PL")):
+    MAPA[f"{B}/parlamentario/comisiones/verExp/{_n}.26/S/{_t}"] = f"ficha_s_{_n}_26.html"
+    if _t == "PL":
+        MAPA[f"{H}&strNumExp={_n}&strNumExpOrig=S&strNumExpAnio=2026"] = f"hcdn_s_{_n}_26.html"
+MAPA[f"{B}/parlamentario/parlamentaria/actas"] = "plenario_labor.html"
+BINARIOS[f"{B}/parlamentario/parlamentaria/Acta%20de%20labor%20parlamentaria%20%2028-10-2026.pdf/download"] = \
+    "plan_labor_2026-10-28.pdf"
+for _acta in (2848, 2863, 2871, 2872, 2873):
+    BINARIOS[f"{B}/votaciones/verActaVotacion/{_acta}"] = f"acta_{_acta}.pdf"
 MAPA_POST = {f"{B}/parlamentario/parlamentaria/avanzada": "resultados_avanzada.html"}
 
 

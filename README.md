@@ -1,9 +1,11 @@
 # Informe de Expedientes — H. Senado de la Nación
 
-Programa de escritorio con dos modos:
+Programa de escritorio con cuatro modos:
 
 - **Un expediente**: a partir de su número, arma un informe en Word y HTML con su situación en el trámite parlamentario, las reuniones de comisión en que se trató y los enlaces a cada fuente.
 - **Por tema**: a partir de un eje temático o de palabras clave, encuentra todos los expedientes que responden a ese tema y arma un informe consolidado en Word, HTML y Excel con la etapa de cada uno.
+- **Seguimiento**: una lista de expedientes que se revisa seguido para avisar qué cambió.
+- **Sesión**: a partir del plan de labor parlamentaria, un único informe con cada asunto en el orden de tratamiento y la ficha de sus expedientes, más un CSV para el tablero de sesiones.
 
 Usa solamente información pública de www.senado.gob.ar y www.hcdn.gob.ar.
 
@@ -69,6 +71,20 @@ En la pestaña **Por tema**:
 
 `comision_id` es el número de la comisión en el sitio del Senado (`comisiones/info/{número}`); puede ser `null`.
 
+## Informe de sesión (plan de labor)
+
+En la pestaña **Sesión**:
+
+1. Cargá el plan de labor: **Abrir archivo…** (Word `.docx`, PDF o texto), **Buscar en el sitio** (lista los planes publicados en el Plenario de Labor Parlamentaria del Senado; elegí uno y se descarga) o pegá el texto en el cuadro. El texto queda a la vista y se puede corregir.
+2. **Ver los asuntos** muestra lo que el programa entendió, en el orden de tratamiento, antes de consultar nada.
+3. Elegí los formatos (Word, HTML, Excel y CSV) y presioná **Generar informe de sesión**.
+
+**Qué entiende del plan.** Toma la lista «Se acordó el tratamiento de los siguientes temas» en su orden; después suma las órdenes del día impresas que no estaban en esa lista, las preferencias y los asuntos sobre tablas. Reconoce las órdenes del día en sus formas habituales («OD 409/26 y Anexo», «OD de acuerdos: 338; 353; 354», «OD 340 a 342 y 344 a 352», «OD 22/26 a 27/26 inclusive», incluso «0D 206/26») y los expedientes, también en listas abreviadas («S-285, 637 y 638/24»). Si una orden del día no lleva año, usa el de la sesión. Los asuntos sin número (juras, «Dar cuenta de acuerdos», proyectos sobre tablas nombrados solo por su título) figuran en el índice sin ficha. Si el texto no tiene la estructura del plan (una lista pegada a mano), toma un asunto por renglón.
+
+**Qué trae el informe.** Un resumen («El plan de labor para la sesión del 29/10/2026 acordó NUEVE (9) asuntos…»), el índice de asuntos con su orden del día, sus expedientes y la situación de cada uno, y la ficha completa de cada expediente, la misma del informe individual, con la situación, el contraste con Diputados y las votaciones. De cada orden del día se toman los expedientes que trata (pueden ser varios, en conjunto). Por defecto no se buscan las reuniones de comisión, porque una sesión puede tener decenas de expedientes.
+
+**CSV para el tablero de Power BI.** Una fila por asunto, separado por punto y coma, en UTF-8 con BOM y con fechas dd/mm/aaaa. Columnas: `Fecha de sesión`, `Orden`, `Expediente` (varios, separados por coma), `OD`, `Título` (el del plan o, si no lo trae, el extracto), `Tipo` y `Comisiones` (del giro, separadas por « / », porque algunos nombres llevan coma). Las columnas están en `informe_sesion.COLUMNAS_CSV`.
+
 ## Lista de seguimiento
 
 En la pestaña **Seguimiento** se arma una lista de expedientes para revisar seguido. Se agregan escribiendo el número (o varios, separados por coma) o, desde la lista del modo *Por tema*, con clic derecho → *Agregar a la lista de seguimiento*. Para quitarlos, elegilos y presioná *Quitar los elegidos* (o Supr).
@@ -129,10 +145,13 @@ python app.py --tema "Educación y universidades" --nombre index --salida inform
 python app.py --seguimiento agregar PE-99/26 S-351/25
 python app.py --seguimiento revisar --salida "C:\Informes" --formatos html,md
 python app.py --seguimiento listar
+python app.py --sesion "Plan de labor.pdf"
+python app.py --sesion ultima --formatos html,csv --nombre sesion --salida informes/sesion
+python app.py --sesion 29/10/2026 --solo-asuntos
 python app.py --help
 ```
 
-`--seguimiento revisar` deja el resumen de novedades en HTML y Markdown; `--lista-seguimiento archivo.json` usa otra lista en lugar de la de la configuración, y `--sin-reuniones` acelera la revisión.
+`--sesion` acepta un archivo (`.docx`, `.pdf` o `.txt`), `ultima` (el último plan publicado en el sitio) o la fecha de la sesión o de la reunión; `--solo-asuntos` lista lo que entendió del plan sin consultar fichas y `--con-reuniones` suma las reuniones de comisión. `--seguimiento revisar` deja el resumen de novedades en HTML y Markdown; `--lista-seguimiento archivo.json` usa otra lista en lugar de la de la configuración, y `--sin-reuniones` acelera la revisión.
 
 `--nombre` fija el nombre del archivo (sin fecha), útil para publicar siempre en la misma dirección.
 
@@ -177,6 +196,8 @@ Si se quisiera usar desde el navegador sin instalar nada, el mismo paquete puede
 | `hcdn.py` | El proyecto en el sitio de Diputados: número, giros, dictámenes y trámite de las dos cámaras. |
 | `tramite.py` | Recorrido del proyecto de ley según la Constitución (arts. 77 a 84), con la ficha, Diputados y las actas. |
 | `seguimiento.py` | Lista de seguimiento, foto del estado, comparación y resumen de novedades (HTML y Markdown). |
+| `plan_labor.py` | Lectura del plan de labor (Word, PDF, texto o sitio) y sus asuntos en el orden de tratamiento. |
+| `sesion.py`, `informe_sesion.py` | Informe de sesión: expedientes de cada asunto y escritura en Word, HTML, Excel y CSV. |
 | `numeros.py` | Cantidades en letras («VEINTIÚN (21)»). |
 | `contenido.py`, `informe_docx.py`, `informe_html.py` | Contenido y escritura de los informes. |
 | `servicio.py` | Encadena todo; es lo que usan la ventana (`gui.py`) y la línea de comandos (`app.py`). |
@@ -187,6 +208,6 @@ En `docs/relevamiento-fase0.md` está relevado qué publican el sitio del Senado
 
 Pruebas: `pip install pytest` y luego `python -m pytest`. Usan páginas de prueba que reproducen la estructura real del sitio, sin conexión a internet.
 
-Direcciones que usa: `parlamentario/comisiones/verExp/{número}.{año}/{origen}/{tipo}` (ficha), `parlamentario/parlamentaria/avanzada` (búsqueda) y `micrositios/DatosAbiertosExpedientes/BusquedaAvanzada/XLS` (su exportación completa), `parlamentario/comisiones/info/{id}` y `?Reuniones=N` (reuniones), `micrositios/nota/{id}/noticias` (nota de cada reunión), `parlamentario/comisiones/agenda/{id}` (agenda) `parlamentario/parlamentaria/ordenDelDiaResultadoLink/{año}/{número}` (órdenes del día), `votaciones/actas` (listado anual; otros años por POST con `busqueda_actas[anio]`), `votaciones/detalleActa/{id}` y `votaciones/verActaVotacion/{id}` (detalle y PDF de cada acta). En Diputados, la búsqueda `proyectos/resultado.html?strNumExp={número}&strNumExpOrig={origen}&strNumExpAnio={año}` (con `strMostrarTramites=on` y las demás opciones para que traiga el trámite), que sirve también como enlace (la dirección `proyecto.jsp` ya no existe). Se busca por el número del Senado; la respuesta puede traer otros proyectos con el mismo número, y se toma el que tiene ese «Expediente Senado».
+Direcciones que usa: `parlamentario/comisiones/verExp/{número}.{año}/{origen}/{tipo}` (ficha), `parlamentario/parlamentaria/avanzada` (búsqueda) y `micrositios/DatosAbiertosExpedientes/BusquedaAvanzada/XLS` (su exportación completa), `parlamentario/comisiones/info/{id}` y `?Reuniones=N` (reuniones), `micrositios/nota/{id}/noticias` (nota de cada reunión), `parlamentario/comisiones/agenda/{id}` (agenda) `parlamentario/parlamentaria/ordenDelDiaResultadoLink/{año}/{número}` (órdenes del día), `votaciones/actas` (listado anual; otros años por POST con `busqueda_actas[anio]`), `votaciones/detalleActa/{id}` y `votaciones/verActaVotacion/{id}` (detalle y PDF de cada acta) y `parlamentario/parlamentaria/actas` (Plenario de Labor Parlamentaria, con el PDF de cada plan; los nombres de archivo no siguen un patrón, por eso se usa el enlace de la tabla). En Diputados, la búsqueda `proyectos/resultado.html?strNumExp={número}&strNumExpOrig={origen}&strNumExpAnio={año}` (con `strMostrarTramites=on` y las demás opciones para que traiga el trámite), que sirve también como enlace (la dirección `proyecto.jsp` ya no existe). Se busca por el número del Senado; la respuesta puede traer otros proyectos con el mismo número, y se toma el que tiene ese «Expediente Senado».
 
 Los PDF de actas se leen con `pypdf`, incluida en `requirements.txt`; sin ella, las votaciones de sesiones recientes figuran solo con su resultado.

@@ -26,7 +26,10 @@ from .ficha import ExpedienteNoEncontrado
 from .identificador import ErrorIdentificador, parsear, separar_lote
 from .busqueda import OTROS, Consulta, separar_palabras
 from .ejes import Eje, buscar_eje, cargar_ejes, guardar_ejes
+from . import plan_labor
 from .seguimiento import Lista, OpcionesSeguimiento, ResultadoSeguimiento, markdown, revisar
+from .sesion import OpcionesSesion, ResultadoSesion, etiqueta_referencias, generar_sesion
+from .sesion import resumen as resumen_sesion
 from .seguimiento import resumen as resumen_seguimiento
 from .servicio import Opciones, generar
 from .tematico import ETAPA, OpcionesTematicas, ResultadoTematico, generar_tematico, resumen, resumen_tipos
@@ -217,6 +220,14 @@ class Aplicacion(tk.Tk):
         self.lista_seguimiento = Lista()
         self.var_seg_nuevo = tk.StringVar()
         self.var_seg_reuniones = tk.BooleanVar(value=c.get("seguimiento_reuniones", True))
+        self.var_ses_fuente = tk.StringVar(value="Abrí un archivo, buscá el plan en el sitio o pegá el texto.")
+        self.var_ses_plan = tk.StringVar()
+        self.var_ses_reuniones = tk.BooleanVar(value=False)
+        self.vars_ses_formatos = {f: tk.BooleanVar(value=f in c.get("sesion_formatos", ["docx", "html", "xlsx", "csv"]))
+                                  for f in ("docx", "html", "xlsx", "csv")}
+        self.planes_publicados: list = []
+        self.plan_publicado = None
+        self.ses_fuente = ""
         self.comisiones_por_nombre = {nombre_comision(n): i for i, n in sorted(config.COMISIONES.items(),
                                                                               key=lambda kv: nombre_comision(kv[1]))}
         self.var_estado = tk.StringVar(value="Escribí uno o más expedientes y presioná «Generar informe».")
@@ -270,6 +281,9 @@ class Aplicacion(tk.Tk):
         exterior, interior = self._desplazable(self.modos)
         self._panel_seguimiento(interior).pack(fill="both", expand=True)
         self.modos.add(exterior, text="Seguimiento")
+        exterior, interior = self._desplazable(self.modos)
+        self._panel_sesion(interior).pack(fill="both", expand=True)
+        self.modos.add(exterior, text="Sesión")
         self._panel_resultados(cuerpo).grid(row=0, column=1, sticky="nsew")
 
     def _desplazable(self, padre):
@@ -460,6 +474,52 @@ class Aplicacion(tk.Tk):
         self.btn_cancelar_seg.grid(row=0, column=1, padx=(8, 0))
         marco.columnconfigure(0, weight=1)
         self._llenar_seguimiento()
+        return marco
+
+    def _panel_sesion(self, padre) -> ttk.Frame:
+        marco = ttk.Frame(padre, style="Tarjeta.TFrame", padding=(16, 12, 16, 14))
+        ttk.Label(marco, text="Plan de labor", style="Seccion.TLabel").grid(row=0, column=0, columnspan=2, sticky="w",
+                                                                         pady=(0, 4))
+        botones = ttk.Frame(marco, style="Tarjeta.TFrame")
+        botones.grid(row=1, column=0, columnspan=2, sticky="w")
+        ttk.Button(botones, text="Abrir archivo…", style="Chico.TButton", command=self._abrir_plan).pack(side="left")
+        ttk.Button(botones, text="Buscar en el sitio", style="Chico.TButton",
+                   command=self._buscar_planes).pack(side="left", padx=(6, 0))
+        self.combo_planes = ttk.Combobox(marco, textvariable=self.var_ses_plan, state="disabled", width=36)
+        self.combo_planes.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+        self.combo_planes.bind("<<ComboboxSelected>>", self._elegir_plan_publicado)
+        ttk.Label(marco, text="O pegá el texto del plan (podés corregirlo antes de generar):", style="Ayuda.TLabel",
+                  wraplength=300, justify="left").grid(row=3, column=0, columnspan=2, sticky="w", pady=(8, 2))
+        self.txt_plan = tk.Text(marco, height=7, width=34, wrap="word", font=self.f_chica, relief="flat",
+                                bg=P["papel"], fg=P["tinta"], insertbackground=P["tinta"], highlightthickness=1,
+                                highlightbackground=P["linea"], highlightcolor=P["cupula"], padx=8, pady=6, undo=True)
+        self.txt_plan.grid(row=4, column=0, columnspan=2, sticky="ew")
+        ttk.Label(marco, textvariable=self.var_ses_fuente, style="Ayuda.TLabel", wraplength=300,
+                  justify="left").grid(row=5, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        ttk.Button(marco, text="Ver los asuntos", style="Chico.TButton",
+                   command=self._vista_previa_sesion).grid(row=6, column=0, sticky="w", pady=(6, 0))
+
+        ttk.Label(marco, text="De cada expediente", style="Seccion.TLabel").grid(
+            row=7, column=0, columnspan=2, sticky="w", pady=(10, 4))
+        ttk.Checkbutton(marco, text="Buscar también reuniones de comisión (lento)", variable=self.var_ses_reuniones,
+                        style="Tarjeta.TCheckbutton").grid(row=8, column=0, columnspan=2, sticky="w")
+        ttk.Label(marco, text="Formato", style="Seccion.TLabel").grid(row=9, column=0, columnspan=2, sticky="w",
+                                                                    pady=(10, 4))
+        formatos = ttk.Frame(marco, style="Tarjeta.TFrame")
+        formatos.grid(row=10, column=0, columnspan=2, sticky="w")
+        for texto_f, clave in (("Word", "docx"), ("HTML", "html"), ("Excel", "xlsx"), ("CSV (Power BI)", "csv")):
+            ttk.Checkbutton(formatos, text=texto_f, variable=self.vars_ses_formatos[clave],
+                            style="Tarjeta.TCheckbutton").pack(side="left", padx=(0, 8))
+
+        acciones = ttk.Frame(marco, style="Tarjeta.TFrame")
+        acciones.grid(row=11, column=0, columnspan=2, sticky="ew", pady=(14, 0))
+        acciones.columnconfigure(0, weight=1)
+        self.btn_generar_ses = ttk.Button(acciones, text="Generar informe de sesión", style="Acento.TButton",
+                                          command=self._generar_sesion)
+        self.btn_generar_ses.grid(row=0, column=0, sticky="ew")
+        self.btn_cancelar_ses = ttk.Button(acciones, text="Cancelar", command=self._cancelar, state="disabled")
+        self.btn_cancelar_ses.grid(row=0, column=1, padx=(8, 0))
+        marco.columnconfigure(0, weight=1)
         return marco
 
     def _panel_opciones(self, padre) -> ttk.Frame:
@@ -739,9 +799,9 @@ class Aplicacion(tk.Tk):
                        cancelar=self.cancelar, carpeta_diagnostico=diagnostico)
 
     def _ocupado(self, si: bool) -> None:
-        for b in (self.btn_generar, self.btn_generar_tema, self.btn_revisar):
+        for b in (self.btn_generar, self.btn_generar_tema, self.btn_revisar, self.btn_generar_ses):
             b.state(["disabled"] if si else ["!disabled"])
-        for b in (self.btn_cancelar, self.btn_cancelar_tema, self.btn_cancelar_seg):
+        for b in (self.btn_cancelar, self.btn_cancelar_tema, self.btn_cancelar_seg, self.btn_cancelar_ses):
             b.state(["!disabled"] if si else ["disabled"])
 
     def _trabajo(self, textos: list[str], opciones: Opciones) -> None:
@@ -772,7 +832,7 @@ class Aplicacion(tk.Tk):
     def _cancelar(self) -> None:
         self.cancelar.set()
         self.var_estado.set("Cancelando…")
-        for b in (self.btn_cancelar, self.btn_cancelar_tema, self.btn_cancelar_seg):
+        for b in (self.btn_cancelar, self.btn_cancelar_tema, self.btn_cancelar_seg, self.btn_cancelar_ses):
             b.state(["disabled"])
 
     def _procesar_cola(self) -> None:
@@ -800,6 +860,17 @@ class Aplicacion(tk.Tk):
                 self._contando = False
         elif evento in ("log", "advertencia"):
             self._registro(("Aviso: " if evento == "advertencia" else "") + mensaje)
+        elif evento == "planes":
+            self.planes_publicados = datos["planes"]
+            self.combo_planes.configure(values=[x.etiqueta for x in self.planes_publicados[:60]],
+                                        state="readonly" if self.planes_publicados else "disabled")
+            self.var_ses_fuente.set(f"Elegí un plan de la lista ({len(self.planes_publicados)} publicados)."
+                                    if self.planes_publicados else "El sitio no devolvió planes de labor.")
+        elif evento == "plan_texto":
+            self.txt_plan.delete("1.0", "end")
+            self.txt_plan.insert("1.0", datos["texto"])
+            self.ses_fuente = datos["fuente"]
+            self.var_ses_fuente.set(datos["etiqueta"])
         elif evento == "resultado":
             resultado = datos["resultado"]
             self.resultados.append(resultado)
@@ -819,6 +890,8 @@ class Aplicacion(tk.Tk):
                 self.var_estado.set(f"Listo: {hechos} informe{'s' if hechos != 1 else ''} en {datos['carpeta']}")
                 if self.resultados and isinstance(self.resultados[-1], ResultadoTematico):
                     self.var_estado.set(f"Listo: informe temático en {datos['carpeta']}")
+                if self.resultados and isinstance(self.resultados[-1], ResultadoSesion):
+                    self.var_estado.set(f"Listo: informe de sesión en {datos['carpeta']}")
                 if self.resultados and isinstance(self.resultados[-1], ResultadoSeguimiento):
                     self.var_estado.set(f"Listo: {resumen_seguimiento(self.resultados[-1])}")
                     self._llenar_seguimiento()
@@ -846,6 +919,9 @@ class Aplicacion(tk.Tk):
             return
         if isinstance(r, ResultadoSeguimiento):
             self._mostrar_seguimiento(r)
+            return
+        if isinstance(r, ResultadoSesion):
+            self._mostrar_sesion(r)
             return
         self._pestanias_visibles(False)
         self.btn_excel.state(["disabled"])
@@ -902,6 +978,8 @@ class Aplicacion(tk.Tk):
             return f"Tema: {r.consulta.titulo()[:24]}"
         if isinstance(r, ResultadoSeguimiento):
             return "Seguimiento"
+        if isinstance(r, ResultadoSesion):
+            return f"Sesión {r.fecha:%d/%m}" if r.fecha else "Sesión"
         return r.ficha.id.corto
 
     def _mostrar_seguimiento(self, r: ResultadoSeguimiento) -> None:
@@ -931,6 +1009,170 @@ class Aplicacion(tk.Tk):
             for rev in sin:
                 t.insert("end", f"{rev.seguido.expediente}: ", ("vineta", "etiqueta"))
                 t.insert("end", rev.situacion + "\n")
+        t.configure(state="disabled")
+        for formato, boton in (("docx", self.btn_word), ("html", self.btn_html), ("xlsx", self.btn_excel)):
+            boton.state(["!disabled"] if formato in r.archivos else ["disabled"])
+        self.btn_ficha.state(["disabled"])
+        self.btn_copiar.state(["!disabled"])
+        self.pestanias.select(0)
+
+    # ------------------------------------------------------------ sesión
+    def _abrir_plan(self) -> None:
+        ruta = filedialog.askopenfilename(title="Plan de labor", filetypes=[
+            ("Plan de labor", "*.docx *.pdf *.txt"), ("Word", "*.docx"), ("PDF", "*.pdf"), ("Texto", "*.txt"),
+            ("Todos los archivos", "*.*")])
+        if not ruta:
+            return
+        try:
+            texto = plan_labor.texto_de_archivo(Path(ruta))
+            if ruta.lower().endswith(".pdf"):
+                texto = plan_labor.texto_legible(texto)
+        except (plan_labor.ErrorPlan, OSError) as e:
+            messagebox.showwarning("No se pudo leer el plan", str(e))
+            return
+        self.plan_publicado = None
+        self._atender("plan_texto", "", {"texto": texto, "fuente": ruta, "etiqueta": f"Archivo: {Path(ruta).name}"})
+
+    def _buscar_planes(self) -> None:
+        if self.hilo and self.hilo.is_alive():
+            return
+        self.var_ses_fuente.set("Buscando los planes publicados en el sitio del Senado…")
+
+        def trabajo():
+            try:
+                self.cola.put(("planes", "", {"planes": plan_labor.planes_publicados(self._nuevo_cliente())}))
+            except Exception as e:  # noqa: BLE001
+                self.cola.put(("log", f"No se pudo leer el Plenario de Labor: {mensaje_de_error(e)}", {}))
+                self.cola.put(("planes", "", {"planes": []}))
+
+        self.hilo = threading.Thread(target=trabajo, daemon=True)
+        self.hilo.start()
+
+    def _elegir_plan_publicado(self, _evento=None) -> None:
+        i = self.combo_planes.current()
+        if not 0 <= i < len(self.planes_publicados) or (self.hilo and self.hilo.is_alive()):
+            return
+        elegido = self.planes_publicados[i]
+        self.var_ses_fuente.set("Descargando el plan de labor…")
+
+        def trabajo():
+            try:
+                r = self._nuevo_cliente().get(elegido.url, binario=True)
+                texto = plan_labor.texto_legible(plan_labor.texto_de_pdf(r.contenido or b""))
+                self.plan_publicado = elegido
+                self.cola.put(("plan_texto", "", {"texto": texto, "fuente": elegido.url,
+                                                  "etiqueta": f"Del sitio: {elegido.etiqueta}"}))
+            except Exception as e:  # noqa: BLE001
+                self.cola.put(("log", f"No se pudo bajar el plan: {mensaje_de_error(e)}", {}))
+                self.var_ses_fuente.set("No se pudo bajar el plan: mirá el detalle en «Registro».")
+
+        self.hilo = threading.Thread(target=trabajo, daemon=True)
+        self.hilo.start()
+
+    def _plan_actual(self):
+        texto = self.txt_plan.get("1.0", "end").strip()
+        if not texto:
+            messagebox.showinfo("Falta el plan", "Abrí el plan de labor, buscalo en el sitio o pegá su texto.")
+            return None
+        plan = plan_labor.leer(texto, self.ses_fuente)
+        if self.plan_publicado is not None and self.ses_fuente == self.plan_publicado.url:
+            plan.fecha_reunion = plan.fecha_reunion or self.plan_publicado.fecha_reunion
+            plan.fecha_sesion = plan.fecha_sesion or self.plan_publicado.fecha_sesion
+        if not plan.asuntos:
+            messagebox.showinfo("Sin asuntos", "No se encontraron asuntos en el texto del plan.")
+            return None
+        return plan
+
+    def _vista_previa_sesion(self) -> None:
+        plan = self._plan_actual()
+        if plan is None:
+            return
+        self._pestanias_visibles(True)
+        self.pestanias.tab(self.arbol_expedientes.master, state="hidden")
+        t = self.txt_resumen
+        t.configure(state="normal")
+        t.delete("1.0", "end")
+        self._enlaces.clear()
+        t.insert("end", "Vista previa del plan de labor\n", "suave")
+        fecha = plan.fecha_sesion or plan.fecha_reunion
+        t.insert("end", (f"Sesión del {fecha:%d/%m/%Y}" if fecha else "Sesión") + "\n", "numero")
+        t.insert("end", f"{len(plan.asuntos)} asuntos, en el orden de tratamiento:\n", "extracto")
+        for a in plan.asuntos:
+            refs = ", ".join(r.clave for r in a.referencias[:8]) + (" …" if len(a.referencias) > 8 else "")
+            t.insert("end", f"{a.orden}. ", ("vineta", "etiqueta"))
+            t.insert("end", (a.titulo or "(sin título en el plan)") + (f"  —  {refs}" if refs else ""), "vineta")
+            if a.seccion != "Temas acordados":
+                t.insert("end", f"  ({a.seccion.lower()})", ("vineta", "suave"))
+            t.insert("end", "\n")
+        t.insert("end", "\nSi falta o sobra algo, corregí el texto del plan y volvé a mirar.\n", ("vineta", "suave"))
+        t.configure(state="disabled")
+        self.pestanias.select(0)
+
+    def _generar_sesion(self) -> None:
+        if self.hilo and self.hilo.is_alive():
+            return
+        plan = self._plan_actual()
+        if plan is None:
+            return
+        formatos = tuple(f for f, v in self.vars_ses_formatos.items() if v.get())
+        if not formatos:
+            messagebox.showinfo("Formato", "Marcá al menos un formato.")
+            return
+        opciones = OpcionesSesion(buscar_reuniones=self.var_ses_reuniones.get(), incluir_asesores=self.var_asesores.get(),
+                                  formatos=formatos, carpeta_salida=Path(self.var_carpeta.get()).expanduser())
+        self._guardar_preferencias()
+        self.cancelar.clear()
+        self._registro(f"— Informe de sesión: {len(plan.asuntos)} asuntos")
+        self._ocupado(True)
+        self.hilo = threading.Thread(target=self._trabajo_sesion, args=(plan, opciones), daemon=True)
+        self.hilo.start()
+
+    def _trabajo_sesion(self, plan, opciones: OpcionesSesion) -> None:
+        cliente = self._nuevo_cliente()
+        hechos, fallidos = 0, []
+
+        def avisar(evento, mensaje="", **datos):
+            self.cola.put((evento, mensaje, datos))
+
+        try:
+            res = generar_sesion(plan, opciones, cliente, avisar)
+            self.cola.put(("resultado", "", {"resultado": res}))
+            hechos = 1
+        except Cancelado:
+            self.cola.put(("log", "Informe de sesión cancelado.", {}))
+        except Exception as e:  # noqa: BLE001
+            fallidos.append(mensaje_de_error(e))
+            self.cola.put(("log", traceback.format_exc(), {}))
+        self.cola.put(("fin", "", {"hechos": hechos, "fallidos": fallidos, "carpeta": str(opciones.carpeta_salida),
+                                   "pedidos": cliente.pedidos_red, "cache": cliente.pedidos_cache}))
+
+    def _mostrar_sesion(self, r: ResultadoSesion) -> None:
+        self._pestanias_visibles(True)
+        self.pestanias.tab(self.arbol_expedientes.master, state="hidden")
+        t = self.txt_resumen
+        t.configure(state="normal")
+        t.delete("1.0", "end")
+        self._enlaces.clear()
+        t.insert("end", "Informe de sesión\n", "suave")
+        t.insert("end", (f"{r.fecha:%d/%m/%Y}" if r.fecha else "Sesión") + "\n", "numero")
+        t.insert("end", resumen_sesion(r) + "\n", "extracto")
+        t.insert("end", "Asuntos en el orden de tratamiento\n", "rotulo")
+        for tema in r.temas:
+            t.insert("end", f"{tema.asunto.orden}. ", ("vineta", "etiqueta"))
+            t.insert("end", tema.titulo, "vineta")
+            if etiqueta_referencias(tema):
+                t.insert("end", f"  ({etiqueta_referencias(tema)})", ("vineta", "suave"))
+            t.insert("end", "\n")
+            for res in tema.resultados:
+                t.insert("end", "      ")
+                self._enlace(res.ficha.id.corto, res.ficha.url)
+                t.insert("end", f": {res.situacion.titulo}\n", "vineta")
+            for error in tema.errores:
+                t.insert("end", f"      {error}\n", ("vineta", "suave"))
+        if r.advertencias:
+            t.insert("end", "Avisos\n", "rotulo")
+            for a in r.advertencias:
+                t.insert("end", f"• {a}\n", ("vineta", "suave"))
         t.configure(state="disabled")
         for formato, boton in (("docx", self.btn_word), ("html", self.btn_html), ("xlsx", self.btn_excel)):
             boton.state(["!disabled"] if formato in r.archivos else ["disabled"])
@@ -1360,6 +1602,11 @@ class Aplicacion(tk.Tk):
                 texto = texto_resumen_tematico(self.actual)
             elif isinstance(self.actual, ResultadoSeguimiento):
                 texto = markdown(self.actual)
+            elif isinstance(self.actual, ResultadoSesion):
+                texto = resumen_sesion(self.actual) + "\n\n" + "\n".join(
+                    f"{x.asunto.orden}. {x.titulo} ({etiqueta_referencias(x) or 'sin número'}): "
+                    + ("; ".join(f"{y.ficha.id.corto}: {y.situacion.titulo}" for y in x.resultados) or "—")
+                    for x in self.actual.temas)
             else:
                 texto = texto_resumen(self.actual)
             self.clipboard_append(texto)
@@ -1420,6 +1667,7 @@ class Aplicacion(tk.Tk):
             "tema_tipos": [c for c, v in self.vars_tipos.items() if v.get()], "tema_detallar": self.var_detallar.get(),
             "tema_docx": self.var_t_docx.get(), "tema_html": self.var_t_html.get(), "tema_xlsx": self.var_t_xlsx.get(),
             "seguimiento_reuniones": self.var_seg_reuniones.get(),
+            "sesion_formatos": [f for f, v in self.vars_ses_formatos.items() if v.get()],
         })
         guardar_config(self.cfg)
 

@@ -150,6 +150,46 @@ def _construir(origen: str, numero: str, anio: str, tipo: str | None, original: 
     return IdExpediente(n, a, origen, t)
 
 
+# Expedientes escritos en un texto libre, incluidas las listas abreviadas («S-285, 637 y 638/24»).
+_EN_TEXTO_ORIGEN = re.compile(
+    r"(?<![A-Z0-9/.])(?P<origen>S|C\.?\s?D|P\.?\s?E\.?(?:N\.?)?|J\.?G\.?M|O\.?V\.?D?|P)\.?\s*[-–—]?\s*(?:N[°º]\s*)?"
+    r"(?P<nums>\d{1,5}(?:\s*(?:,|-|\bY\b|\bE\b)\s*\d{1,5})*)\s*/\s*(?P<anio>\d{4}|\d{2})(?![\d/])"
+)
+_EN_TEXTO_NUMERO = re.compile(r"(?<![\d/])(?P<num>\d{1,5})\s*-\s*(?P<origen>S|CD|PE|JGM|OVD?|P)\s*-\s*"
+                              r"(?P<anio>\d{4}|\d{2})(?![\d/])")
+
+
+def encontrar(texto: str) -> list[tuple[int, IdExpediente]]:
+    """(posición, expediente) de cada expediente escrito en el texto, en orden de aparición.
+
+    Reconoce «S-1234/24», «C.D. 14/24», «PE-107/24», «1370-S-2020» y las listas que comparten
+    origen y año: «S-285, 637 y 638/24» → S-285/24, S-637/24 y S-638/24.
+    """
+    t = (texto or "").upper().replace("–", "-").replace("—", "-")
+    hallados: list[tuple[int, IdExpediente]] = []
+    for m in _EN_TEXTO_ORIGEN.finditer(t):
+        origen = re.sub(r"[.\s]", "", m.group("origen"))
+        if origen == "P" and "-" not in m.group(0):
+            continue                     # «P 12/24» suele ser otra cosa; los particulares se escriben P-12/24
+        for numero in re.findall(r"\d{1,5}", m.group("nums")):
+            try:
+                hallados.append((m.start(), parsear(f"{origen}-{numero}/{m.group('anio')}")))
+            except ErrorIdentificador:
+                pass
+    for m in _EN_TEXTO_NUMERO.finditer(t):
+        try:
+            hallados.append((m.start(), parsear(f"{m.group('origen')}-{m.group('num')}/{m.group('anio')}")))
+        except ErrorIdentificador:
+            pass
+    vistos: set[str] = set()
+    salida = []
+    for pos, ident in sorted(hallados, key=lambda x: x[0]):
+        if ident.corto not in vistos:
+            vistos.add(ident.corto)
+            salida.append((pos, ident))
+    return salida
+
+
 def separar_lote(texto: str) -> list[str]:
     """Un expediente por línea (también se aceptan comas y punto y coma)."""
     partes = re.split(r"[\n;,]+", texto or "")
