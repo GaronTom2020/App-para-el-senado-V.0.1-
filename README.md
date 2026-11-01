@@ -1,13 +1,23 @@
-# Informe de Expedientes — H. Senado de la Nación
+# Sistema de Información Parlamentaria — H. Senado de la Nación
 
-Programa de escritorio con cuatro modos:
+Versión actual: **0.3.0**. Programa de escritorio con cinco modos:
 
 - **Un expediente**: a partir de su número, arma un informe en Word y HTML con su situación en el trámite parlamentario, las reuniones de comisión en que se trató y los enlaces a cada fuente.
 - **Por tema**: a partir de un eje temático o de palabras clave, encuentra todos los expedientes que responden a ese tema y arma un informe consolidado en Word, HTML y Excel con la etapa de cada uno.
 - **Seguimiento**: una lista de expedientes que se revisa seguido para avisar qué cambió.
-- **Sesión**: a partir del plan de labor parlamentaria, un único informe con cada asunto en el orden de tratamiento y la ficha de sus expedientes, más un CSV para el tablero de sesiones.
+- **Sesión**: a partir del plan de labor parlamentaria, un único informe con cada asunto en el orden de tratamiento y la ficha de sus expedientes, más un CSV para el tablero de sesiones. También arma el informe de una orden del día («OD 366/26») y lee la versión taquigráfica de la sesión.
+- **Asuntos entrados**: lee el Diario de Asuntos Entrados (DAE) digital del Senado desde una fecha de partida y después solo lo nuevo, con filtros por tipo, origen y palabras.
 
 Usa solamente información pública de www.senado.gob.ar y www.hcdn.gob.ar.
+
+### Novedades de la versión 0.3.0
+
+- **Orden del día**: informe y seguimiento por OD («OD 366/26»); sus expedientes forman un único despacho y la cabecera lleva la ficha.
+- **Seguimiento con grupos**: alta de varios a la vez, nombre propio por expediente, grupos (crear, renombrar, borrar, filtrar, sacar del grupo), casillas para marcar, resumen al hacer clic, columna «Desde» (último movimiento), archivo opcional, traer desde un eje temático y vaciar la lista.
+- **Versión taquigráfica** en el informe de sesión: desenlace, votaciones y versión revisada del proyecto con las modificaciones aprobadas en negrita; la tabla enlaza cada OD. Es una lectura automática del texto taquigráfico, y el informe lo aclara.
+- **Asuntos entrados** (pestaña nueva): lee el DAE digital desde una fecha de partida y después solo lo nuevo; cruza de período parlamentario (marzo a febrero); filtros por tipo, origen y palabras; sumar al seguimiento; informe opcional en Word y HTML.
+- **Interfaz nueva**: «Sistema de Información Parlamentaria», logo del Senado (también en el .exe y la barra de tareas), paleta institucional, pestañas compactas y menú «Enlaces útiles».
+- **Informes** con encabezados jerárquicos, índice navegable en HTML y tabla de contenido en Word.
 
 ### Novedades de la versión 0.2.0
 
@@ -101,6 +111,10 @@ En la pestaña **Sesión**:
 **Qué trae el informe.** Un resumen («El plan de labor para la sesión del 29/10/2026 acordó NUEVE (9) asuntos…»), el índice de asuntos con su orden del día, sus expedientes y la situación de cada uno, y la ficha completa de cada expediente, la misma del informe individual, con la situación, el contraste con Diputados y las votaciones. De cada orden del día se toman los expedientes que trata (pueden ser varios, en conjunto). Por defecto no se buscan las reuniones de comisión, porque una sesión puede tener decenas de expedientes.
 
 **CSV para el tablero de Power BI.** Una fila por asunto, separado por punto y coma, en UTF-8 con BOM y con fechas dd/mm/aaaa. Columnas: `Fecha de sesión`, `Orden`, `Expediente` (varios, separados por coma), `OD`, `Título` (el del plan o, si no lo trae, el extracto), `Tipo` y `Comisiones` (del giro, separadas por « / », porque algunos nombres llevan coma). Las columnas están en `informe_sesion.COLUMNAS_CSV`.
+
+## Asuntos entrados (DAE)
+
+En la pestaña **Asuntos entrados** se elige una fecha de partida y el programa lee los Diarios de Asuntos Entrados digitales del Senado desde esa fecha; en las consultas siguientes trae solo los nuevos. Si la fecha cae en el período parlamentario anterior (marzo a febrero), sigue la numeración de ambos. Se filtran por tipo, origen y palabras, y cada asunto se puede sumar a la lista de seguimiento. El informe en Word y HTML es opcional.
 
 ## Lista de seguimiento
 
