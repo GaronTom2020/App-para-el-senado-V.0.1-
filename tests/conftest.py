@@ -79,6 +79,12 @@ BINARIOS[f"{B}/parlamentario/parlamentaria/Acta%20de%20labor%20parlamentaria%20%
     "plan_labor_2026-10-28.pdf"
 for _acta in (2848, 2863, 2871, 2872, 2873):
     BINARIOS[f"{B}/votaciones/verActaVotacion/{_acta}"] = f"acta_{_acta}.pdf"
+# Versión taquigráfica de la sesión del 29/10/2026: lista de «busquedaTac» (primeras filas) y el texto del
+# PDF (índice y puntos 15 a 22), que el cliente falso sirve como si fuera el PDF.
+MAPA[f"{B}/parlamentario/sesiones/busquedaTac"] = "busqueda_tac.html"
+BINARIOS[f"{B}/parlamentario/sesiones/29-10-2026/12/downloadTac"] = "vt_2026-10-29.txt"
+# Diario de Asuntos Entrados: la portada muestra el 84/2026; el 83 y el 82 se piden por POST.
+MAPA[f"{B}/parlamentario/DAEDIGITAL/"] = "dae_2026_84.html"
 MAPA_POST = {f"{B}/parlamentario/parlamentaria/avanzada": "resultados_avanzada.html"}
 
 
@@ -119,6 +125,14 @@ class ClienteFalso:
         self.pedidos.append("POST " + url)
         self.ultimo_post = datos
         archivo = MAPA_POST.get(url)
+        if url == f"{B}/parlamentario/DAEDIGITAL/Resultado":
+            anio, numero = datos.get("dae_buscar[anios]"), int(datos.get("dae_buscar[numero]") or 0)
+            archivo = f"dae_{anio}_{numero}.html"
+            if anio == "2025" and not (FIXTURES / archivo).exists():
+                # Del período 2025 se guardó el último DAE real (111) y la respuesta a uno inexistente.
+                archivo = "dae_2025_111.html" if numero <= 111 else "dae_vacio.html"
+            if not (FIXTURES / archivo).exists():
+                raise ErrorRed("404")
         if url == f"{B}/votaciones/actas":
             archivo = f"votaciones_actas_{datos.get('busqueda_actas[anio]')}.html"
             if not (FIXTURES / archivo).exists():
@@ -137,3 +151,12 @@ class ClienteFalso:
 @pytest.fixture
 def cliente():
     return ClienteFalso()
+
+
+@pytest.fixture(autouse=True)
+def _taquigrafica_en_texto(monkeypatch):
+    """La versión taquigráfica de prueba es el texto ya extraído del PDF real."""
+    from informe_expedientes import taquigrafica
+    original = taquigrafica._texto_pdf
+    monkeypatch.setattr(taquigrafica, "_texto_pdf",
+                        lambda contenido: original(contenido) if contenido.startswith(b"%PDF") else contenido.decode("utf-8"))

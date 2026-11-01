@@ -326,12 +326,12 @@ def escribir_xlsx(res: ResultadoTematico, destino: Path) -> Path:
     from openpyxl.utils import get_column_letter
 
     normal = Font(name="Arial", size=10)
-    titulo = Font(name="Arial", size=14, bold=True, color="1F4E45")
+    titulo = Font(name="Arial", size=14, bold=True, color="114E9A")
     negrita = Font(name="Arial", size=10, bold=True)
     blanco = Font(name="Arial", size=10, bold=True, color="FFFFFF")
-    enlace = Font(name="Arial", size=10, color="1F4E45", underline="single")
-    relleno = PatternFill("solid", fgColor="2E6B5F")
-    tenue = PatternFill("solid", fgColor="E4EFEB")
+    enlace = Font(name="Arial", size=10, color="114E9A", underline="single")
+    relleno = PatternFill("solid", fgColor="1A64AB")
+    tenue = PatternFill("solid", fgColor="E6EEF9")
     arriba = Alignment(vertical="top")
     envolver = Alignment(vertical="top", wrap_text=True)
 

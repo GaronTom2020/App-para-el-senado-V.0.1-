@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from html import escape
 from pathlib import Path
 
@@ -9,15 +10,15 @@ from . import __version__
 from .contenido import (
     Linea, alcance_busqueda, bloques_resolucion, comisiones_texto, datos_diputados, datos_generales,
     datos_diputados_hcdn, descripcion, filas_relacionados, sesiones_votadas, texto_relacionados, texto_votaciones,
-    titulo_etapa_diputados,
+    titulo_etapa_diputados, integrantes_od, texto_od,
 )
 from .modelos import Resultado
 from .util import fmt_fecha, nombre_comision
 
 ESTILOS = """
 :root{
-  --tinta:#1F2B28; --tinta-suave:#55645F; --cupula:#2E6B5F; --cupula-oscura:#1F4E45;
-  --cupula-tenue:#E4EFEB; --piedra:#EEF2F0; --linea:#CBD5D1; --papel:#FFFFFF;
+  --tinta:#292F3D; --tinta-suave:#5A6478; --cupula:#1A64AB; --cupula-oscura:#114E9A;
+  --cupula-tenue:#E6EEF9; --piedra:#D8E4F7; --linea:#B9C8DE; --papel:#FFFFFF;
   --lacre:#8C2F2F; --lacre-tenue:#F6E7E5; --ambar:#8A5A10; --ambar-tenue:#F7EEDC;
   --serif: Georgia, "Times New Roman", serif;
   --sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
@@ -25,8 +26,8 @@ ESTILOS = """
 }
 @media (prefers-color-scheme: dark){
   :root{
-    --tinta:#E2EBE8; --tinta-suave:#A7B8B3; --cupula:#86C5B3; --cupula-oscura:#A9DACB;
-    --cupula-tenue:#1C322D; --piedra:#101716; --linea:#2D3E39; --papel:#141D1B;
+    --tinta:#E3E8F2; --tinta-suave:#A9B6CC; --cupula:#7FB2E8; --cupula-oscura:#A8CBF0;
+    --cupula-tenue:#16263D; --piedra:#0E1420; --linea:#2A3A52; --papel:#131B2A;
     --lacre:#E8A39B; --lacre-tenue:#3B201D; --ambar:#E6BC70; --ambar-tenue:#372B16;
   }
 }
@@ -35,6 +36,7 @@ body{margin:0;background:var(--piedra);color:var(--tinta);font:15px/1.55 var(--s
 .hoja{max-width:880px;margin:32px auto;background:var(--papel);padding:44px 56px 40px;border-top:6px solid var(--cupula)}
 .membrete{display:flex;justify-content:space-between;gap:16px;font-size:13px;color:var(--tinta-suave)}
 .numero{font-family:var(--serif);font-weight:normal;font-size:54px;line-height:1.05;margin:22px 0 6px;letter-spacing:.005em}
+.numero-cabecera{font-size:30px;margin:26px 0 4px;border:0;padding:0}
 .descripcion{font-size:16px;color:var(--tinta-suave);margin:0 0 14px}
 .extracto{font-family:var(--serif);font-size:17px;line-height:1.6;margin:0 0 16px;max-width:72ch}
 .enlaces{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:14px;margin:0}
@@ -63,7 +65,13 @@ a:focus-visible{outline:2px solid var(--cupula);outline-offset:2px}
 .paso.detenido strong{color:var(--lacre)}
 .caducidad{margin:14px 0 0;font-size:13.5px}
 .caducidad.vencida{color:var(--lacre)}
-h2{font-family:var(--serif);font-weight:normal;font-size:21px;margin:40px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--linea)}
+h2{font-family:var(--serif);font-weight:normal;font-size:26px;line-height:1.25;color:var(--cupula-oscura);margin:44px 0 14px;padding-bottom:6px;border-bottom:2px solid var(--linea)}
+h3{font-size:17px;font-weight:600;line-height:1.3;margin:28px 0 8px;color:var(--tinta)}
+h4{font-size:14.5px;font-weight:600;margin:18px 0 4px;color:var(--tinta)}
+.indice-doc{margin:28px 0 8px;padding:14px 22px 12px;background:var(--cupula-tenue);border-left:4px solid var(--cupula)}
+.indice-doc .rotulo{font-size:13px;color:var(--tinta-suave);margin:0 0 6px}
+.indice-doc ol{margin:0;padding-left:20px;columns:2 240px;column-gap:32px;font-size:14px}
+.indice-doc li{margin:2px 0;break-inside:avoid}
 dl.datos{display:grid;grid-template-columns:minmax(150px,230px) 1fr;gap:8px 24px;margin:0}
 dl.datos dt{color:var(--tinta-suave)}
 dl.datos dd{margin:0}
@@ -102,8 +110,8 @@ footer ul{padding-left:18px;margin:6px 0}
   .paso::after{display:none}
 }
 @media print{
-  :root{--tinta:#1F2B28;--tinta-suave:#55645F;--papel:#fff;--piedra:#EEF2F0;--linea:#CBD5D1;
-        --cupula:#2E6B5F;--cupula-oscura:#1F4E45;--cupula-tenue:#E4EFEB;--lacre:#8C2F2F;--lacre-tenue:#F6E7E5;
+  :root{--tinta:#292F3D;--tinta-suave:#5A6478;--papel:#fff;--piedra:#D8E4F7;--linea:#B9C8DE;
+        --cupula:#1A64AB;--cupula-oscura:#114E9A;--cupula-tenue:#E6EEF9;--lacre:#8C2F2F;--lacre-tenue:#F6E7E5;
         --ambar:#8A5A10;--ambar-tenue:#F7EEDC}
   body{background:#fff}
   .hoja{margin:0;padding:0;max-width:none;border-top:0}
@@ -140,10 +148,33 @@ def _dl(filas: list[tuple[str, Linea]]) -> str:
 
 
 def generar_html(resultado: Resultado, ejemplo: bool = False) -> str:
-    return pagina(f"Informe {resultado.ficha.id.corto} — H. Senado de la Nación", contenido_html(resultado, ejemplo))
+    return pagina(f"Informe {resultado.titulo} — H. Senado de la Nación", contenido_html(resultado, ejemplo))
 
 
-def pagina(titulo: str, cuerpo: str) -> str:
+def _con_indice(cuerpo: str, minimo: int = 4) -> str:
+    """Índice de secciones al comienzo: un enlace a cada <h2> (los que ya tienen id o clase quedan afuera)."""
+    entradas: list[tuple[str, str]] = []
+
+    def poner_id(m: re.Match) -> str:
+        atributos, contenido = m.group(1), m.group(2)
+        if "id=" in atributos or "class=" in atributos:
+            return m.group(0)
+        ident = f"seccion-{len(entradas) + 1}"
+        entradas.append((ident, re.sub(r"<[^>]+>", "", contenido)))
+        return f'<h2 id="{ident}"{atributos}>{contenido}</h2>'
+
+    nuevo = re.sub(r"<h2([^>]*)>(.*?)</h2>", poner_id, cuerpo, flags=re.S)
+    if len(entradas) < minimo:
+        return cuerpo
+    nav = ('<nav class="indice-doc" aria-label="Índice"><p class="rotulo">En este informe</p><ol>'
+           + "".join(f'<li><a href="#{i}">{t}</a></li>' for i, t in entradas) + "</ol></nav>")
+    corte = nuevo.index(f'<h2 id="{entradas[0][0]}"')
+    return nuevo[:corte] + nav + nuevo[corte:]
+
+
+def pagina(titulo: str, cuerpo: str, indice: bool = True) -> str:
+    if indice:
+        cuerpo = _con_indice(cuerpo)
     return (
         '<!DOCTYPE html>\n<html lang="es"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
@@ -165,7 +196,13 @@ def contenido_html(resultado: Resultado, ejemplo: bool = False, incrustado: bool
     if ejemplo:
         agregar('<p class="secundario"><strong>Ejemplo generado con páginas de prueba.</strong> '
                 'No reemplaza una consulta real.</p>')
-    agregar(f'<h1 class="numero">{_e(f.id.corto)}</h1>')
+    if resultado.od:
+        agregar(f'<h1 class="numero">Orden del Día N° {_e(resultado.od)}</h1>')
+        agregar(f'<p class="descripcion">Integrada por {_linea(integrantes_od(resultado))}</p>')
+        agregar(f'<p class="secundario">{_e(texto_od(resultado))}</p>')
+        agregar(f'<h2 class="numero-cabecera">{_e(f.id.corto)}</h2>')
+    else:
+        agregar(f'<h1 class="numero">{_e(f.id.corto)}</h1>')
     agregar(f'<p class="descripcion">{_e(descripcion(f))}</p>')
     if f.extracto:
         agregar(f'<p class="extracto">{_e(f.extracto)}</p>')

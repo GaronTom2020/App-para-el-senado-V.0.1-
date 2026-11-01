@@ -18,14 +18,14 @@ from datetime import date, datetime
 from html import escape
 from pathlib import Path
 
-from . import __version__, config, hcdn
+from . import __version__, config, hcdn, orden_dia
 from .cliente import Cancelado, Cliente
 from .identificador import ErrorIdentificador, parsear
 from .modelos import Resultado
 from .numeros import cantidad, en_letras
 from .contenido import sesiones_votadas
 from .servicio import Opciones, generar
-from .util import fmt_fecha, nombre_comision, nombre_archivo_seguro, normalizar, titulo_es
+from .util import fmt_fecha, nombre_comision, nombre_archivo_seguro, normalizar, parsear_fecha, titulo_es
 
 DIAS_AVISO_CADUCIDAD = 60
 VERSION = 1
@@ -41,17 +41,33 @@ def archivo_por_defecto() -> Path:
     return config.carpeta_app() / "seguimiento.json"
 
 
+def clave(texto: str, tipo: str | None = None) -> tuple[str, str | None]:
+    """(forma corta, tipo): «PE-99/26» o «OD 413/26». Lanza ErrorIdentificador si no se entiende."""
+    od = orden_dia.parsear_od(texto)
+    if od:
+        return orden_dia.etiqueta(od), None
+    ident = parsear(texto, tipo)
+    return ident.corto, ident.tipo
+
+
 @dataclass
 class Seguido:
-    expediente: str                    # forma corta: PE-99/26
+    expediente: str                    # forma corta: PE-99/26, o «OD 413/26» para seguir un despacho
     tipo: str | None = None
     agregado: str = ""
     revisado: str | None = None
     foto: dict | None = None
+    alias: str = ""                    # nombre con que se lo conoce: «Ley de Salud Mental»
+    grupos: list[str] = field(default_factory=list)
 
     @property
     def ident(self):
         return parsear(self.expediente, self.tipo)
+
+    @property
+    def nombre(self) -> str:
+        """«Ley de Salud Mental (PE-13/26)» si tiene nombre; si no, el número."""
+        return f"{self.alias} ({self.expediente})" if self.alias else self.expediente
 
 
 @dataclass
@@ -69,6 +85,15 @@ class Revision:
     url: str | None = None
     error: str | None = None
 
+    @property
+    def ultimo_movimiento(self) -> tuple[date | None, str]:
+        return ultimo_movimiento(self.seguido.foto)
+
+    def texto_movimiento(self) -> str:
+        """«Último movimiento: 29/10/2026 (votación en el recinto)»; vacío si no hay fechas."""
+        fecha, que = self.ultimo_movimiento
+        return f"Último movimiento: {fmt_fecha(fecha)} ({que})" if fecha else ""
+
 
 @dataclass
 class OpcionesSeguimiento:
@@ -84,6 +109,7 @@ class ResultadoSeguimiento:
     revisiones: list[Revision]
     generado: datetime = field(default_factory=datetime.now)
     archivos: dict[str, Path] = field(default_factory=dict)
+    grupo: str | None = None
 
     @property
     def con_novedades(self) -> list[Revision]:
@@ -96,38 +122,93 @@ class Lista:
     def __init__(self, archivo: Path | None = None):
         self.archivo = Path(archivo) if archivo else archivo_por_defecto()
         self.seguidos: list[Seguido] = []
+        self.grupos: list[str] = []          # también los grupos vacíos, para que no se pierdan al guardar
         try:
             datos = json.loads(self.archivo.read_text(encoding="utf-8"))
             for d in datos.get("expedientes", []):
                 self.seguidos.append(Seguido(d["expediente"], d.get("tipo"), d.get("agregado", ""),
-                                             d.get("revisado"), d.get("foto")))
+                                             d.get("revisado"), d.get("foto"), d.get("alias") or "",
+                                             list(d.get("grupos") or [])))
+            self.grupos = [g for g in datos.get("grupos", []) if isinstance(g, str)]
         except (OSError, ValueError, KeyError, TypeError):
             pass
+        for s in self.seguidos:
+            for g in s.grupos:
+                if g not in self.grupos:
+                    self.grupos.append(g)
 
     def guardar(self) -> None:
-        datos = {"version": VERSION, "expedientes": [
+        datos = {"version": VERSION, "grupos": self.grupos, "expedientes": [
             {"expediente": s.expediente, "tipo": s.tipo, "agregado": s.agregado, "revisado": s.revisado,
-             "foto": s.foto} for s in self.seguidos]}
+             "alias": s.alias, "grupos": s.grupos, "foto": s.foto} for s in self.seguidos]}
         self.archivo.parent.mkdir(parents=True, exist_ok=True)
         temporal = self.archivo.with_suffix(".tmp")
         temporal.write_text(json.dumps(datos, ensure_ascii=False, indent=1), encoding="utf-8")
         os.replace(temporal, self.archivo)
 
     def buscar(self, texto: str) -> Seguido | None:
-        corto = parsear(texto).corto
+        corto, _tipo = clave(texto)
         return next((s for s in self.seguidos if s.expediente == corto), None)
 
-    def agregar(self, texto: str, tipo: str | None = None, hoy: date | None = None) -> tuple[Seguido, bool]:
+    def agregar(self, texto: str, tipo: str | None = None, hoy: date | None = None, alias: str = "",
+                grupo: str | None = None) -> tuple[Seguido, bool]:
         """Devuelve (seguido, si era nuevo). Lanza ErrorIdentificador si el número no se entiende."""
-        ident = parsear(texto, tipo)
-        existente = self.buscar(ident.corto)
+        corto, tipo = clave(texto, tipo)
+        existente = self.buscar(corto)
         if existente:
-            if ident.tipo and not existente.tipo:
-                existente.tipo = ident.tipo
+            if tipo and not existente.tipo:
+                existente.tipo = tipo
+            if alias and not existente.alias:
+                existente.alias = alias.strip()
+            if grupo:
+                self.sumar_a_grupo(existente, grupo)
             return existente, False
-        nuevo = Seguido(ident.corto, ident.tipo, (hoy or date.today()).isoformat())
+        nuevo = Seguido(corto, tipo, (hoy or date.today()).isoformat(), alias=alias.strip())
         self.seguidos.append(nuevo)
+        if grupo:
+            self.sumar_a_grupo(nuevo, grupo)
         return nuevo, True
+
+    # ---- grupos
+    def crear_grupo(self, nombre: str) -> str:
+        nombre = " ".join(nombre.split())
+        if not nombre:
+            raise ValueError("El grupo necesita un nombre.")
+        existente = next((g for g in self.grupos if normalizar(g) == normalizar(nombre)), None)
+        if existente:
+            return existente
+        self.grupos.append(nombre)
+        return nombre
+
+    def sumar_a_grupo(self, s: Seguido, grupo: str) -> None:
+        grupo = self.crear_grupo(grupo)
+        if grupo not in s.grupos:
+            s.grupos.append(grupo)
+
+    def sacar_de_grupo(self, s: Seguido, grupo: str) -> None:
+        if grupo in s.grupos:
+            s.grupos.remove(grupo)
+
+    def renombrar_grupo(self, viejo: str, nuevo: str) -> str:
+        nuevo = " ".join(nuevo.split())
+        if not nuevo:
+            raise ValueError("El grupo necesita un nombre.")
+        if any(g != viejo and normalizar(g) == normalizar(nuevo) for g in self.grupos):
+            raise ValueError(f"Ya existe un grupo llamado «{nuevo}».")
+        self.grupos = [nuevo if g == viejo else g for g in self.grupos]
+        for s in self.seguidos:
+            s.grupos = [nuevo if g == viejo else g for g in s.grupos]
+        return nuevo
+
+    def borrar_grupo(self, nombre: str) -> None:
+        """Borra el grupo; los expedientes siguen en la lista."""
+        self.grupos = [g for g in self.grupos if g != nombre]
+        for s in self.seguidos:
+            if nombre in s.grupos:
+                s.grupos.remove(nombre)
+
+    def del_grupo(self, grupo: str | None) -> list[Seguido]:
+        return list(self.seguidos) if not grupo else [s for s in self.seguidos if grupo in s.grupos]
 
     def quitar(self, texto: str) -> bool:
         try:
@@ -157,6 +238,7 @@ def foto(r: Resultado) -> dict:
     f, s = r.ficha, r.situacion
     return {
         "situacion": s.titulo,
+        "extracto": f.extracto,
         "nivel": s.nivel,
         "tipo": f.id.tipo,
         "url": f.url,
@@ -179,6 +261,39 @@ def foto(r: Resultado) -> dict:
         "convocadas": [[_iso(c.fecha) or c.fecha_texto, c.hora, c.titulo, c.comision, c.url] for c in r.convocadas],
         "caducidad": _iso(s.caducidad.fecha) if s.caducidad else None,
     }
+
+
+def situacion_breve(situacion: str) -> str:
+    """«Media sanción del Senado (votado el 29/10/2026)» → «Media sanción del Senado»."""
+    breve = re.split(r"\s*[(:;]|\s+[—–]\s+|\.\s", situacion or "", maxsplit=1)[0].strip(" .")
+    return breve if len(breve) <= 48 else breve[:46].rsplit(" ", 1)[0] + "…"
+
+
+def ultimo_movimiento(f: dict | None) -> tuple[date | None, str]:
+    """La fecha más reciente de la foto (giros, dictámenes, votaciones, Diputados) y qué pasó ese día."""
+    if not f:
+        return None, ""
+    eventos: list[tuple[date, str]] = []
+
+    def sumar(fecha, que):
+        d = fecha if isinstance(fecha, date) else (_fecha(fecha) or parsear_fecha(fecha))
+        if d:
+            eventos.append((d, que))
+
+    for comision, ingreso, egreso in f.get("giros", []):
+        sumar(ingreso, f"giro a la comisión de {nombre_comision(comision)}")
+        sumar(egreso, f"egreso de la comisión de {nombre_comision(comision)}")
+    for numero, estado, fecha, _url in f.get("ordenes", []):
+        sumar(fecha, f"Orden del Día N° {numero}")
+    for v in f.get("votaciones", []):
+        sumar(v[0], "votación en el recinto")
+    for camara, movimiento, fecha, resultado in f.get("diputados", []):
+        sumar(fecha, _movimiento(camara, movimiento, None, resultado))
+    for od, fecha, _que in f.get("diputados_dictamenes", []):
+        sumar(fecha, f"dictamen en Diputados (OD {hcdn._od(od)})")
+    if not eventos:
+        return None, ""
+    return max(eventos, key=lambda e: e[0])
 
 
 # ================================================================ comparación
@@ -306,12 +421,14 @@ def _nada(*_args, **_kwargs):
 
 
 def revisar(lista: Lista, cliente: Cliente, opciones: OpcionesSeguimiento | None = None, avisar=_nada,
-            hoy: date | None = None) -> ResultadoSeguimiento:
+            hoy: date | None = None, grupo: str | None = None) -> ResultadoSeguimiento:
+    """Revisa toda la lista o, con `grupo`, solo los expedientes de ese grupo."""
     opciones = opciones or OpcionesSeguimiento()
     hoy = hoy or date.today()
     revisiones: list[Revision] = []
-    total = len(lista.seguidos)
-    for i, s in enumerate(lista.seguidos, 1):
+    elegidos = lista.del_grupo(grupo)
+    total = len(elegidos)
+    for i, s in enumerate(elegidos, 1):
         avisar("etapa", f"Revisando {s.expediente} ({i} de {total})…")
         avisar("progreso", actual=i - 1, total=total)
         try:
@@ -330,10 +447,12 @@ def revisar(lista: Lista, cliente: Cliente, opciones: OpcionesSeguimiento | None
             continue
         nueva = foto(r)
         revisiones.append(Revision(s, comparar(s.foto, nueva, hoy), nueva["situacion"], nueva["url"]))
-        s.foto, s.revisado, s.tipo = nueva, datetime.now().isoformat(timespec="minutes"), r.ficha.id.tipo
+        s.foto, s.revisado = nueva, datetime.now().isoformat(timespec="minutes")
+        if not r.od:
+            s.tipo = r.ficha.id.tipo
     avisar("progreso", actual=total, total=total)
     lista.guardar()
-    resultado = ResultadoSeguimiento(revisiones)
+    resultado = ResultadoSeguimiento(revisiones, grupo=grupo)
     if opciones.formatos:
         escribir(resultado, opciones)
     return resultado
@@ -357,17 +476,20 @@ def resumen(res: ResultadoSeguimiento) -> str:
 
 
 def markdown(res: ResultadoSeguimiento) -> str:
-    lineas = [f"# Seguimiento de expedientes — {res.generado:%d/%m/%Y}", "", resumen(res), ""]
+    grupo = f" — {res.grupo}" if res.grupo else ""
+    lineas = [f"# Seguimiento de expedientes{grupo} — {res.generado:%d/%m/%Y}", "", resumen(res), ""]
     for r in res.con_novedades:
-        titulo = f"[{r.seguido.expediente}]({r.url})" if r.url else r.seguido.expediente
-        lineas += [f"## {titulo}", "", f"*{r.situacion}*" if r.situacion else "", ""]
+        titulo = f"[{r.seguido.nombre}]({r.url})" if r.url else r.seguido.nombre
+        lineas += [f"## {titulo}", "", f"*{r.situacion}*" if r.situacion else "",
+                   r.texto_movimiento() + "." if r.texto_movimiento() else "", ""]
         for n in r.novedades:
             lineas.append(f"- {n.texto}" + (f" ([ver]({n.url}))" if n.url else ""))
         lineas.append("")
     sin = [r for r in res.revisiones if not r.novedades]
     if sin:
         lineas += ["## Sin novedades", ""]
-        lineas += [f"- {r.seguido.expediente}: {r.situacion}" for r in sin]
+        lineas += [f"- {r.seguido.nombre}: {r.situacion}" + (f" ({r.texto_movimiento().lower()})"
+                                                             if r.texto_movimiento() else "") for r in sin]
         lineas.append("")
     lineas.append(f"_Generado el {res.generado:%d/%m/%Y a las %H:%M} con Informe de Expedientes {__version__}, "
                   "con datos públicos de senado.gob.ar._")
@@ -386,19 +508,22 @@ def html(res: ResultadoSeguimiento) -> str:
     partes = ['<div class="membrete"><span>H. Senado de la Nación</span>'
               f"<span>Revisión del {res.generado:%d/%m/%Y, %H:%M} h</span></div>",
               '<h1 class="numero">Seguimiento de expedientes</h1>',
+              f'<p class="descripcion">Grupo: {e(res.grupo)}</p>' if res.grupo else "",
               f'<p class="extracto">{e(resumen(res))}</p>']
     for r in res.con_novedades:
         clase = "lacre" if any(n.clase in ("error", "caducidad") for n in r.novedades) else ""
         partes.append(f'<section class="situacion {clase}"><p class="rotulo">{e(r.situacion)}</p>'
-                      f"<h2>{enlace(r.seguido.expediente, r.url)}</h2><ul>")
+                      f"<h2>{enlace(r.seguido.nombre, r.url)}</h2>"
+                      + (f"<p class='secundario'>{e(r.texto_movimiento())}.</p>" if r.texto_movimiento() else "")
+                      + "<ul>")
         partes += [f"<li>{e(n.texto)}" + (f" {enlace('Ver', n.url)}" if n.url else "") + "</li>" for n in r.novedades]
         partes.append("</ul></section>")
     sin = [r for r in res.revisiones if not r.novedades]
     if sin:
-        filas = "".join(f"<tr><td>{enlace(r.seguido.expediente, r.url)}</td><td>{e(r.situacion)}</td></tr>"
-                        for r in sin)
+        filas = "".join(f"<tr><td>{enlace(r.seguido.nombre, r.url)}</td><td>{e(r.situacion)}</td>"
+                        f"<td class='fecha'>{e(fmt_fecha(r.ultimo_movimiento[0], ''))}</td></tr>" for r in sin)
         partes.append("<h2>Sin novedades</h2><div class='tabla'><table><thead><tr><th>Expediente</th>"
-                      f"<th>Situación</th></tr></thead><tbody>{filas}</tbody></table></div>")
+                      f"<th>Situación</th><th>Último movimiento</th></tr></thead><tbody>{filas}</tbody></table></div>")
     partes.append("<footer><p>Revisión automática con datos públicos del sitio del H. Senado de la Nación. "
                   f"Programa Informe de Expedientes, versión {e(__version__)}.</p></footer>")
     return ('<!DOCTYPE html>\n<html lang="es"><head><meta charset="utf-8">'
@@ -410,7 +535,8 @@ def html(res: ResultadoSeguimiento) -> str:
 def escribir(res: ResultadoSeguimiento, opciones: OpcionesSeguimiento) -> dict[str, Path]:
     carpeta = Path(opciones.carpeta_salida)
     carpeta.mkdir(parents=True, exist_ok=True)
-    base = nombre_archivo_seguro(opciones.nombre_archivo or f"Seguimiento ({res.generado:%Y-%m-%d})")
+    base = nombre_archivo_seguro(opciones.nombre_archivo or f"Seguimiento{' ' + res.grupo if res.grupo else ''} "
+                                                            f"({res.generado:%Y-%m-%d})")
     for formato, generador in (("html", html), ("md", markdown)):
         if formato in opciones.formatos:
             destino = carpeta / f"{base}.{formato}"

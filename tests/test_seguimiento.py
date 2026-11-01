@@ -77,7 +77,7 @@ def test_primera_revision_y_novedades_contra_la_foto(tmp_path):
     assert "([ver](https://www.senado.gob.ar/votaciones/verActaVotacion/2867))" in md
     html = res.archivos["html"].read_text(encoding="utf-8")
     assert "<h2><a href=\"https://www.senado.gob.ar/parlamentario/comisiones/verExp/99.26/PE/PL\"" in html
-    assert "#2E6B5F" in html                          # misma paleta que los informes
+    assert "#1A64AB" in html                          # misma paleta que los informes
 
 
 def test_un_expediente_que_falla_no_corta_la_revision(tmp_path):
@@ -124,3 +124,59 @@ def test_linea_de_comandos_de_seguimiento(tmp_path, monkeypatch, capsys):
     assert "PE-99/26     Media sanción del Senado" in capsys.readouterr().out
     assert app.linea_de_comandos(["--seguimiento", "quitar", "PE-99/26", "--lista-seguimiento", lista]) == 0
     assert "0 expedientes" in capsys.readouterr().out
+
+
+def test_nombres_y_grupos_de_seguimiento(tmp_path):
+    archivo = tmp_path / "seguimiento.json"
+    lista = Lista(archivo)
+    s, _ = lista.agregar("PE-99/26", alias="Ley de Salud Mental", grupo="Salud")
+    lista.agregar("S-351/25", grupo="salud")                  # el grupo se reconoce sin importar mayúsculas
+    lista.agregar("OD 366/26", alias="Mercado de carbono")
+    assert s.nombre == "Ley de Salud Mental (PE-99/26)"
+    assert lista.grupos == ["Salud"] and [x.expediente for x in lista.del_grupo("Salud")] == ["PE-99/26", "S-351/25"]
+    assert lista.buscar("O.D. 366/2026").expediente == "OD 366/26"
+    lista.crear_grupo("Ambiente")                              # un grupo vacío también se guarda
+    lista.guardar()
+    vuelta = Lista(archivo)
+    assert vuelta.grupos == ["Salud", "Ambiente"] and vuelta.seguidos[0].alias == "Ley de Salud Mental"
+    vuelta.renombrar_grupo("Salud", "Salud pública")
+    assert vuelta.seguidos[1].grupos == ["Salud pública"]
+    with pytest.raises(ValueError):
+        vuelta.renombrar_grupo("Ambiente", "salud PÚBLICA")
+    vuelta.borrar_grupo("Salud pública")
+    assert len(vuelta.seguidos) == 3 and vuelta.del_grupo("Salud pública") == []
+
+
+def test_revisar_solo_un_grupo_y_seguir_una_orden_del_dia(tmp_path):
+    lista = Lista(tmp_path / "seguimiento.json")
+    lista.agregar("PE-99/26", grupo="Salud")
+    lista.agregar("OD 366/26", alias="Mercado de carbono", grupo="Ambiente")
+    res = revisar(lista, ClienteFalso(), _opciones(tmp_path), hoy=HOY, grupo="Ambiente")
+    assert [r.seguido.expediente for r in res.revisiones] == ["OD 366/26"] and res.grupo == "Ambiente"
+    od = lista.buscar("OD 366/26")
+    assert od.foto["url"].endswith("verExp/718.26/S/PL") and od.tipo is None
+    assert lista.buscar("PE-99/26").foto is None                 # el otro grupo no se revisó
+    md = res.archivos["md"].read_text(encoding="utf-8")
+    assert md.startswith("# Seguimiento de expedientes — Ambiente — ") and "Mercado de carbono (OD 366/26)" in md
+    assert res.archivos["md"].name.startswith("Seguimiento Ambiente (")
+
+
+def test_situacion_breve_y_ultimo_movimiento():
+    assert seguimiento.situacion_breve("Media sanción del Senado (votado el 29/10/2026)") == "Media sanción del Senado"
+    assert seguimiento.situacion_breve("En comisión: Salud y Presupuesto") == "En comisión"
+    foto = {"giros": [["SALUD", "2026-03-02", "2026-10-21"]], "ordenes": [["409/26", "IMPRESO", "2026-10-22", None]],
+            "votaciones": [["29/10/2026", "Aprobado", None]], "diputados": [], "diputados_dictamenes": []}
+    assert seguimiento.ultimo_movimiento(foto) == (date(2026, 10, 29), "votación en el recinto")
+    assert seguimiento.ultimo_movimiento(None) == (None, "")
+
+
+def test_el_informe_dice_el_ultimo_movimiento(tmp_path):
+    lista = Lista(tmp_path / "seguimiento.json")
+    lista.agregar("PE-99/26")
+    res = revisar(lista, ClienteFalso(), _opciones(tmp_path), hoy=HOY)
+    texto = res.revisiones[0].texto_movimiento()
+    assert texto.startswith("Último movimiento: ")
+    assert texto in res.archivos["md"].read_text(encoding="utf-8")
+    assert texto in res.archivos["html"].read_text(encoding="utf-8")
+    sin_archivo = revisar(lista, ClienteFalso(), _opciones(tmp_path / "otra", formatos=()), hoy=HOY)
+    assert sin_archivo.archivos == {} and not (tmp_path / "otra").exists()

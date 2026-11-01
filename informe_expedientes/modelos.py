@@ -281,3 +281,10 @@ class Resultado:
     generado: datetime = field(default_factory=datetime.now)
     archivos: dict[str, Path] = field(default_factory=dict)
     advertencias: list[str] = field(default_factory=list)
+    od: str | None = None                       # si se pidió por orden del día: «366/26»
+    od_expedientes: list = field(default_factory=list)   # IdExpediente que integran esa OD (cabecera primero)
+
+    @property
+    def titulo(self) -> str:
+        """«OD 366/26» si se pidió por orden del día; si no, el número del expediente."""
+        return f"OD {self.od}" if self.od else self.ficha.id.corto

@@ -18,6 +18,7 @@ if not exist .venv\Scripts\python.exe (
   --hidden-import lxml.etree --hidden-import lxml._elementpath ^
   --icon informe_expedientes\recursos\icono.ico ^
   --add-data "informe_expedientes\recursos\icono.ico;informe_expedientes\recursos" ^
+  --add-data "informe_expedientes\recursos\logo_senado.png;informe_expedientes\recursos" ^
   app.py || goto :error
 echo.
 echo Listo: dist\InformeExpediente.exe
