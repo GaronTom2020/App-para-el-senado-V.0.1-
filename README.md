@@ -45,6 +45,8 @@ Usa solamente información pública de www.senado.gob.ar y www.hcdn.gob.ar.
 
 Si el antivirus o Sistemas bloquean el `.exe`, pedí que lo autoricen: es un programa sin firma digital.
 
+El `.exe` y la ventana usan el hemiciclo del logo del Senado (`informe_expedientes/recursos/icono.ico`, con tamaños de 16 a 256 píxeles). Para cambiarlo, reemplazá ese archivo por otro `.ico` y volvé a compilar.
+
 **Opción B, desde el código.** Con Python 3.10 o posterior (al instalarlo, marcar *Add python.exe to PATH*), hacer doble clic en `iniciar.bat`. La primera vez instala las dependencias en una carpeta `.venv`; las siguientes abre directamente la ventana.
 
 En Linux o macOS: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/python app.py`.

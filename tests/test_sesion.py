@@ -141,15 +141,59 @@ def test_informe_de_sesion_completo(tmp_path):
 
     html = res.archivos["html"].read_text(encoding="utf-8")
     assert '<a href="#tema-4">Salud mental</a>' in html and 'id="tema-4"' in html
-    assert html.count('class="ficha"') == 9 and "Asuntos en el orden de tratamiento" in html
-    assert "#2E6B5F" in html
+    assert "Asuntos en el orden de tratamiento" in html and "#1A64AB" in html
+    assert html.count('class="tema"') == 6                                  # los seis asuntos con orden del día
+    # La tabla enlaza cada orden del día y trae el desenlace según la versión taquigráfica.
+    assert f'<a href="{B}/parlamentario/parlamentaria/ordenDelDiaResultadoLink/2026/413"' in html
+    assert "Resulta aprobado en general y en particular el Orden del Día N° 370/26. Se comunicará" in html
+    assert "Versión taquigráfica (PDF)" in html and "Versión revisada del proyecto" in html
+    assert "<strong>Artículo 28 bis.- Incorpórase como artículo 41 bis" in html
+    assert "propuesto por Arce y aceptado" in html
+    assert "Propuestas que no se aceptaron: Artículo 3° (Capitanich)" in html
     with zipfile.ZipFile(res.archivos["docx"]) as z:
         documento = z.read("word/document.xml").decode("utf-8")
+        ajustes = z.read("word/settings.xml").decode("utf-8")
     assert "Asuntos en el orden de tratamiento" in documento and "Educación emocional" in documento
-    assert documento.count("Situación actual") == 9
+    assert "TOC \\o" in documento and "updateFields" in ajustes                # índice navegable
+    assert documento.count("Versión revisada del proyecto") == 6
     from openpyxl import load_workbook
     hoja = load_workbook(res.archivos["xlsx"])["Asuntos"]
     assert hoja["A4"].value == "Orden" and hoja.max_row == 4 + 12           # 9 fichas y 3 asuntos sin número
+    assert hoja["D7"].hyperlink.target.endswith("ordenDelDiaResultadoLink/2026/366")  # mercado de carbono
+
+
+def test_version_taquigrafica_de_la_sesion():
+    from informe_expedientes import taquigrafica
+    assert taquigrafica.url_de_sesion(leer("busqueda_tac.html"), date(2026, 10, 29)) == \
+        f"{B}/parlamentario/sesiones/29-10-2026/12/downloadTac"
+    assert taquigrafica.url_de_sesion(leer("busqueda_tac.html"), date(2026, 10, 30)) is None
+    vt = taquigrafica.leer(leer("vt_2026-10-29.txt"))
+    assert [(d.numero, d.ordenes_del_dia) for d in vt.debates] == [
+        (15, ["413/26"]), (18, ["366/26"]), (19, ["409/26"]), (20, ["241/26"]), (21, ["132/26"]), (22, ["370/26"])]
+    riir = vt.debate_de(["413/26"])
+    assert riir.titulo == "Régimen de Incentivo para Inversiones Relevantes (RIIR)"   # junta «(Continuación)»
+    assert len(riir.votaciones) == 15 and riir.votaciones[0].que == "en general"
+    assert (riir.votaciones[2].que, riir.votaciones[2].afirmativos, riir.votaciones[2].negativos) == (
+        "artículo 3°", 46, 16)
+    articulos = [m.articulo for m in riir.modificaciones]
+    assert "Artículo 6° bis" in articulos and "Artículo 10, inciso f)" in articulos
+    assert [m.articulo for m in riir.rechazadas][:2] == ["Artículo 3°", "Artículo 4°"]
+    carbono = vt.debate_de([], "Mercado de carbono: marco regulatorio")
+    assert carbono.numero == 18 and carbono.desenlace.endswith("se comunicará a la Honorable Cámara de Diputados de "
+                                                               "la Nación.")
+    assert [v.que for v in carbono.votaciones] == ["en general", "artículos 1° al 13", "artículo 14",
+                                                   "artículos 15 al 29"]
+    pictogramas = vt.debate_de(["241/26"])
+    assert (pictogramas.votaciones[0].afirmativos, pictogramas.votaciones[0].negativos) == (53, 0)
+    assert pictogramas.modificaciones == []
+
+
+def test_sesion_futura_no_busca_la_taquigrafica(tmp_path):
+    cliente = ClienteFalso()
+    res = generar_sesion(_plan("plan_labor_2026-10-28.pdf"), OpcionesSesion(carpeta_salida=tmp_path, formatos=()),
+                         cliente, hoy=date(2026, 10, 28))
+    assert res.taquigrafica is None and all(t.debate is None for t in res.temas)
+    assert not any("busquedaTac" in u for u in cliente.pedidos)
 
 
 def test_od_que_no_se_puede_abrir(tmp_path):

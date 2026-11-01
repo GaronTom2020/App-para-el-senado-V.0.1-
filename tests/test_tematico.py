@@ -119,3 +119,16 @@ def test_linea_de_comandos_tematica(tmp_path, monkeypatch, capsys):
     assert codigo == 0 and (tmp_path / "index.html").exists()
     assert "UN (1) expediente" in salida
     assert app.linea_de_comandos(["--tema", "No existe", "--salida", str(tmp_path)]) == 2
+
+
+def test_icono_de_la_ventana_y_de_la_compilacion():
+    from pathlib import Path
+    from informe_expedientes import gui
+    datos = gui.ICONO.read_bytes()
+    assert datos[:4] == b"\x00\x00\x01\x00"                     # cabecera de un .ico
+    cantidad_de_imagenes = int.from_bytes(datos[4:6], "little")
+    assert cantidad_de_imagenes >= 4                            # tamaños para la barra de tareas y el Explorador
+    raiz = Path(__file__).resolve().parent.parent
+    for archivo in (".github/workflows/main.yml", "despliegue/compilar-exe-windows.yml", "construir_exe_windows.bat"):
+        texto = (raiz / archivo).read_text(encoding="utf-8")
+        assert "--icon" in texto and "--add-data" in texto and "icono.ico" in texto, archivo

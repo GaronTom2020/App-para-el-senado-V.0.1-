@@ -17,14 +17,14 @@ from . import __version__
 from .contenido import (
     Linea, alcance_busqueda, bloques_resolucion, comisiones_texto, datos_diputados, datos_generales,
     datos_diputados_hcdn, descripcion, filas_relacionados, sesiones_votadas, texto_relacionados, texto_votaciones,
-    titulo_etapa_diputados,
+    titulo_etapa_diputados, integrantes_od, texto_od,
 )
 from .modelos import Resultado
 from .util import fmt_fecha, nombre_comision
 
 C = {
-    "tinta": "1F2B28", "suave": "55645F", "cupula": "2E6B5F", "cupula_oscura": "1F4E45",
-    "cupula_tenue": "E4EFEB", "piedra": "EEF2F0", "linea": "CBD5D1", "blanco": "FFFFFF",
+    "tinta": "292F3D", "suave": "5A6478", "cupula": "1A64AB", "cupula_oscura": "114E9A",
+    "cupula_tenue": "E6EEF9", "piedra": "D8E4F7", "linea": "B9C8DE", "blanco": "FFFFFF",
     "lacre": "8C2F2F", "lacre_tenue": "F6E7E5", "ambar": "8A5A10", "ambar_tenue": "F7EEDC",
 }
 SERIF = "Georgia"
@@ -159,7 +159,19 @@ def _hipervinculo(parrafo, texto: str, url: str, tamano: float | None = None, ne
     parrafo._p.append(enlace)
 
 
-def _campo(parrafo, instruccion: str, tamano: float = 8) -> None:
+def _indice_word(doc, niveles: str = "1-2") -> None:
+    """Tabla de contenido de Word (se completa al abrir el documento: Word pregunta si actualiza los campos)."""
+    parrafo = doc.add_paragraph()
+    _campo(parrafo, f'TOC \\o "{niveles}" \\h \\z \\u', 10, "Abrí el documento en Word y aceptá actualizar los "
+                                                            "campos para ver el índice.")
+    ajustes = doc.settings.element
+    if ajustes.find(qn("w:updateFields")) is None:
+        actualizar = OxmlElement("w:updateFields")
+        actualizar.set(qn("w:val"), "true")
+        ajustes.append(actualizar)
+
+
+def _campo(parrafo, instruccion: str, tamano: float = 8, provisorio: str = "1") -> None:
     def run_con(elemento):
         r = parrafo.add_run()
         r.font.size = Pt(tamano)
@@ -177,7 +189,7 @@ def _campo(parrafo, instruccion: str, tamano: float = 8) -> None:
     separador = OxmlElement("w:fldChar")
     separador.set(qn("w:fldCharType"), "separate")
     run_con(separador)
-    r = parrafo.add_run("1")
+    r = parrafo.add_run(provisorio)
     r.font.size = Pt(tamano)
     r.font.color.rgb = RGBColor.from_string(C["suave"])
     fin = OxmlElement("w:fldChar")
@@ -192,7 +204,7 @@ class _Escritor:
         self.r = resultado
         self.apaisado = apaisado
         self.ancho = 25.3 if apaisado else ANCHO_UTIL
-        self.encabezado = encabezado or f"H. Senado de la Nación — Informe de expediente {resultado.ficha.id.corto}"
+        self.encabezado = encabezado or f"H. Senado de la Nación — Informe {resultado.titulo}"
         self.doc = Document()
         self._preparar()
 
@@ -214,10 +226,15 @@ class _Escritor:
         _fuente_estilo(normal, SANS, 10, C["tinta"])
         normal.paragraph_format.space_after = Pt(3)
         normal.paragraph_format.line_spacing = 1.15
-        for nombre, tamano in (("Heading 1", 14), ("Heading 2", 11.5)):
+        # Jerarquía visible (y en el panel de navegación de Word): 18 / 14 / 12 pt.
+        for nombre, fuente, tamano, color, negrita, antes in (
+                ("Heading 1", SERIF, 18, C["cupula_oscura"], False, 18),
+                ("Heading 2", SERIF, 14, C["cupula"], False, 14),
+                ("Heading 3", SANS, 11.5, C["tinta"], True, 10)):
             estilo = estilos[nombre]
-            _fuente_estilo(estilo, SERIF, tamano, C["cupula_oscura"], negrita=False)
-            estilo.paragraph_format.space_before = Pt(16 if nombre == "Heading 1" else 10)
+            _fuente_estilo(estilo, fuente, tamano, color, negrita=negrita)
+            estilo.font.italic = False
+            estilo.paragraph_format.space_before = Pt(antes)
             estilo.paragraph_format.space_after = Pt(6)
             estilo.paragraph_format.keep_with_next = True
         try:
@@ -342,7 +359,7 @@ class _Escritor:
                 p = self.doc.add_paragraph(style="List Bullet")
                 self._run(p, a, 8.5, "suave")
 
-        self.doc.core_properties.title = f"Informe del expediente {f.id.corto}"
+        self.doc.core_properties.title = f"Informe {r.titulo}"
         self.doc.core_properties.subject = f.extracto[:250]
         self.doc.core_properties.author = "Informe de Expedientes"
         self.doc.save(str(destino))
@@ -351,6 +368,12 @@ class _Escritor:
     def cuerpo(self, numero_grande: bool = True) -> None:
         """La ficha del expediente `self.r` (todo menos membrete y pie): se reutiliza en el informe de sesión."""
         r, f = self.r, self.r.ficha
+        if r.od:
+            self.parrafo(f"Orden del Día N° {r.od}", 30 if numero_grande else 22, "tinta", SERIF, antes=14, despues=2)
+            p = self.parrafo("Integrada por ", 11, "suave", despues=2)
+            self.linea(p, integrantes_od(r), 11)
+            self.parrafo(texto_od(r), 9.5, "suave", despues=6)
+            numero_grande = False
         self.parrafo(f.id.corto, 32 if numero_grande else 22, "tinta", SERIF, antes=14, despues=2)
         self.parrafo(descripcion(f), 11, "suave", despues=8)
         if f.extracto:

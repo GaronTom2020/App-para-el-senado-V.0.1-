@@ -30,6 +30,21 @@ def _unir(fragmentos: list[Fragmento], separador: str = ", ") -> Linea:
     return salida
 
 
+def texto_od(resultado: Resultado) -> str:
+    """«Despacho único de la Orden del Día N° 366/26, integrado por tres (3) expedientes; cabecera: S-718/26.»"""
+    n = len(resultado.od_expedientes)
+    if n <= 1:
+        return f"Despacho de la Orden del Día N° {resultado.od} sobre el expediente {resultado.ficha.id.corto}."
+    return (f"Despacho único de la Orden del Día N° {resultado.od}, integrado por "
+            f"{cantidad(n, 'expediente', 'expedientes')}: desde el dictamen tramitan juntos, como parte del mismo "
+            f"despacho. La ficha que sigue es la del expediente cabecera, {resultado.ficha.id.corto}.")
+
+
+def integrantes_od(resultado: Resultado) -> Linea:
+    """Los expedientes de la OD, con enlace a cada ficha (cabecera primero)."""
+    return _unir([Fragmento(x.corto, x.url_ficha() if x.tipo else None) for x in resultado.od_expedientes])
+
+
 def nombre_tipo(ficha: Ficha) -> str:
     return config.TIPOS.get(ficha.id.tipo or "", "") or titulo_es(ficha.tipo_texto) or "Expediente"
 
@@ -360,7 +375,9 @@ def datos_diputados_hcdn(resultado: Resultado) -> list[tuple[str, Linea]]:
 def texto_resumen(resultado: Resultado) -> str:
     """Resumen en texto plano (vista previa y «Copiar resumen»)."""
     f, s = resultado.ficha, resultado.situacion
-    lineas = [
+    lineas = [f"Orden del Día N° {resultado.od}: " + "".join(x.texto for x in integrantes_od(resultado)),
+              texto_od(resultado), ""] if resultado.od else []
+    lineas += [
         f"Expediente {f.id.corto} ({f.id.tipo})",
         descripcion(f),
         f.extracto,

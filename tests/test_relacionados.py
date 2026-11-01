@@ -89,7 +89,7 @@ def test_informe_con_relacionados_y_su_situacion(tmp_path):
                         "Dictaminado en conjunto (Orden del Día N° 366/26)", "Media sanción del Senado")
     assert [x[0] for x in filas] == ["S-808/26", "S-865/26"]
     html = r.archivos["html"].read_text(encoding="utf-8")
-    assert "<h2>Expedientes relacionados</h2>" in html and "Dictaminado en conjunto" in html
+    assert ">Expedientes relacionados</h2>" in html and "Dictaminado en conjunto" in html
     with zipfile.ZipFile(r.archivos["docx"]) as z:
         assert "Expedientes relacionados" in z.read("word/document.xml").decode("utf-8")
     assert "Expedientes relacionados" in contenido.texto_resumen(r)

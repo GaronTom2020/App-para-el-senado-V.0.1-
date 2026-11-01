@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 
-from . import config, plan_labor
+from . import config, plan_labor, taquigrafica
 from .cliente import Cancelado, Cliente, ErrorRed
 from .identificador import IdExpediente
 from .modelos import Resultado
@@ -28,6 +28,7 @@ class OpcionesSesion:
     buscar_reuniones: bool = False          # lento: una sesión puede tener decenas de expedientes
     buscar_relacionados: bool = False       # los temas ya agrupan los expedientes tratados en conjunto
     incluir_asesores: bool = True
+    buscar_taquigrafica: bool = True       # si la sesión ya se hizo: votaciones y modificaciones
     formatos: tuple[str, ...] = ("docx", "html", "xlsx", "csv")
     carpeta_salida: Path = field(default_factory=config.carpeta_informes_por_defecto)
     nombre_archivo: str | None = None
@@ -39,6 +40,7 @@ class Tema:
     expedientes: list[IdExpediente] = field(default_factory=list)
     resultados: list[Resultado] = field(default_factory=list)
     errores: list[str] = field(default_factory=list)
+    debate: taquigrafica.Debate | None = None       # su tratamiento según la versión taquigráfica
 
     @property
     def titulo(self) -> str:
@@ -57,6 +59,7 @@ class ResultadoSesion:
     generado: datetime = field(default_factory=datetime.now)
     archivos: dict[str, Path] = field(default_factory=dict)
     advertencias: list[str] = field(default_factory=list)
+    taquigrafica: taquigrafica.VersionTaquigrafica | None = None
 
     @property
     def fecha(self) -> date | None:
@@ -142,6 +145,24 @@ def generar_sesion(plan: plan_labor.PlanDeLabor, opciones: OpcionesSesion, clien
         t.resultados = [hechos[x.corto] for x in t.expedientes if x.corto in hechos]
 
     res = ResultadoSesion(plan, temas, advertencias=advertencias)
+    if opciones.buscar_taquigrafica and res.fecha and res.fecha <= hoy:
+        avisar("etapa", "Buscando la versión taquigráfica de la sesión…")
+        error = None
+        try:
+            res.taquigrafica = taquigrafica.buscar(cliente, res.fecha)
+        except Cancelado:
+            raise
+        except Exception as e:  # noqa: BLE001 - sin la versión taquigráfica el informe sigue
+            error = e
+        if error is not None:
+            advertencias.append(f"No se pudo leer la versión taquigráfica: {error}")
+        elif res.taquigrafica is None:
+            advertencias.append(f"La versión taquigráfica de la sesión del {fmt_fecha(res.fecha)} todavía no está "
+                                "publicada: el informe no trae las votaciones ni las modificaciones del recinto.")
+        else:
+            for t in temas:
+                t.debate = res.taquigrafica.debate_de(t.asunto.ordenes_del_dia, t.asunto.titulo)
+            avisar("log", f"Versión taquigráfica: {sum(1 for t in temas if t.debate)} asuntos ubicados.")
     if escribir:
         escribir_informes(res, opciones, avisar)
     return res

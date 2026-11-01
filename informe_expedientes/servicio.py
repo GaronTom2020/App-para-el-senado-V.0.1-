@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 
-from . import comisiones, config, ficha as ficha_mod, hcdn, relacionados as relacionados_mod
+from . import comisiones, config, ficha as ficha_mod, hcdn, orden_dia, relacionados as relacionados_mod
 from . import situacion as situacion_mod, votaciones as votaciones_mod
 from .cliente import Cancelado, Cliente, ErrorRed
 from .identificador import parsear
@@ -53,7 +53,16 @@ def generar(texto: str, opciones: Opciones, cliente: Cliente, avisar=_nada, hoy:
             advertencias.append(mensaje)
         avisar(evento, mensaje, **datos)
 
-    ident = parsear(texto, opciones.tipo)
+    # Por orden del día: sus expedientes forman un único despacho y la cabecera lleva la ficha.
+    od = orden_dia.parsear_od(texto)
+    od_expedientes = []
+    if od:
+        avisar("etapa", f"Leyendo la Orden del Día N° {od}…")
+        od_expedientes = orden_dia.expedientes(cliente, od)
+        avisar("log", f"OD {od}: {', '.join(x.corto for x in od_expedientes)}.")
+        ident = od_expedientes[0]
+    else:
+        ident = parsear(texto, opciones.tipo)
     avisar("etapa", f"Buscando la ficha de {ident.corto}…")
     tipo = ficha_mod.resolver_tipo(cliente, ident, avisar_y_guardar)
     ident = ident.con_tipo(tipo)
@@ -131,6 +140,8 @@ def generar(texto: str, opciones: Opciones, cliente: Cliente, avisar=_nada, hoy:
         notas_usuario=opciones.notas_usuario.strip(),
         generado=datetime.now(),
         advertencias=advertencias,
+        od=od,
+        od_expedientes=od_expedientes,
     )
     if escribir:
         escribir_informes(resultado, opciones, avisar)
@@ -143,7 +154,8 @@ def escribir_informes(resultado: Resultado, opciones: Opciones, avisar=_nada) ->
     carpeta = Path(opciones.carpeta_salida)
     carpeta.mkdir(parents=True, exist_ok=True)
     base = nombre_archivo_seguro(opciones.nombre_archivo or
-                                 f"Informe {resultado.ficha.id.para_archivo} ({resultado.generado:%Y-%m-%d})")
+                                 f"Informe {resultado.titulo.replace('/', '-').replace(' ', '-')} "
+                                 f"({resultado.generado:%Y-%m-%d})")
     escritores = {"docx": informe_docx.escribir, "html": informe_html.escribir}
     for formato in opciones.formatos:
         if formato not in escritores:

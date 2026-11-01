@@ -59,7 +59,7 @@ def test_media_sancion_en_comision_de_diputados(tmp_path):
     filas = {k: "".join(f.texto for f in v) for k, v in contenido.datos_diputados_hcdn(r)}
     assert filas["Expediente en Diputados"] == "57-S-2026" and filas["Estado en Diputados"] == "En comisión."
     html = r.archivos["html"].read_text(encoding="utf-8")
-    assert "<h2>Etapa en la Cámara de Diputados (revisión)</h2>" in html
+    assert ">Etapa en la Cámara de Diputados (revisión)</h2>" in html
 
 
 def test_modificado_por_diputados_vuelve_al_senado(tmp_path):
