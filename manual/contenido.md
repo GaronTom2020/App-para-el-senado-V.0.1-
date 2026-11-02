@@ -293,30 +293,42 @@ Lee el **Diario de Asuntos Entrados** (DAE) digital del Senado desde una fecha y
 
 Si necesita un documento, marque *Generar un informe de los asuntos (Word, HTML y PDF)* antes de buscar. **Ver la última revisión** vuelve a mostrar el resultado anterior.
 
-# Resumen diario por correo
+# Resumen diario
 
 ## Para qué sirve
 
 >> Opcional: cada usuario lo configura en su PC.
 
-El programa puede mandarle todos los días un correo con las **novedades de su lista de seguimiento** y los **asuntos entrados nuevos**, para tenerlos al empezar el día sin abrir el programa.
+El programa puede armarle todos los días un resumen con las **novedades de su lista de seguimiento** y los **asuntos entrados nuevos**, para tenerlos al empezar el día sin abrir el programa. Le llega **por correo**, como un **aviso en la pantalla**, o de las dos formas.
 
-![La ventana «Resumen diario por correo»](capturas/09_correo.png)
+![La ventana «Resumen diario»](capturas/09_correo.png)
 
 ## Paso a paso
 
->> Herramientas → Resumen diario por correo…
+>> Herramientas → Resumen diario (correo y aviso)…
 
-1. Abra el menú **Herramientas → Resumen diario por correo…**
-2. Marque **Recibir todos los días un resumen por correo**.
+1. Abra el menú **Herramientas → Resumen diario (correo y aviso)…**
+2. Marque **Armar todos los días un resumen de novedades** y elija cómo recibirlo: **Enviarlo por correo**, **Mostrar un aviso en pantalla**, o las dos.
 3. Escriba su **correo** (puede poner varios, separados por coma) y la **hora** de envío, por ejemplo `07:30`.
 4. Elija qué **incluir**: las novedades del seguimiento (de toda la lista o solo de los grupos que marque) y los asuntos entrados, con los tipos y las palabras que le interesen.
 5. En **Enviar con** deje *Outlook de esta PC*: usa su cuenta de correo, sin contraseña.
 6. Presione **Enviar una prueba** y revise que el correo llegó.
 7. Presione **Guardar**.
 
-!!! atencion "La PC tiene que estar encendida"
-    El correo se arma y se envía desde su PC a la hora elegida. Si la PC está apagada o sin su sesión iniciada, ese día no sale.
+!!! consejo "Si a esa hora la PC estaba apagada"
+    El resumen se arma desde su PC. Si a la hora elegida la PC estaba apagada o sin su sesión iniciada, se arma apenas usted entra. Sale una sola vez por día.
+
+## El aviso en pantalla
+
+>> Aparece abajo a la derecha.
+
+Si hay novedades, aparece una ventanita en la esquina inferior derecha, por encima de las demás, con un renglón por expediente («PE-99/26: Cambió la situación…») y la cantidad de asuntos entrados nuevos. Tiene tres botones:
+
+- **Ver el resumen**: abre el resumen completo en el navegador, con los enlaces.
+- **Abrir el programa**.
+- **Cerrar**.
+
+Los días sin novedades no aparece.
 
 !!! consejo "No le quita novedades a la ventana"
     El correo lleva su propio registro. Lo que le avisa por correo también lo va a ver cuando presione **Revisar novedades** en la ventana.
@@ -339,7 +351,7 @@ Para dejar de recibirlo, vuelva a abrir la ventana, desmarque la primera casilla
 
 >> Úselas cuando algo falla.
 
-- **Resumen diario por correo…**: ver el capítulo anterior.
+- **Resumen diario (correo y aviso)…**: ver el capítulo anterior.
 - **Usar caché**: recuerda las páginas ya leídas para que las consultas repetidas sean más rápidas. Conviene dejarla marcada.
 - **Guardar las páginas descargadas (diagnóstico)** y **Abrir carpeta de diagnóstico**: sirven para enviar a quien mantiene el programa lo que el programa vio, cuando un informe sale raro.
 - **Vaciar caché**: borra lo guardado y obliga a leer todo de nuevo. Úsela si ve datos viejos.

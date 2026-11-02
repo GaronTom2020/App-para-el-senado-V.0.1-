@@ -386,7 +386,7 @@ class Aplicacion(tk.Tk):
                                      variable=self.var_diagnostico)
         herramientas.add_command(label="Abrir carpeta de diagnóstico", command=self._abrir_diagnostico)
         herramientas.add_separator()
-        herramientas.add_command(label="Resumen diario por correo…", command=self._config_correo)
+        herramientas.add_command(label="Resumen diario (correo y aviso)…", command=self._config_correo)
         herramientas.add_separator()
         herramientas.add_command(label="Vaciar caché", command=self._vaciar_cache)
         barra.add_cascade(label="Herramientas", menu=herramientas)
@@ -2482,7 +2482,7 @@ class Aplicacion(tk.Tk):
         from . import correo
         cfg = correo.ConfigCorreo.cargar()
         v = tk.Toplevel(self)
-        v.title("Resumen diario por correo")
+        v.title("Resumen diario")
         v.configure(bg=P["papel"])
         v.transient(self)
         v.resizable(False, False)
@@ -2491,6 +2491,7 @@ class Aplicacion(tk.Tk):
         m.columnconfigure(1, weight=1)
 
         activo = tk.BooleanVar(value=cfg.activo)
+        por_correo, aviso = tk.BooleanVar(value=cfg.por_correo), tk.BooleanVar(value=cfg.aviso)
         destinos = tk.StringVar(value=", ".join(cfg.destinatarios))
         hora = tk.StringVar(value=cfg.hora)
         con_seg = tk.BooleanVar(value=cfg.seguimiento)
@@ -2511,13 +2512,21 @@ class Aplicacion(tk.Tk):
         def explicacion(padre, texto):
             return ttk.Label(padre, text=texto, style="Ayuda.TLabel", wraplength=380, justify="left")
 
-        ttk.Checkbutton(m, text="Recibir todos los días un resumen por correo", variable=activo,
-                        style="Tarjeta.TCheckbutton").grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
+        arriba = ttk.Frame(m, style="Tarjeta.TFrame")
+        arriba.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
+        ttk.Checkbutton(arriba, text="Armar todos los días un resumen de novedades", variable=activo,
+                        style="Tarjeta.TCheckbutton").pack(anchor="w")
+        formas = ttk.Frame(arriba, style="Tarjeta.TFrame")
+        formas.pack(anchor="w", padx=(22, 0), pady=(2, 0))
+        ttk.Checkbutton(formas, text="Enviarlo por correo", variable=por_correo,
+                        style="Tarjeta.TCheckbutton").pack(side="left", padx=(0, 12))
+        ttk.Checkbutton(formas, text="Mostrar un aviso en pantalla con las novedades", variable=aviso,
+                        style="Tarjeta.TCheckbutton").pack(side="left")
         renglon(1, "Correo", ttk.Entry(m, textvariable=destinos, width=46))
         explicacion(m, "Una o más direcciones, separadas por coma.").grid(row=2, column=1, sticky="w")
         renglon(3, "Hora (hh:mm)", ttk.Entry(m, textvariable=hora, width=8))
-        explicacion(m, "Se arma y se envía a esa hora, con lo nuevo desde el envío anterior. La PC tiene que "
-                       "estar encendida y con tu sesión iniciada.").grid(row=4, column=1, sticky="w")
+        explicacion(m, "Se arma a esa hora, con lo nuevo desde el resumen anterior. Si a esa hora la PC está "
+                       "apagada o sin tu sesión iniciada, se arma apenas entres.").grid(row=4, column=1, sticky="w")
 
         caja = ttk.Frame(m, style="Tarjeta.TFrame")
         ttk.Checkbutton(caja, text="Novedades de la lista de seguimiento", variable=con_seg,
@@ -2565,7 +2574,7 @@ class Aplicacion(tk.Tk):
 
         def leer():
             direcciones = [x.strip() for x in destinos.get().replace(";", ",").split(",") if x.strip()]
-            if (activo.get() and not direcciones) or not all("@" in x for x in direcciones):
+            if (activo.get() and por_correo.get() and not direcciones) or not all("@" in x for x in direcciones):
                 messagebox.showwarning("Correo", "Escribí al menos una dirección de correo válida.", parent=v)
                 return None
             try:
@@ -2574,7 +2583,8 @@ class Aplicacion(tk.Tk):
                 messagebox.showwarning("Hora", "Escribí la hora como hh:mm, por ejemplo 07:30.", parent=v)
                 return None
             nuevo = correo.ConfigCorreo(
-                activo=activo.get(), destinatarios=direcciones, hora=hora.get().strip().zfill(5),
+                activo=activo.get(), por_correo=por_correo.get(), aviso=aviso.get(), ultimo=cfg.ultimo,
+                destinatarios=direcciones, hora=hora.get().strip().zfill(5),
                 seguimiento=con_seg.get(), grupos=[g for g, x in grupos.items() if x.get()],
                 asuntos=con_ae.get(), asuntos_tipos=[c for c, x in tipos.items() if x.get()],
                 asuntos_palabras=palabras.get().strip(), enviar_vacio=vacio.get(),
@@ -2595,8 +2605,10 @@ class Aplicacion(tk.Tk):
             except (OSError, correo.ErrorCorreo) as e:
                 messagebox.showwarning("Resumen diario", str(e), parent=v)
                 return
-            self._registro("Resumen diario por correo: " + (f"activado, todos los días a las {nuevo.hora} "
-                           f"para {', '.join(nuevo.destinatarios)}." if nuevo.activo else "desactivado."))
+            formas = [x for x, si in ((f"por correo a {', '.join(nuevo.destinatarios)}", nuevo.por_correo),
+                                      ("con aviso en pantalla", nuevo.aviso)) if si]
+            self._registro("Resumen diario: " + (f"activado, todos los días a las {nuevo.hora}, "
+                           + " y ".join(formas or ["sin correo ni aviso"]) + "." if nuevo.activo else "desactivado."))
             v.destroy()
 
         def probar():

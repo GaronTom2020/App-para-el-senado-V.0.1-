@@ -1,6 +1,6 @@
-"""Resumen diario por correo: novedades de la lista de seguimiento y asuntos entrados nuevos.
+"""Resumen diario: novedades de la lista de seguimiento y asuntos entrados nuevos, por correo y en un aviso.
 
-Es opcional y lo configura cada usuario en su PC (Herramientas → Resumen diario por correo…): a qué
+Es opcional y lo configura cada usuario en su PC (Herramientas → Resumen diario (correo y aviso)…): a qué
 direcciones, qué grupos del seguimiento, si suma los asuntos entrados (con filtros de tipo y palabras),
 a qué hora y cómo se envía. Una tarea programada de Windows corre todos los días
 `InformeExpediente.exe --resumen-diario`, que arma el resumen y lo manda.
@@ -50,6 +50,9 @@ class ConfigCorreo:
     asuntos_tipos: list[str] = field(default_factory=lambda: ["PL", "PR", "PC", "PD", "OTROS"])
     asuntos_palabras: str = ""
     enviar_vacio: bool = False                                # también los días sin novedades
+    por_correo: bool = True                                   # mandar el resumen por correo
+    aviso: bool = True                                        # mostrar un aviso en pantalla con las novedades
+    ultimo: str = ""                                          # fecha (ISO) del último resumen armado
     metodo: str = "outlook"
     smtp_servidor: str = ""
     smtp_puerto: int = 587
@@ -213,7 +216,7 @@ def html(res: Resumen) -> str:
                           f"{filas}</table>")
     partes.append(f'<p style="color:{gris};font-size:12px;margin-top:20px">Enviado automáticamente por el Sistema de '
                   f"Información Parlamentaria {e(__version__)}, con datos públicos de senado.gob.ar. Para cambiar qué "
-                  "recibís: Herramientas → Resumen diario por correo.</p></div>")
+                  "recibís: Herramientas → Resumen diario (correo y aviso).</p></div>")
     return "".join(partes)
 
 
@@ -295,6 +298,128 @@ def enviar_resumen(cfg: ConfigCorreo, cliente: Cliente, avisar=lambda *a, **k: N
     return res
 
 
+def archivo_ultimo_resumen() -> Path:
+    return config.carpeta_app() / "ultimo_resumen.html"
+
+
+def ejecutar_diario(cfg: ConfigCorreo, cliente: Cliente, avisar=lambda *a, **k: None, hoy: date | None = None,
+                    forzar: bool = False, mostrar=None) -> Resumen | None:
+    """Lo que corre la tarea programada: una vez por día arma el resumen, lo manda por correo y muestra el aviso.
+
+    Si ese día ya se armó (por ejemplo, la tarea corrió a la hora y otra vez al iniciar sesión), no hace nada.
+    Devuelve el resumen, o None si ya estaba hecho."""
+    hoy = hoy or date.today()
+    if cfg.ultimo == hoy.isoformat() and not forzar:
+        avisar("log", "El resumen de hoy ya se armó.")
+        return None
+    res = armar(cfg, cliente, avisar, hoy)
+    try:
+        archivo_ultimo_resumen().write_text("<!DOCTYPE html><html lang='es'><head><meta charset='utf-8'>"
+                                            f"<title>{escape(asunto_correo(res))}</title></head><body>"
+                                            f"{html(res)}</body></html>", encoding="utf-8")
+    except OSError:
+        pass
+    if cfg.por_correo and cfg.destinatarios and (not res.vacio or cfg.enviar_vacio):
+        try:
+            enviar(cfg, asunto_correo(res), html(res), texto_plano(res))
+            avisar("log", f"Resumen enviado a {', '.join(cfg.destinatarios)}.")
+        except ErrorCorreo as e:
+            res.errores.append(f"No se pudo enviar el correo: {e}")
+            avisar("log", f"Error: {e}")
+    elif cfg.por_correo:
+        avisar("log", "Sin novedades: no se envía el correo.")
+    cfg.ultimo = hoy.isoformat()
+    cfg.guardar()
+    if cfg.aviso and not res.vacio:
+        (mostrar or mostrar_aviso)(res)
+    return res
+
+
+# ============================================================ aviso en pantalla
+
+def lineas_aviso(res: Resumen, maximo: int = 6) -> list[str]:
+    """Las líneas del aviso: un renglón por expediente con novedades y la cuenta de asuntos entrados."""
+    lineas = []
+    for r in res.revisiones[:maximo]:
+        primera = next(n.texto for n in r.novedades if n.clase != "alta")
+        otras = sum(1 for n in r.novedades if n.clase != "alta") - 1
+        lineas.append(f"{r.seguido.nombre}: {primera}" + (f" (y {otras} más)" if otras > 0 else ""))
+    if len(res.revisiones) > maximo:
+        lineas.append(f"… y {len(res.revisiones) - maximo} expedientes más con novedades.")
+    if res.asuntos:
+        lineas.append(f"{len(res.asuntos)} asunto{'s' if len(res.asuntos) != 1 else ''} "
+                      f"entrado{'s' if len(res.asuntos) != 1 else ''} nuevo{'s' if len(res.asuntos) != 1 else ''}.")
+    lineas += res.errores
+    return lineas
+
+
+def abrir_programa() -> None:
+    if getattr(sys, "frozen", False):
+        orden = [sys.executable]
+    else:
+        python = Path(sys.executable)
+        sin_ventana = python.with_name("pythonw.exe")
+        orden = [str(sin_ventana if sin_ventana.exists() else python), str(Path(__file__).resolve().parent.parent / "app.py")]
+    subprocess.Popen(orden, close_fds=True)
+
+
+def mostrar_aviso(res: Resumen) -> None:
+    """Ventanita en la esquina inferior derecha, por encima de las demás, con el resumen de novedades."""
+    import tkinter as tk
+    from tkinter import font as tkfont
+
+    azul, papel, tinta, suave = "#1A64AB", "#FFFFFF", "#292F3D", "#5A6478"
+    v = tk.Tk()
+    v.title("Novedades parlamentarias")
+    v.configure(bg=papel)
+    v.attributes("-topmost", True)
+    v.resizable(False, False)
+    icono = Path(__file__).resolve().parent / "recursos" / "icono.ico"
+    try:
+        v.iconbitmap(default=str(icono))
+    except tk.TclError:
+        pass
+    familias = set(tkfont.families(v))
+    sans = next((f for f in ("Segoe UI", "Calibri", "Arial") if f in familias), "TkDefaultFont")
+    tk.Label(v, text=f"Novedades parlamentarias — {res.generado:%d/%m/%Y}", bg=azul, fg="#FFFFFF",
+             font=(sans, 12, "bold"), anchor="w", padx=14, pady=8).pack(fill="x")
+    cuerpo = tk.Frame(v, bg=papel, padx=14, pady=10)
+    cuerpo.pack(fill="both")
+    for linea in lineas_aviso(res):
+        tk.Label(cuerpo, text="• " + linea, bg=papel, fg=tinta, font=(sans, 10), justify="left", anchor="w",
+                 wraplength=400).pack(fill="x", pady=1)
+    botones = tk.Frame(v, bg=papel, padx=14, pady=10)
+    botones.pack(fill="x")
+
+    def boton(texto, comando, principal=False):
+        tk.Button(botones, text=texto, command=comando, relief="flat", padx=10, pady=3, cursor="hand2",
+                  bg=azul if principal else "#E6EEF9", fg="#FFFFFF" if principal else tinta,
+                  activebackground="#0B3D7C" if principal else "#D8E4F7", font=(sans, 9)).pack(side="right", padx=(6, 0))
+
+    def ver():
+        try:
+            os.startfile(archivo_ultimo_resumen())                       # noqa: S606 - solo en Windows
+        except (AttributeError, OSError):
+            import webbrowser
+            webbrowser.open(archivo_ultimo_resumen().as_uri())
+        v.destroy()
+
+    def programa():
+        abrir_programa()
+        v.destroy()
+
+    boton("Cerrar", v.destroy)
+    boton("Abrir el programa", programa)
+    boton("Ver el resumen", ver, principal=True)
+    tk.Label(botones, text="Resumen diario", bg=papel, fg=suave, font=(sans, 8)).pack(side="left")
+    v.update_idletasks()
+    x = v.winfo_screenwidth() - v.winfo_reqwidth() - 24
+    y = v.winfo_screenheight() - v.winfo_reqheight() - 72                # por encima de la barra de tareas
+    v.geometry(f"+{x}+{y}")
+    v.bell()
+    v.mainloop()
+
+
 # ========================================================== tarea programada
 
 def orden_programa() -> str:
@@ -320,7 +445,20 @@ def programar(cfg: ConfigCorreo) -> None:
                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     if r.returncode != 0:
         raise ErrorCorreo("No se pudo crear la tarea programada de Windows: " + (r.stderr or r.stdout).strip())
+    # «Ejecutar la tarea lo antes posible si se omitió un inicio programado»: si a esa hora la PC estaba
+    # apagada o sin la sesión iniciada, corre apenas el usuario entra. schtasks no tiene esa opción; PowerShell sí.
+    ajuste = (f"$t = Get-ScheduledTask -TaskName '{TAREA}'; "
+              "$t.Settings.StartWhenAvailable = $true; "
+              "$t.Settings.DisallowStartIfOnBatteries = $false; $t.Settings.StopIfGoingOnBatteries = $false; "
+              "$t.Settings.ExecutionTimeLimit = 'PT1H'; "
+              "Set-ScheduledTask -InputObject $t | Out-Null")
+    r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ajuste], capture_output=True,
+                       text=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    if r.returncode != 0:
+        raise ErrorCorreo("Se creó la tarea, pero no se pudo activar que corra al iniciar sesión si se perdió la "
+                          "hora: " + (r.stderr or r.stdout).strip()[-300:])
 
 
-__all__ = ["ConfigCorreo", "Resumen", "armar", "enviar", "enviar_resumen", "programar", "ErrorCorreo",
+__all__ = ["ConfigCorreo", "Resumen", "armar", "enviar", "enviar_resumen", "ejecutar_diario", "mostrar_aviso",
+           "lineas_aviso", "programar", "ErrorCorreo",
            "cifrar_clave", "descifrar_clave", "METODOS", "TAREA"]

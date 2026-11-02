@@ -164,3 +164,42 @@ def test_manual_local_o_de_releases(tmp_path, monkeypatch):
     assert actualizaciones.manual().startswith("https://github.com/")
     (tmp_path / "Manual-de-usuario.pdf").write_bytes(b"%PDF")
     assert actualizaciones.manual() == str(tmp_path / "Manual-de-usuario.pdf")
+
+
+def test_resumen_diario_una_vez_por_dia_con_aviso(config_vacia, monkeypatch):
+    enviados, avisos = [], []
+    monkeypatch.setattr(correo, "enviar", lambda *a: enviados.append(a))
+    principal = Lista()
+    principal.agregar("PE-99/26", hoy=HOY)
+    principal.guardar()
+    cfg = correo.ConfigCorreo(activo=True, destinatarios=["a@b.ar"], asuntos=False)
+    assert correo.ejecutar_diario(cfg, ClienteFalso(), hoy=HOY, mostrar=avisos.append).vacio
+    assert enviados == [] and avisos == []                 # primera vez: solo toma el estado
+    propia = Lista(correo.config.carpeta_app() / "correo_seguimiento.json")
+    propia.seguidos[0].foto["situacion"] = "En comisión"
+    propia.guardar()
+    # El mismo día no se repite (la tarea pudo correr a la hora y otra vez al iniciar sesión).
+    assert correo.ejecutar_diario(correo.ConfigCorreo.cargar(), ClienteFalso(), hoy=HOY, mostrar=avisos.append) is None
+    otro_dia = date(2026, 10, 31)
+    res = correo.ejecutar_diario(correo.ConfigCorreo.cargar(), ClienteFalso(), hoy=otro_dia, mostrar=avisos.append)
+    assert len(enviados) == 1 and avisos == [res]
+    assert correo.lineas_aviso(res)[0].startswith("PE-99/26: Cambió la situación")
+    assert correo.archivo_ultimo_resumen().read_text(encoding="utf-8").count("PE-99/26") >= 1
+
+
+def test_aviso_sin_correo_y_error_de_envio(config_vacia, monkeypatch):
+    def falla(*_a):
+        raise correo.ErrorCorreo("Outlook no está instalado")
+    monkeypatch.setattr(correo, "enviar", falla)
+    principal = Lista()
+    principal.agregar("PE-99/26", hoy=HOY)
+    principal.guardar()
+    cfg = correo.ConfigCorreo(activo=True, destinatarios=["a@b.ar"], asuntos=False)
+    correo.ejecutar_diario(cfg, ClienteFalso(), hoy=HOY, mostrar=lambda r: None)
+    propia = Lista(correo.config.carpeta_app() / "correo_seguimiento.json")
+    propia.seguidos[0].foto["situacion"] = "En comisión"
+    propia.guardar()
+    avisos = []
+    res = correo.ejecutar_diario(correo.ConfigCorreo.cargar(), ClienteFalso(), hoy=date(2026, 10, 31),
+                                 mostrar=avisos.append)
+    assert avisos and any("Outlook no está instalado" in x for x in correo.lineas_aviso(res))

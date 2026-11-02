@@ -89,6 +89,7 @@ def linea_de_comandos(argumentos: list[str]) -> int:
     ss.add_argument("--solo-asuntos", action="store_true", help="Solo listar los asuntos del plan, sin consultar fichas")
     p.add_argument("--resumen-diario", action="store_true",
                    help="Armar y enviar el resumen diario por correo (lo corre la tarea programada de Windows)")
+    p.add_argument("--forzar", action="store_true", help="Con --resumen-diario, armarlo aunque ya se haya hecho hoy")
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     a = p.parse_args(argumentos)
 
@@ -167,8 +168,9 @@ def _editar_seguimiento(a) -> int:
 
 
 def _resumen_diario(a) -> int:
-    """Corre sin ventana (pythonw o el .exe): lo que pasa queda en correo.log, en la carpeta de configuración."""
-    from informe_expedientes.correo import ConfigCorreo, enviar_resumen
+    """Corre sin ventana (pythonw o el .exe), una vez por día: manda el correo y muestra el aviso en pantalla.
+    Lo que pasa queda en correo.log, en la carpeta de configuración."""
+    from informe_expedientes.correo import ConfigCorreo, ejecutar_diario
 
     registro = config.carpeta_app() / "correo.log"
     registro.parent.mkdir(parents=True, exist_ok=True)
@@ -185,7 +187,8 @@ def _resumen_diario(a) -> int:
         return 0
     cliente = Cliente(carpeta_cache=config.carpeta_app() / "cache", usar_cache=not a.sin_cache)
     try:
-        enviar_resumen(cfg, cliente, lambda ev, msg="", **_d: anotar(msg) if ev == "log" and msg else None)
+        ejecutar_diario(cfg, cliente, lambda ev, msg="", **_d: anotar(msg) if ev == "log" and msg else None,
+                        forzar=a.forzar)
     except Exception as e:  # noqa: BLE001 - queda anotado para quien lo revise
         anotar(f"Error: {e}")
         return 1
