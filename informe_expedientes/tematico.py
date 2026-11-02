@@ -268,13 +268,14 @@ def generar_tematico(consulta: Consulta, opciones: OpcionesTematicas, cliente: C
 
 def escribir_informes(res: ResultadoTematico, opciones: OpcionesTematicas, avisar=_nada) -> dict[str, Path]:
     from . import informe_tematico
+    from .pdf import ErrorPDF, desde_html
 
     carpeta = Path(opciones.carpeta_salida)
     carpeta.mkdir(parents=True, exist_ok=True)
     base = nombre_archivo_seguro(opciones.nombre_archivo or
                                  f"Informe temático - {res.consulta.titulo()[:60]} ({res.generado:%Y-%m-%d})")
     escritores = {"docx": informe_tematico.escribir_docx, "html": informe_tematico.escribir_html,
-                  "xlsx": informe_tematico.escribir_xlsx}
+                  "xlsx": informe_tematico.escribir_xlsx, "pdf": desde_html(informe_tematico.escribir_html)}
     for formato in opciones.formatos:
         if formato not in escritores:
             continue
@@ -282,6 +283,9 @@ def escribir_informes(res: ResultadoTematico, opciones: OpcionesTematicas, avisa
         destino = carpeta / f"{base}.{formato}"
         try:
             escritores[formato](res, destino)
+        except ErrorPDF as e:
+            avisar("advertencia", str(e))
+            continue
         except PermissionError:
             destino = carpeta / f"{base} {res.generado:%H%M%S}.{formato}"
             escritores[formato](res, destino)

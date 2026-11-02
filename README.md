@@ -1,6 +1,6 @@
 # Sistema de Información Parlamentaria — H. Senado de la Nación
 
-Versión actual: **0.3.0**. Programa de escritorio con cinco modos:
+Versión actual: **0.4.0**. Programa de escritorio con cinco modos:
 
 - **Un expediente**: a partir de su número, arma un informe en Word y HTML con su situación en el trámite parlamentario, las reuniones de comisión en que se trató y los enlaces a cada fuente.
 - **Por tema**: a partir de un eje temático o de palabras clave, encuentra todos los expedientes que responden a ese tema y arma un informe consolidado en Word, HTML y Excel con la etapa de cada uno.
@@ -9,6 +9,16 @@ Versión actual: **0.3.0**. Programa de escritorio con cinco modos:
 - **Asuntos entrados**: lee el Diario de Asuntos Entrados (DAE) digital del Senado desde una fecha de partida y después solo lo nuevo, con filtros por tipo, origen y palabras.
 
 Usa solamente información pública de www.senado.gob.ar y www.hcdn.gob.ar.
+
+### Novedades de la versión 0.4.0
+
+- **PDF**: casilla «PDF» en cada pestaña (expedientes, por tema, sesión) y en el informe de asuntos entrados. Se imprime el HTML con Microsoft Edge (o Chrome), que ya viene con Windows; si no hay ninguno, se guardan los demás formatos y se avisa.
+- **Exportar el seguimiento** a Excel (una hoja con todos, con filtros, y una hoja por grupo, con nombre, grupos, situación y último movimiento) o a PDF (agrupado por grupo), con el botón *Exportar* de la pestaña *Seguimiento*.
+- **Expedientes relacionados** como opción en el seguimiento y en el informe de sesión (casilla «Relacionados (lento)»; `--con-relacionados` en la línea de comandos). En el seguimiento, un relacionado que aparece se avisa como novedad: «Expediente relacionado nuevo: S-865/26 — Dictaminado en conjunto (Orden del Día N° 366/26) (Con dictamen de comisión)».
+- **Resumen diario** (*Herramientas → Resumen diario (correo y aviso)…*), opcional y por usuario: direcciones, hora, grupos del seguimiento, asuntos entrados con filtros de tipo y palabras, y si se envía también los días sin novedades. Llega por correo (con el Outlook de la PC o por SMTP) y, si hay novedades, aparece un aviso en la esquina de la pantalla con el resumen. Una tarea programada de Windows corre `--resumen-diario` todos los días; si a esa hora la PC estaba apagada, corre apenas el usuario inicia sesión. Lleva su propio registro, así no le quita las novedades a la revisión que se hace a mano.
+- **Aviso de versión nueva**: al abrir (una vez por día) o desde *Ayuda → Buscar actualizaciones*. Con el `.exe`, ofrece instalarla: la descarga y la reemplaza al cerrar. Las versiones se publican en Releases al compilar el `.exe` en GitHub Actions.
+- **Manual de usuario** en *Ayuda → Manual de usuario*: el incluido en el `.exe` o, si no está, el de Releases.
+- **Una carpeta por pestaña** dentro de la carpeta de informes: *Expedientes*, *Por tema*, *Seguimiento*, *Sesión* y *Asuntos entrados*.
 
 ### Novedades de la versión 0.3.0
 
@@ -128,6 +138,15 @@ En la pestaña **Sesión**:
 ## Asuntos entrados (DAE)
 
 En la pestaña **Asuntos entrados** se elige una fecha de partida y el programa lee los Diarios de Asuntos Entrados digitales del Senado desde esa fecha; en las consultas siguientes trae solo los nuevos. Si la fecha cae en el período parlamentario anterior (marzo a febrero), sigue la numeración de ambos. Se filtran por tipo, origen y palabras, y cada asunto se puede sumar a la lista de seguimiento. El informe en Word y HTML es opcional.
+
+## Resumen diario (correo y aviso en pantalla)
+
+En *Herramientas → Resumen diario (correo y aviso)…* cada usuario elige si quiere recibir, todos los días a una hora, un resumen con las novedades de la lista de seguimiento (de toda la lista o de los grupos que marque) y los asuntos entrados nuevos (con los tipos y las palabras que elija). Puede llegarle por correo, como un aviso en la esquina de la pantalla (con *Ver el resumen*, *Abrir el programa* y *Cerrar*), o de las dos formas. *Enviar una prueba* comprueba que el correo llega.
+
+- **Con Outlook** (recomendado en la oficina): usa la cuenta ya abierta en la PC, sin contraseña.
+- **Por SMTP**: servidor, puerto, usuario y contraseña; la contraseña se guarda cifrada con la cuenta de Windows (DPAPI).
+
+Al guardar se crea la tarea programada de Windows «Informe de Expedientes - resumen diario», que corre `InformeExpediente.exe --resumen-diario` a esa hora. La tarea tiene activada la opción de Windows «ejecutar la tarea lo antes posible si se omitió un inicio programado»: si a esa hora la PC estaba apagada o sin la sesión iniciada, el resumen se arma apenas el usuario entra. Se arma una sola vez por día (`--forzar` lo repite). El último resumen queda en `ultimo_resumen.html`. Lo que pasa en cada envío queda en `correo.log`, en la carpeta de configuración. El correo lleva su propio registro de lo ya avisado (`correo_seguimiento.json` y `correo_asuntos_entrados.json`): la primera vez solo toma el estado de cada expediente.
 
 ## Lista de seguimiento
 
