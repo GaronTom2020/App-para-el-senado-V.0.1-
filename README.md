@@ -227,6 +227,9 @@ Puede tardar entre medio minuto y un par de minutos según cuántas reuniones ha
 - **"No se encontró el expediente"**: revisá número, año y origen, o elegí el tipo a mano.
 - **Una sección del informe aparece vacía o rara**: el sitio pudo haber cambiado. Activá *Herramientas → Guardar las páginas descargadas*, repetí la consulta y enviá la carpeta que se abre con *Herramientas → Abrir carpeta de diagnóstico* a quien mantiene el programa.
 - **Datos viejos**: *Herramientas → Vaciar caché*. La ficha se vuelve a consultar siempre que pasan más de 10 minutos; las listas de reuniones, cada 6 horas.
+- **La versión nueva anda mal**: *Ayuda → Volver a la versión anterior* (aparece después de una actualización desde el programa). Esa versión no se vuelve a ofrecer; la próxima que se publique, sí.
+
+Quien mantiene el programa no depende de que le avisen: el workflow *Control de sitios* consulta en vivo, los días hábiles a las 7:00, unos expedientes conocidos en los sitios del Senado y de Diputados (`controles/sitios.py`). Si alguno deja de leerse, abre un issue «Control de sitios: falla», y lo cierra solo cuando vuelve a andar.
 
 La configuración y la caché se guardan en `%APPDATA%\InformeExpedientes` (Windows) o `~/.informe_expedientes`.
 

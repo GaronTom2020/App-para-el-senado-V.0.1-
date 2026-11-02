@@ -82,4 +82,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "v$VERSION" dist/InformeExpediente.exe --title "Versión $VERSION" \
-            --notes "Descargá InformeExpediente.exe y reemplazá el anterior, o aceptá la actualización desde el programa."
+            --notes "Descargá InformeExpediente.exe y reemplazá el anterior, o aceptá la actualización desde el programa." \
+            --generate-notes

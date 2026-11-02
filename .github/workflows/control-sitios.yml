@@ -1,0 +1,71 @@
+name: Control de sitios
+
+# Consulta en vivo los sitios del Senado y de Diputados con casos conocidos (controles/sitios.py). Si alguno
+# dejó de leerse, abre un issue «Control de sitios: falla» (o comenta en el que ya esté abierto); cuando todo
+# vuelve a andar, lo cierra. Así el cambio de un sitio se ve antes de que lo note quien usa el programa.
+
+on:
+  schedule:
+    - cron: "0 10 * * 1-5"      # lunes a viernes, 7:00 de Buenos Aires (10:00 UTC)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: control-sitios
+  cancel-in-progress: true
+
+jobs:
+  control:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: python -m pip install -r requirements.txt
+
+      - name: Consultar los sitios
+        id: control
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          python controles/sitios.py | tee resultado.md
+
+      - name: Avisar en un issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESULTADO: ${{ steps.control.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          TITULO="Control de sitios: falla"
+          ABIERTO=$(gh issue list --state open --search "\"$TITULO\" in:title" --json number --jq '.[0].number')
+          {
+            cat resultado.md
+            echo
+            echo "Detalle: $RUN_URL"
+          } > cuerpo.md
+          if [ "$RESULTADO" = "success" ]; then
+            if [ -n "$ABIERTO" ]; then
+              gh issue close "$ABIERTO" --comment "Los sitios se vuelven a leer bien. $RUN_URL"
+            fi
+            exit 0
+          fi
+          if [ -n "$ABIERTO" ]; then
+            gh issue comment "$ABIERTO" --body-file cuerpo.md
+          else
+            {
+              echo "Uno de los sitios que lee el programa cambió o no respondió. Si se repite mañana, probablemente"
+              echo "haya que adaptar el programa: la ejecución tiene el error completo."
+              echo
+              cat cuerpo.md
+            } > nuevo.md
+            gh issue create --title "$TITULO" --body-file nuevo.md
+          fi
+          exit 1

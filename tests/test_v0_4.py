@@ -1,6 +1,7 @@
 """Versión 0.4.0: PDF, exportar el seguimiento, relacionados en el seguimiento, resumen por correo y versiones."""
 
 import hashlib
+import os
 import sys
 from datetime import date
 
@@ -185,6 +186,39 @@ def test_instalar_verifica_la_descarga(monkeypatch, tmp_path, partes, corte, com
             actualizaciones.instalar(version)
         assert not nuevo.exists()
     assert actual.read_bytes() == b"viejo"
+
+
+def test_instalar_guarda_la_version_anterior(monkeypatch, tmp_path):
+    actual = tmp_path / "InformeExpediente.exe"
+    actual.write_bytes(b"viejo")
+    monkeypatch.setattr(actualizaciones.sys, "executable", str(actual))
+    monkeypatch.setattr(actualizaciones.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(actualizaciones.requests, "get", lambda *a, **k: _Descarga([b"x" * 1000]))
+    version = actualizaciones.Version("9.0.0", "https://x", "https://x/InformeExpediente.exe", tamano=1000)
+    bat = actualizaciones.instalar(version).read_text(encoding="mbcs" if os.name == "nt" else "utf-8")
+    anterior = tmp_path / "InformeExpediente.anterior.exe"
+    # Primero se copia el actual como anterior, después se pone el nuevo en su lugar.
+    assert bat.index(f'copy /y "{actual}" "{anterior}"') < bat.index(f'move /y "{tmp_path / "InformeExpediente.nuevo.exe"}"')
+
+    monkeypatch.setattr(actualizaciones.sys, "frozen", True, raising=False)
+    assert not actualizaciones.hay_anterior()
+    with pytest.raises(OSError):
+        actualizaciones.volver_a_anterior()
+    anterior.write_bytes(b"viejo")
+    assert actualizaciones.hay_anterior()
+    bat = actualizaciones.volver_a_anterior().read_text(encoding="mbcs" if os.name == "nt" else "utf-8")
+    assert f'move /y "{anterior}" "{actual}"' in bat and "copy" not in bat
+
+
+def test_cambios_de_las_notas():
+    notas = ("Descargá InformeExpediente.exe y reemplazá el anterior.\r\n\r\n## Cambios\r\n"
+             "* Actualizaciones más seguras by @GaronTom2020 in https://github.com/x/y/pull/16\r\n"
+             "* Control de sitios by @GaronTom2020 in https://github.com/x/y/pull/19\r\n\r\n"
+             "**Full Changelog**: https://github.com/x/y/compare/v0.4.0.7...v0.4.0.8")
+    assert actualizaciones.cambios(notas) == ["Actualizaciones más seguras", "Control de sitios"]
+    muchas = "\n".join(f"* Cambio {i} by @a in https://x/{i}" for i in range(10))
+    assert actualizaciones.cambios(muchas, maximo=3) == ["Cambio 0", "Cambio 1", "Cambio 2", "y 7 cambios más"]
+    assert actualizaciones.cambios("") == []
 
 
 @pytest.mark.parametrize("huella, instala", [
