@@ -45,7 +45,7 @@ jobs:
       - name: Compilar el manual
         run: python manual/construir_manual.py --nombre Manual-de-usuario
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: Manual-de-usuario
           path: |
