@@ -5,8 +5,16 @@ direcciones, qué grupos del seguimiento, si suma los asuntos entrados (con filt
 a qué hora y cómo se envía. Una tarea programada de Windows corre todos los días
 `InformeExpediente.exe --resumen-diario`, que arma el resumen y lo manda.
 
-Se envía con el Outlook de la PC (no hace falta contraseña: usa la cuenta ya abierta) o por SMTP. La
-contraseña de SMTP se guarda cifrada con la cuenta de Windows del usuario (DPAPI).
+Se envía desde la cuenta de Gmail de la oficina, creada solo para esto: el usuario solo indica a qué
+dirección quiere recibirlo. La cuenta y su contraseña de aplicación se leen, en este orden, de:
+
+1. `cuenta_envio.txt` junto al .exe (o junto a app.py): sirve para cambiar la contraseña editando un archivo
+   en la carpeta compartida, sin recompilar;
+2. la variable de entorno INFORME_CUENTA_ENVIO, con el mismo contenido;
+3. `recursos/cuenta_envio.txt`, que el workflow del .exe arma con los secretos del repositorio.
+
+El archivo tiene dos renglones: la dirección y la contraseña de aplicación (los renglones que empiezan con
+# se ignoran).
 
 El correo lleva su propio registro de lo ya avisado (`correo_seguimiento.json` y
 `correo_asuntos_entrados.json`), así no se pierden las novedades que el usuario revisa a mano en la ventana.
@@ -21,10 +29,10 @@ import os
 import smtplib
 import subprocess
 import sys
-import tempfile
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta
 from email.message import EmailMessage
+from email.utils import formataddr
 from html import escape
 from pathlib import Path
 
@@ -32,9 +40,9 @@ from . import __version__, asuntos_entrados, config, seguimiento
 from .cliente import Cliente
 
 TAREA = "Informe de Expedientes - resumen diario"
-METODOS = {"gmail": "Gmail", "outlook": "Outlook clásico de esta PC", "smtp": "Otro servidor SMTP"}
 GMAIL = ("smtp.gmail.com", 587)
-URL_CLAVES_GMAIL = "https://myaccount.google.com/apppasswords"
+NOMBRE_REMITENTE = "Resumen parlamentario"
+ARCHIVO_CUENTA = "cuenta_envio.txt"
 
 
 def archivo_config() -> Path:
@@ -55,15 +63,6 @@ class ConfigCorreo:
     por_correo: bool = True                                   # mandar el resumen por correo
     aviso: bool = True                                        # mostrar un aviso en pantalla con las novedades
     ultimo: str = ""                                          # fecha (ISO) del último resumen armado
-    metodo: str = "gmail"
-    gmail_cuenta: str = ""
-    gmail_clave: str = ""                                     # contraseña de aplicación, cifrada (DPAPI)
-    smtp_servidor: str = ""
-    smtp_puerto: int = 587
-    smtp_tls: bool = True
-    smtp_usuario: str = ""
-    smtp_clave: str = ""                                      # cifrada (DPAPI), en base64
-    remitente: str = ""
 
     @classmethod
     def cargar(cls) -> "ConfigCorreo":
@@ -241,74 +240,61 @@ class ErrorCorreo(RuntimeError):
     pass
 
 
+def _carpeta_programa() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent.parent
+
+
+def _leer_cuenta(texto: str) -> tuple[str, str] | None:
+    renglones = [x.strip() for x in texto.splitlines() if x.strip() and not x.strip().startswith("#")]
+    if len(renglones) < 2 or "@" not in renglones[0]:
+        return None
+    # Google muestra la contraseña de aplicación en grupos de cuatro («abcd efgh ijkl mnop»): los espacios no van.
+    return renglones[0], renglones[1].replace(" ", "")
+
+
+def cuenta_envio() -> tuple[str, str] | None:
+    """(dirección, contraseña de aplicación) de la cuenta de la oficina, o None si no está configurada."""
+    fuentes = [_carpeta_programa() / ARCHIVO_CUENTA, None, Path(__file__).resolve().parent / "recursos" / ARCHIVO_CUENTA]
+    for fuente in fuentes:
+        if fuente is None:
+            texto = os.environ.get("INFORME_CUENTA_ENVIO", "")
+        else:
+            try:
+                texto = fuente.read_text(encoding="utf-8-sig")
+            except OSError:
+                continue
+        cuenta = _leer_cuenta(texto)
+        if cuenta:
+            return cuenta
+    return None
+
+
 def enviar(cfg: ConfigCorreo, asunto: str, cuerpo_html: str, cuerpo_texto: str) -> None:
+    """Envía por Gmail desde la cuenta de la oficina."""
     if not cfg.destinatarios:
         raise ErrorCorreo("No hay ninguna dirección de correo configurada.")
-    if cfg.metodo == "outlook":
-        _por_outlook(cfg.destinatarios, asunto, cuerpo_html)
-    elif cfg.metodo == "gmail":
-        _por_gmail(cfg, asunto, cuerpo_html, cuerpo_texto)
-    else:
-        _por_smtp(cfg, asunto, cuerpo_html, cuerpo_texto)
-
-
-def _por_gmail(cfg: ConfigCorreo, asunto: str, cuerpo_html: str, cuerpo_texto: str) -> None:
-    """Gmail por SMTP, con una contraseña de aplicación (la común no sirve: Google la rechaza)."""
-    if not cfg.gmail_cuenta or not cfg.gmail_clave:
-        raise ErrorCorreo("Falta la cuenta de Gmail o la contraseña de aplicación.")
-    datos = ConfigCorreo(destinatarios=cfg.destinatarios, metodo="smtp", smtp_servidor=GMAIL[0],
-                         smtp_puerto=GMAIL[1], smtp_tls=True, smtp_usuario=cfg.gmail_cuenta,
-                         smtp_clave=cfg.gmail_clave, remitente=cfg.gmail_cuenta)
-    try:
-        _por_smtp(datos, asunto, cuerpo_html, cuerpo_texto)
-    except ErrorCorreo as e:
-        if isinstance(e.__cause__, smtplib.SMTPAuthenticationError):
-            raise ErrorCorreo("Gmail no aceptó la cuenta o la contraseña. Tiene que ser una contraseña de "
-                              f"aplicación (16 letras, se crea en {URL_CLAVES_GMAIL}), no la contraseña con "
-                              "que entrás a Gmail.") from e.__cause__
-        raise
-
-
-def _por_outlook(destinatarios: list[str], asunto: str, cuerpo_html: str) -> None:
-    """Con el Outlook de la PC, por PowerShell (COM): usa la cuenta ya configurada, sin contraseña."""
-    with tempfile.TemporaryDirectory(prefix="correo_") as carpeta:
-        cuerpo = Path(carpeta) / "cuerpo.html"
-        cuerpo.write_text(cuerpo_html, encoding="utf-8")
-        script = Path(carpeta) / "enviar.ps1"
-        script.write_text(
-            "$ErrorActionPreference = 'Stop'\n"
-            "$o = New-Object -ComObject Outlook.Application\n"
-            "$m = $o.CreateItem(0)\n"
-            f"$m.To = '{'; '.join(destinatarios).replace(chr(39), '')}'\n"
-            f"$m.Subject = '{asunto.replace(chr(39), chr(39) * 2)}'\n"
-            f"$m.HTMLBody = Get-Content -Raw -Encoding UTF8 '{cuerpo}'\n"
-            "$m.Send()\n", encoding="utf-8-sig")
-        r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
-                            "-File", str(script)], capture_output=True, text=True, timeout=120,
-                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-    if r.returncode != 0:
-        raise ErrorCorreo("El Outlook clásico no pudo enviar el correo. El Outlook nuevo no se puede usar desde "
-                          "otros programas: si es el que usás, elegí «Gmail» u «Otro servidor SMTP».\n"
-                          + (r.stderr or r.stdout).strip()[-300:])
-
-
-def _por_smtp(cfg: ConfigCorreo, asunto: str, cuerpo_html: str, cuerpo_texto: str) -> None:
-    if not cfg.smtp_servidor:
-        raise ErrorCorreo("Falta el servidor SMTP.")
+    cuenta = cuenta_envio()
+    if cuenta is None:
+        raise ErrorCorreo("El programa no tiene configurada la cuenta de envío de la oficina. Avisá a quien lo "
+                          "mantiene.")
+    usuario, clave = cuenta
     m = EmailMessage()
     m["Subject"], m["To"] = asunto, ", ".join(cfg.destinatarios)
-    m["From"] = cfg.remitente or cfg.smtp_usuario or cfg.destinatarios[0]
+    m["From"] = formataddr((NOMBRE_REMITENTE, usuario))
     m.set_content(cuerpo_texto)
     m.add_alternative(cuerpo_html, subtype="html")
     try:
-        with smtplib.SMTP(cfg.smtp_servidor, int(cfg.smtp_puerto), timeout=60) as s:
-            if cfg.smtp_tls:
-                s.starttls()
-            if cfg.smtp_usuario:
-                s.login(cfg.smtp_usuario, descifrar_clave(cfg.smtp_clave))
+        with smtplib.SMTP(*GMAIL, timeout=60) as s:
+            s.starttls()
+            s.login(usuario, clave)
             s.send_message(m)
+    except smtplib.SMTPAuthenticationError as e:
+        raise ErrorCorreo("La cuenta de envío de la oficina no aceptó la contraseña (puede haber cambiado). "
+                          "Avisá a quien mantiene el programa.") from e
     except (OSError, smtplib.SMTPException) as e:
-        raise ErrorCorreo(f"El servidor SMTP no aceptó el correo: {e}") from e
+        raise ErrorCorreo(f"No se pudo enviar el correo: {e}") from e
 
 
 def enviar_resumen(cfg: ConfigCorreo, cliente: Cliente, avisar=lambda *a, **k: None, forzar: bool = False) -> Resumen:
@@ -485,4 +471,4 @@ def programar(cfg: ConfigCorreo) -> None:
 
 __all__ = ["ConfigCorreo", "Resumen", "armar", "enviar", "enviar_resumen", "ejecutar_diario", "mostrar_aviso",
            "lineas_aviso", "programar", "ErrorCorreo",
-           "cifrar_clave", "descifrar_clave", "METODOS", "TAREA"]
+           "cifrar_clave", "descifrar_clave", "cuenta_envio", "TAREA"]

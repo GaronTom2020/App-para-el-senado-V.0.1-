@@ -232,20 +232,33 @@ class _SMTPFalso:
         self.hechos.append(("enviar", m["From"], m["To"], m["Subject"]))
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="la clave se cifra con DPAPI")
-def test_envio_por_gmail(monkeypatch):
+def test_envio_desde_la_cuenta_de_la_oficina(tmp_path, monkeypatch):
     monkeypatch.setattr(correo.smtplib, "SMTP", _SMTPFalso)
-    cfg = correo.ConfigCorreo(destinatarios=["a@b.ar", "c@d.ar"], metodo="gmail", gmail_cuenta="oficina@gmail.com",
-                              gmail_clave=correo.cifrar_clave("abcdefghijklmnop"))
+    monkeypatch.setattr(correo, "_carpeta_programa", lambda: tmp_path)
+    monkeypatch.setattr(correo, "__file__", str(tmp_path / "paquete" / "correo.py"))
+    monkeypatch.delenv("INFORME_CUENTA_ENVIO", raising=False)
+    cfg = correo.ConfigCorreo(destinatarios=["a@b.ar", "c@d.ar"])
+    with pytest.raises(correo.ErrorCorreo, match="cuenta de envío"):
+        correo.enviar(cfg, "Prueba", "<p>hola</p>", "hola")
+
+    # La que trae el .exe (recursos/cuenta_envio.txt), con la contraseña como la muestra Google.
+    (tmp_path / "paquete" / "recursos").mkdir(parents=True)
+    (tmp_path / "paquete" / "recursos" / "cuenta_envio.txt").write_text(
+        "# cuenta de la oficina\nresumen.oficina@gmail.com\nabcd efgh ijkl mnop\n", encoding="utf-8")
     correo.enviar(cfg, "Prueba", "<p>hola</p>", "hola")
     assert _SMTPFalso.hechos == [("conectar", "smtp.gmail.com", 587), ("starttls",),
-                                 ("login", "oficina@gmail.com", "abcdefghijklmnop"),
-                                 ("enviar", "oficina@gmail.com", "a@b.ar, c@d.ar", "Prueba")]
+                                 ("login", "resumen.oficina@gmail.com", "abcdefghijklmnop"),
+                                 ("enviar", "Resumen parlamentario <resumen.oficina@gmail.com>", "a@b.ar, c@d.ar",
+                                  "Prueba")]
+    # La variable de entorno gana sobre la del .exe, y el archivo junto al .exe gana sobre las dos.
+    monkeypatch.setenv("INFORME_CUENTA_ENVIO", "otra@gmail.com\nclave2")
+    assert correo.cuenta_envio() == ("otra@gmail.com", "clave2")
+    (tmp_path / "cuenta_envio.txt").write_text("nueva@gmail.com\nclave3\n", encoding="utf-8")
+    assert correo.cuenta_envio() == ("nueva@gmail.com", "clave3")
+
     _SMTPFalso.rechazar = True
     try:
-        with pytest.raises(correo.ErrorCorreo, match="contraseña de aplicación"):
+        with pytest.raises(correo.ErrorCorreo, match="no aceptó la contraseña"):
             correo.enviar(cfg, "Prueba", "<p>hola</p>", "hola")
     finally:
         _SMTPFalso.rechazar = False
-    with pytest.raises(correo.ErrorCorreo, match="Falta la cuenta de Gmail"):
-        correo.enviar(correo.ConfigCorreo(destinatarios=["a@b.ar"], metodo="gmail"), "x", "x", "x")

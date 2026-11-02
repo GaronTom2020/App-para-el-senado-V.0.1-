@@ -309,17 +309,13 @@ El programa puede armarle todos los días un resumen con las **novedades de su l
 
 1. Abra el menú **Herramientas → Resumen diario (correo y aviso)…**
 2. Marque **Armar todos los días un resumen de novedades** y elija cómo recibirlo: **Enviarlo por correo**, **Mostrar un aviso en pantalla**, o las dos.
-3. Escriba su **correo** (puede poner varios, separados por coma) y la **hora** de envío, por ejemplo `07:30`.
+3. En **Tu correo** escriba la dirección donde quiere recibirlo (puede poner varias, separadas por coma) y la **hora**, por ejemplo `07:30`.
 4. Elija qué **incluir**: las novedades del seguimiento (de toda la lista o solo de los grupos que marque) y los asuntos entrados, con los tipos y las palabras que le interesen.
-5. En **Enviar con** deje **Gmail**, escriba su cuenta de Gmail y una **contraseña de aplicación** (vea el recuadro).
-6. Presione **Enviar una prueba** y revise que el correo llegó.
-7. Presione **Guardar**.
+5. Presione **Enviar una prueba** y revise que el correo llegó.
+6. Presione **Guardar**.
 
-!!! paso "La contraseña de aplicación de Gmail"
-    No es la contraseña con que entra a Gmail. Presione **Crear una contraseña de aplicación**: se abre su cuenta de Google. Póngale un nombre (por ejemplo «Resumen parlamentario») y copie las 16 letras que muestra en el programa. Hace falta tener activada la verificación en dos pasos.
-
-!!! atencion "El Outlook nuevo no sirve"
-    La opción *Outlook clásico de esta PC* funciona solo con el Outlook clásico. El Outlook nuevo no se puede usar desde otros programas: si es el que usa, elija **Gmail**.
+!!! consejo "No hace falta ninguna contraseña"
+    El resumen llega desde la cuenta de correo de la oficina, «Resumen parlamentario». Usted solo escribe la dirección donde quiere recibirlo. Si el primero llega a la carpeta de spam, márquelo como «No es spam».
 
 !!! consejo "Si a esa hora la PC estaba apagada"
     El resumen se arma desde su PC. Si a la hora elegida la PC estaba apagada o sin su sesión iniciada, se arma apenas usted entra. Sale una sola vez por día.
