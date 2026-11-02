@@ -2498,9 +2498,10 @@ class Aplicacion(tk.Tk):
         con_ae = tk.BooleanVar(value=cfg.asuntos)
         palabras = tk.StringVar(value=cfg.asuntos_palabras)
         vacio = tk.BooleanVar(value=cfg.enviar_vacio)
-        metodo = tk.StringVar(value=correo.METODOS.get(cfg.metodo, correo.METODOS["outlook"]))
+        metodo = tk.StringVar(value=correo.METODOS.get(cfg.metodo, correo.METODOS["gmail"]))
         servidor, puerto = tk.StringVar(value=cfg.smtp_servidor), tk.StringVar(value=str(cfg.smtp_puerto))
         usuario, clave = tk.StringVar(value=cfg.smtp_usuario), tk.StringVar()
+        cuenta_gmail, clave_gmail = tk.StringVar(value=cfg.gmail_cuenta), tk.StringVar()
         tls = tk.BooleanVar(value=cfg.smtp_tls)
         grupos = {g: tk.BooleanVar(value=g in cfg.grupos) for g in self.lista_seguimiento.grupos}
         tipos = {c: tk.BooleanVar(value=c in cfg.asuntos_tipos) for c, _ in TIPOS_TEMA}
@@ -2564,11 +2565,26 @@ class Aplicacion(tk.Tk):
                           + (" (ya hay una guardada: dejala vacía para no cambiarla)." if cfg.smtp_clave else ".")
                     ).grid(row=5, column=0, columnspan=2, sticky="w")
 
+        gmail = ttk.Frame(m, style="Tarjeta.TFrame")
+        for i, (texto, var, oculto) in enumerate((("Cuenta de Gmail", cuenta_gmail, ""),
+                                                  ("Contraseña de aplicación", clave_gmail, "•"))):
+            ttk.Label(gmail, text=texto, style="Tarjeta.TLabel").grid(row=i, column=0, sticky="w", padx=(0, 8))
+            ttk.Entry(gmail, textvariable=var, width=30, show=oculto).grid(row=i, column=1, sticky="w", pady=1)
+        explicacion(gmail, "No es la contraseña con que entrás a Gmail: es una de 16 letras que se crea en tu cuenta "
+                           "de Google (hace falta tener activada la verificación en dos pasos). Se guarda cifrada "
+                           "con tu cuenta de Windows"
+                           + (" (ya hay una guardada: dejala vacía para no cambiarla)." if cfg.gmail_clave else ".")
+                    ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(2, 0))
+        ttk.Button(gmail, text="Crear una contraseña de aplicación", style="Chico.TButton",
+                   command=lambda: webbrowser.open(correo.URL_CLAVES_GMAIL)).grid(row=3, column=0, columnspan=2,
+                                                                                 sticky="w", pady=(4, 0))
+
         def ver_smtp(*_):
-            if metodo.get() == correo.METODOS["smtp"]:
-                smtp.grid(row=7, column=1, sticky="w", pady=(2, 0))
-            else:
-                smtp.grid_remove()
+            for marco, clave_metodo in ((smtp, "smtp"), (gmail, "gmail")):
+                if metodo.get() == correo.METODOS[clave_metodo]:
+                    marco.grid(row=7, column=1, sticky="w", pady=(2, 0))
+                else:
+                    marco.grid_remove()
         metodo.trace_add("write", ver_smtp)
         ver_smtp()
 
@@ -2590,9 +2606,16 @@ class Aplicacion(tk.Tk):
                 asuntos_palabras=palabras.get().strip(), enviar_vacio=vacio.get(),
                 metodo=next(k for k, t in correo.METODOS.items() if t == metodo.get()),
                 smtp_servidor=servidor.get().strip(), smtp_puerto=int(puerto.get() or 587), smtp_tls=tls.get(),
-                smtp_usuario=usuario.get().strip(), smtp_clave=cfg.smtp_clave, remitente=cfg.remitente)
+                smtp_usuario=usuario.get().strip(), smtp_clave=cfg.smtp_clave, remitente=cfg.remitente,
+                gmail_cuenta=cuenta_gmail.get().strip(), gmail_clave=cfg.gmail_clave)
             if clave.get():
                 nuevo.smtp_clave = correo.cifrar_clave(clave.get())
+            if clave_gmail.get():
+                # Google la muestra en grupos de cuatro («abcd efgh ijkl mnop»): los espacios no van.
+                nuevo.gmail_clave = correo.cifrar_clave(clave_gmail.get().replace(" ", ""))
+            if por_correo.get() and nuevo.metodo == "gmail" and not (nuevo.gmail_cuenta and nuevo.gmail_clave):
+                messagebox.showwarning("Gmail", "Escribí la cuenta de Gmail y la contraseña de aplicación.", parent=v)
+                return None
             return nuevo
 
         def guardar():

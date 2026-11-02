@@ -203,3 +203,49 @@ def test_aviso_sin_correo_y_error_de_envio(config_vacia, monkeypatch):
     res = correo.ejecutar_diario(correo.ConfigCorreo.cargar(), ClienteFalso(), hoy=date(2026, 10, 31),
                                  mostrar=avisos.append)
     assert avisos and any("Outlook no está instalado" in x for x in correo.lineas_aviso(res))
+
+
+class _SMTPFalso:
+    """Imita smtplib.SMTP: anota lo que se hizo, sin conectarse a nada."""
+    hechos: list = []
+    rechazar = False
+
+    def __init__(self, servidor, puerto, timeout=None):
+        _SMTPFalso.hechos = [("conectar", servidor, puerto)]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_a):
+        return False
+
+    def starttls(self):
+        self.hechos.append(("starttls",))
+
+    def login(self, usuario, clave):
+        if _SMTPFalso.rechazar:
+            import smtplib
+            raise smtplib.SMTPAuthenticationError(535, b"Username and Password not accepted")
+        self.hechos.append(("login", usuario, clave))
+
+    def send_message(self, m):
+        self.hechos.append(("enviar", m["From"], m["To"], m["Subject"]))
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="la clave se cifra con DPAPI")
+def test_envio_por_gmail(monkeypatch):
+    monkeypatch.setattr(correo.smtplib, "SMTP", _SMTPFalso)
+    cfg = correo.ConfigCorreo(destinatarios=["a@b.ar", "c@d.ar"], metodo="gmail", gmail_cuenta="oficina@gmail.com",
+                              gmail_clave=correo.cifrar_clave("abcdefghijklmnop"))
+    correo.enviar(cfg, "Prueba", "<p>hola</p>", "hola")
+    assert _SMTPFalso.hechos == [("conectar", "smtp.gmail.com", 587), ("starttls",),
+                                 ("login", "oficina@gmail.com", "abcdefghijklmnop"),
+                                 ("enviar", "oficina@gmail.com", "a@b.ar, c@d.ar", "Prueba")]
+    _SMTPFalso.rechazar = True
+    try:
+        with pytest.raises(correo.ErrorCorreo, match="contraseña de aplicación"):
+            correo.enviar(cfg, "Prueba", "<p>hola</p>", "hola")
+    finally:
+        _SMTPFalso.rechazar = False
+    with pytest.raises(correo.ErrorCorreo, match="Falta la cuenta de Gmail"):
+        correo.enviar(correo.ConfigCorreo(destinatarios=["a@b.ar"], metodo="gmail"), "x", "x", "x")

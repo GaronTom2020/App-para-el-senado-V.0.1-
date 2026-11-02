@@ -32,7 +32,9 @@ from . import __version__, asuntos_entrados, config, seguimiento
 from .cliente import Cliente
 
 TAREA = "Informe de Expedientes - resumen diario"
-METODOS = {"outlook": "Outlook de esta PC", "smtp": "Servidor SMTP"}
+METODOS = {"gmail": "Gmail", "outlook": "Outlook clásico de esta PC", "smtp": "Otro servidor SMTP"}
+GMAIL = ("smtp.gmail.com", 587)
+URL_CLAVES_GMAIL = "https://myaccount.google.com/apppasswords"
 
 
 def archivo_config() -> Path:
@@ -53,7 +55,9 @@ class ConfigCorreo:
     por_correo: bool = True                                   # mandar el resumen por correo
     aviso: bool = True                                        # mostrar un aviso en pantalla con las novedades
     ultimo: str = ""                                          # fecha (ISO) del último resumen armado
-    metodo: str = "outlook"
+    metodo: str = "gmail"
+    gmail_cuenta: str = ""
+    gmail_clave: str = ""                                     # contraseña de aplicación, cifrada (DPAPI)
     smtp_servidor: str = ""
     smtp_puerto: int = 587
     smtp_tls: bool = True
@@ -242,8 +246,27 @@ def enviar(cfg: ConfigCorreo, asunto: str, cuerpo_html: str, cuerpo_texto: str) 
         raise ErrorCorreo("No hay ninguna dirección de correo configurada.")
     if cfg.metodo == "outlook":
         _por_outlook(cfg.destinatarios, asunto, cuerpo_html)
+    elif cfg.metodo == "gmail":
+        _por_gmail(cfg, asunto, cuerpo_html, cuerpo_texto)
     else:
         _por_smtp(cfg, asunto, cuerpo_html, cuerpo_texto)
+
+
+def _por_gmail(cfg: ConfigCorreo, asunto: str, cuerpo_html: str, cuerpo_texto: str) -> None:
+    """Gmail por SMTP, con una contraseña de aplicación (la común no sirve: Google la rechaza)."""
+    if not cfg.gmail_cuenta or not cfg.gmail_clave:
+        raise ErrorCorreo("Falta la cuenta de Gmail o la contraseña de aplicación.")
+    datos = ConfigCorreo(destinatarios=cfg.destinatarios, metodo="smtp", smtp_servidor=GMAIL[0],
+                         smtp_puerto=GMAIL[1], smtp_tls=True, smtp_usuario=cfg.gmail_cuenta,
+                         smtp_clave=cfg.gmail_clave, remitente=cfg.gmail_cuenta)
+    try:
+        _por_smtp(datos, asunto, cuerpo_html, cuerpo_texto)
+    except ErrorCorreo as e:
+        if isinstance(e.__cause__, smtplib.SMTPAuthenticationError):
+            raise ErrorCorreo("Gmail no aceptó la cuenta o la contraseña. Tiene que ser una contraseña de "
+                              f"aplicación (16 letras, se crea en {URL_CLAVES_GMAIL}), no la contraseña con "
+                              "que entrás a Gmail.") from e.__cause__
+        raise
 
 
 def _por_outlook(destinatarios: list[str], asunto: str, cuerpo_html: str) -> None:
@@ -264,8 +287,9 @@ def _por_outlook(destinatarios: list[str], asunto: str, cuerpo_html: str) -> Non
                             "-File", str(script)], capture_output=True, text=True, timeout=120,
                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     if r.returncode != 0:
-        raise ErrorCorreo("Outlook no pudo enviar el correo. ¿Está instalado y con una cuenta configurada?\n"
-                          + (r.stderr or r.stdout).strip()[-400:])
+        raise ErrorCorreo("El Outlook clásico no pudo enviar el correo. El Outlook nuevo no se puede usar desde "
+                          "otros programas: si es el que usás, elegí «Gmail» u «Otro servidor SMTP».\n"
+                          + (r.stderr or r.stdout).strip()[-300:])
 
 
 def _por_smtp(cfg: ConfigCorreo, asunto: str, cuerpo_html: str, cuerpo_texto: str) -> None:
