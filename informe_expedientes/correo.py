@@ -8,10 +8,10 @@ a qué hora y cómo se envía. Una tarea programada de Windows corre todos los d
 Se envía desde la cuenta de Gmail de la oficina, creada solo para esto: el usuario solo indica a qué
 dirección quiere recibirlo. La cuenta y su contraseña de aplicación se leen, en este orden, de:
 
-1. `cuenta_envio.txt` junto al .exe (o junto a app.py): sirve para cambiar la contraseña editando un archivo
-   en la carpeta compartida, sin recompilar;
-2. la variable de entorno INFORME_CUENTA_ENVIO, con el mismo contenido;
-3. `recursos/cuenta_envio.txt`, que el workflow del .exe arma con los secretos del repositorio.
+1. `cuenta_envio.txt` junto al .exe (o junto a app.py), en la carpeta compartida de la oficina;
+2. la variable de entorno INFORME_CUENTA_ENVIO, con el mismo contenido.
+
+El .exe no la trae adentro: se publica en Releases y cualquiera podría sacarla de ahí.
 
 El archivo tiene dos renglones: la dirección y la contraseña de aplicación (los renglones que empiezan con
 # se ignoran).
@@ -256,7 +256,7 @@ def _leer_cuenta(texto: str) -> tuple[str, str] | None:
 
 def cuenta_envio() -> tuple[str, str] | None:
     """(dirección, contraseña de aplicación) de la cuenta de la oficina, o None si no está configurada."""
-    fuentes = [_carpeta_programa() / ARCHIVO_CUENTA, None, Path(__file__).resolve().parent / "recursos" / ARCHIVO_CUENTA]
+    fuentes = [_carpeta_programa() / ARCHIVO_CUENTA, None]
     for fuente in fuentes:
         if fuente is None:
             texto = os.environ.get("INFORME_CUENTA_ENVIO", "")
