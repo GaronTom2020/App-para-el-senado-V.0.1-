@@ -150,13 +150,15 @@ def generar(texto: str, opciones: Opciones, cliente: Cliente, avisar=_nada, hoy:
 
 def escribir_informes(resultado: Resultado, opciones: Opciones, avisar=_nada) -> dict[str, Path]:
     from . import informe_docx, informe_html
+    from .pdf import ErrorPDF, desde_html
 
     carpeta = Path(opciones.carpeta_salida)
     carpeta.mkdir(parents=True, exist_ok=True)
     base = nombre_archivo_seguro(opciones.nombre_archivo or
                                  f"Informe {resultado.titulo.replace('/', '-').replace(' ', '-')} "
                                  f"({resultado.generado:%Y-%m-%d})")
-    escritores = {"docx": informe_docx.escribir, "html": informe_html.escribir}
+    escritores = {"docx": informe_docx.escribir, "html": informe_html.escribir,
+                  "pdf": desde_html(informe_html.escribir)}
     for formato in opciones.formatos:
         if formato not in escritores:
             continue
@@ -164,6 +166,9 @@ def escribir_informes(resultado: Resultado, opciones: Opciones, avisar=_nada) ->
         destino = carpeta / f"{base}.{formato}"
         try:
             escritores[formato](resultado, destino)
+        except ErrorPDF as e:
+            avisar("advertencia", str(e))
+            continue
         except PermissionError:
             # Suele pasar si el archivo anterior está abierto en Word.
             destino = carpeta / f"{base} {resultado.generado:%H%M%S}.{formato}"

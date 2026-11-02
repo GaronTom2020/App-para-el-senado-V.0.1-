@@ -28,9 +28,9 @@ from .orden_dia import OrdenDelDiaVacia, parsear_od
 from .identificador import ErrorIdentificador, parsear, separar_lote
 from .busqueda import OTROS, Consulta, separar_palabras
 from .ejes import Eje, buscar_eje, cargar_ejes, guardar_ejes
-from . import asuntos_entrados, plan_labor, senadores
+from . import actualizaciones, asuntos_entrados, plan_labor, senadores
 from .seguimiento import (
-    Lista, OpcionesSeguimiento, ResultadoSeguimiento, markdown, revisar, situacion_breve, ultimo_movimiento,
+    Lista, OpcionesSeguimiento, ResultadoSeguimiento, exportar_lista, markdown, revisar, situacion_breve, ultimo_movimiento,
 )
 from .sesion import OpcionesSesion, ResultadoSesion, etiqueta_referencias, generar_sesion
 from .sesion import resumen as resumen_sesion
@@ -48,6 +48,9 @@ P = {
 ICONO = Path(__file__).resolve().parent / "recursos" / "icono.ico"
 LOGO = Path(__file__).resolve().parent / "recursos" / "logo_senado.png"     # isologotipo del sitio del Senado
 TITULO = "Sistema de Información Parlamentaria"
+# Cada pestaña guarda sus archivos en su propia subcarpeta de la carpeta de informes.
+SUBCARPETAS = {"expedientes": "Expedientes", "tema": "Por tema", "seguimiento": "Seguimiento", "sesion": "Sesión",
+               "asuntos": "Asuntos entrados"}
 PAD_FILA = 4            # separación entre renglones de los paneles
 ANCHO_PANEL = 380       # ancho inicial de las explicaciones (después siguen el ancho del panel)
 ENLACES = [
@@ -209,6 +212,7 @@ class Aplicacion(tk.Tk):
         self.bind_all("<Control-Return>", lambda _e: self._generar())
         self.protocol("WM_DELETE_WINDOW", self._cerrar)
         self.after(120, self._procesar_cola)
+        self.after(3000, self._buscar_version)
         self.txt_expedientes.focus_set()
 
     # --------------------------------------------------------------- estilo
@@ -301,6 +305,7 @@ class Aplicacion(tk.Tk):
         self.var_agenda = tk.BooleanVar(value=c.get("agenda", True))
         self.var_docx = tk.BooleanVar(value=c.get("docx", True))
         self.var_html = tk.BooleanVar(value=c.get("html", True))
+        self.var_pdf = tk.BooleanVar(value=c.get("pdf", False))
         self.var_carpeta = tk.StringVar(value=c.get("carpeta", str(config.carpeta_informes_por_defecto())))
         self.var_cache = tk.BooleanVar(value=c.get("usar_cache", True))
         self.var_diagnostico = tk.BooleanVar(value=c.get("diagnostico", False))
@@ -327,6 +332,7 @@ class Aplicacion(tk.Tk):
         self.var_t_docx = tk.BooleanVar(value=c.get("tema_docx", True))
         self.var_t_html = tk.BooleanVar(value=c.get("tema_html", True))
         self.var_t_xlsx = tk.BooleanVar(value=c.get("tema_xlsx", True))
+        self.var_t_pdf = tk.BooleanVar(value=c.get("tema_pdf", False))
         self.lista_seguimiento = Lista()
         self.var_seg_alias = tk.StringVar()
         self.registro_ae = asuntos_entrados.Registro.cargar()
@@ -348,12 +354,14 @@ class Aplicacion(tk.Tk):
         self.var_notas = tk.StringVar()
         self.var_seg_grupo = tk.StringVar(value=TODOS_LOS_SEGUIDOS)
         self.var_seg_reuniones = tk.BooleanVar(value=c.get("seguimiento_reuniones", True))
+        self.var_seg_relacionados = tk.BooleanVar(value=c.get("seguimiento_relacionados", False))
         self.var_ses_fuente = tk.StringVar(value="Abrí un archivo, buscá el plan en el sitio o pegá el texto.")
         self.var_ses_plan = tk.StringVar()
         self.var_ses_reuniones = tk.BooleanVar(value=False)
+        self.var_ses_relacionados = tk.BooleanVar(value=c.get("sesion_relacionados", False))
         self.var_ses_taquigrafica = tk.BooleanVar(value=c.get("sesion_taquigrafica", True))
         self.vars_ses_formatos = {f: tk.BooleanVar(value=f in c.get("sesion_formatos", ["docx", "html", "xlsx", "csv"]))
-                                  for f in ("docx", "html", "xlsx", "csv")}
+                                  for f in ("docx", "html", "xlsx", "csv", "pdf")}
         self.planes_publicados: list = []
         self.plan_publicado = None
         self.ses_fuente = ""
@@ -378,6 +386,8 @@ class Aplicacion(tk.Tk):
                                      variable=self.var_diagnostico)
         herramientas.add_command(label="Abrir carpeta de diagnóstico", command=self._abrir_diagnostico)
         herramientas.add_separator()
+        herramientas.add_command(label="Resumen diario (correo y aviso)…", command=self._config_correo)
+        herramientas.add_separator()
         herramientas.add_command(label="Vaciar caché", command=self._vaciar_cache)
         barra.add_cascade(label="Herramientas", menu=herramientas)
         enlaces = tk.Menu(barra, tearoff=False)
@@ -388,7 +398,9 @@ class Aplicacion(tk.Tk):
                 enlaces.add_command(label=enlace[0], command=lambda u=enlace[1]: webbrowser.open(u))
         barra.add_cascade(label="Enlaces útiles", menu=enlaces)
         ayuda = tk.Menu(barra, tearoff=False)
+        ayuda.add_command(label="Manual de usuario", command=self._manual)
         ayuda.add_command(label="Cómo funciona", command=self._ayuda)
+        ayuda.add_command(label="Buscar actualizaciones", command=lambda: self._buscar_version(manual=True))
         ayuda.add_command(label="Acerca del programa", command=self._acerca)
         barra.add_cascade(label="Ayuda", menu=ayuda)
         self.config(menu=barra)
@@ -535,7 +547,7 @@ class Aplicacion(tk.Tk):
         self.chk_asesores.pack(side="left")
         self._casillas(marco, 5, [("Reuniones ya convocadas (agenda)", self.var_agenda)])
         self._rotulo(marco, "Formato", 6)
-        self._casillas(marco, 6, [("Word", self.var_docx), ("HTML", self.var_html)])
+        self._casillas(marco, 6, [("Word", self.var_docx), ("HTML", self.var_html), ("PDF", self.var_pdf)])
 
         self._rotulo(marco, "Comentario", 7)
         ttk.Entry(marco, textvariable=self.var_notas).grid(row=7, column=1, columnspan=3, sticky="ew",
@@ -613,7 +625,8 @@ class Aplicacion(tk.Tk):
         self._casillas(marco, 11, [("Ficha", self.var_detallar), ("Reuniones (lento)", self.var_reuniones_tema),
                                    ("Informe completo", self.var_individuales)])
         self._rotulo(marco, "Formato", 13)
-        self._casillas(marco, 13, [("Word", self.var_t_docx), ("HTML", self.var_t_html), ("Excel", self.var_t_xlsx)])
+        self._casillas(marco, 13, [("Word", self.var_t_docx), ("HTML", self.var_t_html), ("Excel", self.var_t_xlsx),
+                                   ("PDF", self.var_t_pdf)])
         self.btn_generar_tema, self.btn_cancelar_tema = self._botones_generar(
             marco, 14, "Generar informe temático", self._generar_tematico)
         return marco
@@ -662,6 +675,11 @@ class Aplicacion(tk.Tk):
         for texto, comando in (("Nombre…", self._nombrar_seguido), ("Agrupar…", self._agrupar_elegidos),
                                ("Ficha", self._ficha_seguimiento), ("Quitar", self._quitar_seguimiento)):
             ttk.Button(acciones, text=texto, style="Chico.TButton", command=comando).pack(side="left", padx=(0, 4))
+        menu_exportar = tk.Menu(self, tearoff=False)
+        menu_exportar.add_command(label="Excel (con grupos y situación)", command=lambda: self._exportar_seguimiento("xlsx"))
+        menu_exportar.add_command(label="PDF", command=lambda: self._exportar_seguimiento("pdf"))
+        ttk.Menubutton(acciones, text="Exportar", menu=menu_exportar, style="Chico.TMenubutton").pack(
+            side="left", padx=(0, 4))
         self.btn_sacar_grupo = ttk.Button(acciones, text="Sacar del grupo", style="Chico.TButton",
                                           command=self._sacar_del_grupo)
         self._explicacion(marco, "", 3).configure(textvariable=self.var_seg_info)
@@ -681,7 +699,8 @@ class Aplicacion(tk.Tk):
 
         self._rotulo(marco, "Al revisar", 8)
         self._casillas(marco, 8, [("Reuniones (lento)", self.var_seg_reuniones),
-                                  ("Guardar resumen en archivo", self.var_seg_archivo)])
+                                  ("Relacionados (lento)", self.var_seg_relacionados)])
+        self._casillas(marco, 9, [("Guardar resumen en archivo", self.var_seg_archivo)])
         self.btn_revisar, self.btn_cancelar_seg = self._botones_generar(marco, 10, "Revisar novedades",
                                                                         self._revisar_seguimiento)
         ttk.Label(marco, textvariable=self.var_seg_ultima, style="Revision.TLabel").grid(
@@ -716,7 +735,8 @@ class Aplicacion(tk.Tk):
                    command=lambda: self._accion_expediente("seguir")).pack(side="left")
         ttk.Button(acciones, text="Ver la última revisión", style="Chico.TButton",
                    command=self._ver_ultimos_asuntos).pack(side="left", padx=(6, 0))
-        self._casillas(marco, 8, [("Generar un informe de los asuntos (Word y HTML)", self.var_ae_informe)], columna=0)
+        self._casillas(marco, 8, [("Generar un informe de los asuntos (Word, HTML y PDF)", self.var_ae_informe)],
+                       columna=0)
         self.btn_asuntos, self.btn_cancelar_ae = self._botones_generar(marco, 9, "Buscar asuntos nuevos",
                                                                        self._buscar_asuntos)
         ttk.Label(marco, textvariable=self.var_ae_info, style="Revision.TLabel").grid(
@@ -745,12 +765,13 @@ class Aplicacion(tk.Tk):
         self._explicacion(marco, "", 5).configure(textvariable=self.var_ses_fuente)
 
         self._rotulo(marco, "Buscar", 6)
-        self._casillas(marco, 6, [("Reuniones de comisión (lento)", self.var_ses_reuniones)])
+        self._casillas(marco, 6, [("Reuniones de comisión (lento)", self.var_ses_reuniones),
+                                  ("Relacionados (lento)", self.var_ses_relacionados)])
         self._casillas(marco, 7, [("Versión taquigráfica (si la sesión ya se hizo)", self.var_ses_taquigrafica)])
         self._rotulo(marco, "Formato", 8)
         self._casillas(marco, 8, [("Word", self.vars_ses_formatos["docx"]), ("HTML", self.vars_ses_formatos["html"]),
                                   ("Excel", self.vars_ses_formatos["xlsx"]),
-                                  ("CSV (Power BI)", self.vars_ses_formatos["csv"])])
+                                  ("CSV (Power BI)", self.vars_ses_formatos["csv"]), ("PDF", self.vars_ses_formatos["pdf"])])
         self.btn_generar_ses, self.btn_cancelar_ses = self._botones_generar(marco, 9, "Generar informe de sesión",
                                                                             self._generar_sesion)
         return marco
@@ -803,14 +824,17 @@ class Aplicacion(tk.Tk):
                                    style="Barra.TButton")
         self.btn_excel = ttk.Button(acciones, text="Excel", command=lambda: self._abrir("xlsx"), state="disabled",
                                     style="Barra.TButton")
+        self.btn_pdf = ttk.Button(acciones, text="PDF", command=lambda: self._abrir("pdf"), state="disabled",
+                                  style="Barra.TButton")
         self.btn_ficha = ttk.Button(acciones, text="Ver ficha", command=self._ver_ficha, state="disabled",
                                     style="Barra.TButton")
         self.btn_copiar = ttk.Button(acciones, text="Copiar resumen", command=self._copiar, state="disabled",
                                      style="Barra.TButton")
-        for i, b in enumerate((self.btn_word, self.btn_html, self.btn_excel, self.btn_ficha, self.btn_copiar), 1):
+        for i, b in enumerate((self.btn_word, self.btn_html, self.btn_excel, self.btn_pdf, self.btn_ficha,
+                               self.btn_copiar), 1):
             b.grid(row=0, column=i, padx=(0, 6))
-        ttk.Button(acciones, text="Carpeta", command=self._abrir_carpeta, style="Barra.TButton").grid(row=0, column=7, sticky="e")
-        acciones.columnconfigure(6, weight=1)
+        ttk.Button(acciones, text="Carpeta", command=self._abrir_carpeta, style="Barra.TButton").grid(row=0, column=8, sticky="e")
+        acciones.columnconfigure(7, weight=1)
 
         menu = tk.Menu(self, tearoff=False)
         menu.add_command(label="Abrir la nota de la reunión", command=lambda: self._abrir_reunion("nota"))
@@ -912,14 +936,15 @@ class Aplicacion(tk.Tk):
 
     def _opciones(self) -> Opciones:
         tipo = self.var_tipo.get()
-        formatos = tuple(f for f, v in (("docx", self.var_docx), ("html", self.var_html)) if v.get())
+        formatos = tuple(f for f, v in (("docx", self.var_docx), ("html", self.var_html), ("pdf", self.var_pdf))
+                         if v.get())
         return Opciones(
             tipo=None if tipo == TIPO_AUTOMATICO else tipo.split(" ")[0],
             buscar_reuniones=self.var_reuniones.get(),
             incluir_asesores=self.var_asesores.get(),
             buscar_agenda=self.var_agenda.get(),
             formatos=formatos,
-            carpeta_salida=Path(self.var_carpeta.get()).expanduser(),
+            carpeta_salida=self._carpeta("expedientes"),
             notas_usuario=self.var_notas.get().strip(),
         )
 
@@ -1025,6 +1050,8 @@ class Aplicacion(tk.Tk):
                 self._contando = False
         elif evento in ("log", "advertencia"):
             self._registro(("Aviso: " if evento == "advertencia" else "") + mensaje)
+        elif evento == "version":
+            self._ofrecer_version(datos["version"], datos["manual"])
         elif evento == "traer":
             idents = datos["idents"]
             if idents:
@@ -1102,6 +1129,7 @@ class Aplicacion(tk.Tk):
 
     def _mostrar(self, r) -> None:
         self.actual = r
+        self.btn_pdf.state(["!disabled"] if "pdf" in getattr(r, "archivos", {}) else ["disabled"])
         if isinstance(r, ResultadoTematico):
             self._mostrar_tematico(r)
             return
@@ -1312,9 +1340,10 @@ class Aplicacion(tk.Tk):
         if not formatos:
             messagebox.showinfo("Formato", "Marcá al menos un formato.")
             return
-        opciones = OpcionesSesion(buscar_reuniones=self.var_ses_reuniones.get(), incluir_asesores=self.var_asesores.get(),
+        opciones = OpcionesSesion(buscar_reuniones=self.var_ses_reuniones.get(),
+                                  buscar_relacionados=self.var_ses_relacionados.get(), incluir_asesores=self.var_asesores.get(),
                                   buscar_taquigrafica=self.var_ses_taquigrafica.get(),
-                                  formatos=formatos, carpeta_salida=Path(self.var_carpeta.get()).expanduser())
+                                  formatos=formatos, carpeta_salida=self._carpeta("sesion"))
         self._guardar_preferencias()
         self.cancelar.clear()
         self._registro(f"— Informe de sesión: {len(plan.asuntos)} asuntos")
@@ -1788,9 +1817,10 @@ class Aplicacion(tk.Tk):
                                 "Agregá al menos un expediente a la lista de seguimiento.")
             return
         opciones = OpcionesSeguimiento(buscar_reuniones=self.var_seg_reuniones.get(),
+                                       buscar_relacionados=self.var_seg_relacionados.get(),
                                        incluir_asesores=self.var_asesores.get(),
                                        formatos=("html", "md") if self.var_seg_archivo.get() else (),
-                                       carpeta_salida=Path(self.var_carpeta.get()).expanduser())
+                                       carpeta_salida=self._carpeta("seguimiento"))
         self._guardar_preferencias()
         self.cancelar.clear()
         self._registro(f"— Revisión de seguimiento ({len(elegidos)} expedientes"
@@ -1905,7 +1935,7 @@ class Aplicacion(tk.Tk):
             except Exception as e:  # noqa: BLE001
                 fallidos.append(mensaje_de_error(e))
                 self.cola.put(("log", traceback.format_exc(), {}))
-            self.cola.put(("fin", "", {"hechos": hechos, "fallidos": fallidos, "carpeta": self.var_carpeta.get(),
+            self.cola.put(("fin", "", {"hechos": hechos, "fallidos": fallidos, "carpeta": str(self._carpeta("asuntos")),
                                        "pedidos": cliente.pedidos_red, "cache": cliente.pedidos_cache}))
 
         self.hilo = threading.Thread(target=trabajo, daemon=True)
@@ -1942,9 +1972,10 @@ class Aplicacion(tk.Tk):
         """Con la casilla marcada, guarda el informe de lo que muestran los filtros (Word y HTML)."""
         from . import informe_asuntos
         try:
-            informe_asuntos.escribir(res, self._filtro_asuntos(res.asuntos), Path(self.var_carpeta.get()).expanduser(),
-                                     filtros=self._texto_filtros_asuntos())
+            informe_asuntos.escribir(res, self._filtro_asuntos(res.asuntos), self._carpeta("asuntos"),
+                                     formatos=("docx", "html", "pdf"), filtros=self._texto_filtros_asuntos())
             self._registro("Informe de asuntos entrados: " + ", ".join(str(p) for p in res.archivos.values()))
+            self.btn_pdf.state(["!disabled"] if "pdf" in res.archivos else ["disabled"])
         except OSError as e:
             messagebox.showwarning("No se pudo guardar el informe", str(e))
 
@@ -2101,7 +2132,7 @@ class Aplicacion(tk.Tk):
             messagebox.showinfo("Tipos", "Marcá al menos un tipo de proyecto.")
             return
         formatos = tuple(f for f, v in (("docx", self.var_t_docx), ("html", self.var_t_html),
-                                        ("xlsx", self.var_t_xlsx)) if v.get())
+                                        ("xlsx", self.var_t_xlsx), ("pdf", self.var_t_pdf)) if v.get())
         if not formatos:
             messagebox.showinfo("Formato", "Marcá Word, HTML o Excel.")
             return
@@ -2122,7 +2153,7 @@ class Aplicacion(tk.Tk):
         opciones = OpcionesTematicas(
             detallar=self.var_detallar.get() or self.var_reuniones_tema.get() or self.var_individuales.get(),
             buscar_reuniones=self.var_reuniones_tema.get(), informes_individuales=self.var_individuales.get(),
-            formatos=formatos, carpeta_salida=Path(self.var_carpeta.get()).expanduser(),
+            formatos=formatos, carpeta_salida=self._carpeta("tema"),
         )
         self._guardar_preferencias()
         self.cancelar.clear()
@@ -2378,6 +2409,27 @@ class Aplicacion(tk.Tk):
             self.clipboard_append(texto)
             self.var_estado.set("Resumen copiado al portapapeles.")
 
+    def _exportar_seguimiento(self, formato: str) -> None:
+        """Guarda la lista (o el grupo que se está viendo) en Excel o PDF y la abre."""
+        from .pdf import ErrorPDF
+        grupo = self.var_seg_grupo.get()
+        grupo = None if grupo == TODOS_LOS_SEGUIDOS else grupo
+        lista = self.lista_seguimiento
+        if not lista.del_grupo(grupo):
+            messagebox.showinfo("Lista vacía", "No hay expedientes para exportar.")
+            return
+        try:
+            destino = exportar_lista(lista, self._carpeta("seguimiento"), formato, grupo)
+        except (OSError, ErrorPDF) as e:
+            messagebox.showwarning("No se pudo exportar", str(e))
+            return
+        self._registro(f"Lista de seguimiento exportada: {destino}")
+        abrir_en_sistema(destino)
+
+    def _carpeta(self, modo: str) -> Path:
+        """Subcarpeta de la carpeta de informes para los archivos de cada pestaña."""
+        return Path(self.var_carpeta.get()).expanduser() / SUBCARPETAS[modo]
+
     def _abrir_carpeta(self) -> None:
         carpeta = Path(self.var_carpeta.get()).expanduser()
         carpeta.mkdir(parents=True, exist_ok=True)
@@ -2425,6 +2477,212 @@ class Aplicacion(tk.Tk):
             "Si algo no se lee bien, activá «Herramientas → Guardar las páginas descargadas» y enviá esa carpeta "
             "a quien mantiene el programa."))
 
+    def _config_correo(self) -> None:
+        """Ventana para que cada usuario elija si recibe el resumen diario, a qué direcciones y qué incluye."""
+        from . import correo
+        cfg = correo.ConfigCorreo.cargar()
+        v = tk.Toplevel(self)
+        v.title("Resumen diario")
+        v.configure(bg=P["papel"])
+        v.transient(self)
+        v.resizable(False, False)
+        m = ttk.Frame(v, padding=16, style="Tarjeta.TFrame")
+        m.pack(fill="both", expand=True)
+        m.columnconfigure(1, weight=1)
+
+        activo = tk.BooleanVar(value=cfg.activo)
+        por_correo, aviso = tk.BooleanVar(value=cfg.por_correo), tk.BooleanVar(value=cfg.aviso)
+        destinos = tk.StringVar(value=", ".join(cfg.destinatarios))
+        hora = tk.StringVar(value=cfg.hora)
+        con_seg = tk.BooleanVar(value=cfg.seguimiento)
+        con_ae = tk.BooleanVar(value=cfg.asuntos)
+        palabras = tk.StringVar(value=cfg.asuntos_palabras)
+        vacio = tk.BooleanVar(value=cfg.enviar_vacio)
+        metodo = tk.StringVar(value=correo.METODOS.get(cfg.metodo, correo.METODOS["outlook"]))
+        servidor, puerto = tk.StringVar(value=cfg.smtp_servidor), tk.StringVar(value=str(cfg.smtp_puerto))
+        usuario, clave = tk.StringVar(value=cfg.smtp_usuario), tk.StringVar()
+        tls = tk.BooleanVar(value=cfg.smtp_tls)
+        grupos = {g: tk.BooleanVar(value=g in cfg.grupos) for g in self.lista_seguimiento.grupos}
+        tipos = {c: tk.BooleanVar(value=c in cfg.asuntos_tipos) for c, _ in TIPOS_TEMA}
+
+        def renglon(fila, texto, widget):
+            ttk.Label(m, text=texto, style="Rotulo.TLabel").grid(row=fila, column=0, sticky="nw", pady=3, padx=(0, 10))
+            widget.grid(row=fila, column=1, sticky="ew", pady=3)
+
+        def explicacion(padre, texto):
+            return ttk.Label(padre, text=texto, style="Ayuda.TLabel", wraplength=380, justify="left")
+
+        arriba = ttk.Frame(m, style="Tarjeta.TFrame")
+        arriba.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
+        ttk.Checkbutton(arriba, text="Armar todos los días un resumen de novedades", variable=activo,
+                        style="Tarjeta.TCheckbutton").pack(anchor="w")
+        formas = ttk.Frame(arriba, style="Tarjeta.TFrame")
+        formas.pack(anchor="w", padx=(22, 0), pady=(2, 0))
+        ttk.Checkbutton(formas, text="Enviarlo por correo", variable=por_correo,
+                        style="Tarjeta.TCheckbutton").pack(side="left", padx=(0, 12))
+        ttk.Checkbutton(formas, text="Mostrar un aviso en pantalla con las novedades", variable=aviso,
+                        style="Tarjeta.TCheckbutton").pack(side="left")
+        renglon(1, "Correo", ttk.Entry(m, textvariable=destinos, width=46))
+        explicacion(m, "Una o más direcciones, separadas por coma.").grid(row=2, column=1, sticky="w")
+        renglon(3, "Hora (hh:mm)", ttk.Entry(m, textvariable=hora, width=8))
+        explicacion(m, "Se arma a esa hora, con lo nuevo desde el resumen anterior. Si a esa hora la PC está "
+                       "apagada o sin tu sesión iniciada, se arma apenas entres.").grid(row=4, column=1, sticky="w")
+
+        caja = ttk.Frame(m, style="Tarjeta.TFrame")
+        ttk.Checkbutton(caja, text="Novedades de la lista de seguimiento", variable=con_seg,
+                        style="Tarjeta.TCheckbutton").pack(anchor="w")
+        if grupos:
+            explicacion(caja, "Solo de estos grupos (ninguno marcado: toda la lista):").pack(anchor="w", padx=(22, 0))
+            for g, var in grupos.items():
+                ttk.Checkbutton(caja, text=g, variable=var, style="Tarjeta.TCheckbutton").pack(anchor="w", padx=(22, 0))
+        ttk.Checkbutton(caja, text="Asuntos entrados nuevos (DAE)", variable=con_ae,
+                        style="Tarjeta.TCheckbutton").pack(anchor="w", pady=(6, 0))
+        fila_tipos = ttk.Frame(caja, style="Tarjeta.TFrame")
+        fila_tipos.pack(anchor="w", padx=(22, 0))
+        for c, nombre in TIPOS_TEMA:
+            ttk.Checkbutton(fila_tipos, text=nombre, variable=tipos[c], style="Tarjeta.TCheckbutton").pack(
+                side="left", padx=(0, 8))
+        fila_pal = ttk.Frame(caja, style="Tarjeta.TFrame")
+        fila_pal.pack(anchor="w", padx=(22, 0), pady=(2, 0))
+        ttk.Label(fila_pal, text="Con las palabras:", style="Tarjeta.TLabel").pack(side="left")
+        ttk.Entry(fila_pal, textvariable=palabras, width=28).pack(side="left", padx=(6, 0))
+        ttk.Checkbutton(caja, text="Enviarlo también los días sin novedades", variable=vacio,
+                        style="Tarjeta.TCheckbutton").pack(anchor="w", pady=(6, 0))
+        renglon(5, "Incluir", caja)
+
+        renglon(6, "Enviar con", ttk.Combobox(m, textvariable=metodo, values=list(correo.METODOS.values()),
+                                              state="readonly", width=24))
+        smtp = ttk.Frame(m, style="Tarjeta.TFrame")
+        campos = (("Servidor", servidor, 26, ""), ("Puerto", puerto, 6, ""), ("Usuario", usuario, 26, ""),
+                  ("Contraseña", clave, 26, "•"))
+        for i, (texto, var, ancho, oculto) in enumerate(campos):
+            ttk.Label(smtp, text=texto, style="Tarjeta.TLabel").grid(row=i, column=0, sticky="w", padx=(0, 8))
+            ttk.Entry(smtp, textvariable=var, width=ancho, show=oculto).grid(row=i, column=1, sticky="w", pady=1)
+        ttk.Checkbutton(smtp, text="Conexión segura (STARTTLS)", variable=tls, style="Tarjeta.TCheckbutton").grid(
+            row=4, column=1, sticky="w")
+        explicacion(smtp, "La contraseña se guarda cifrada con tu cuenta de Windows"
+                          + (" (ya hay una guardada: dejala vacía para no cambiarla)." if cfg.smtp_clave else ".")
+                    ).grid(row=5, column=0, columnspan=2, sticky="w")
+
+        def ver_smtp(*_):
+            if metodo.get() == correo.METODOS["smtp"]:
+                smtp.grid(row=7, column=1, sticky="w", pady=(2, 0))
+            else:
+                smtp.grid_remove()
+        metodo.trace_add("write", ver_smtp)
+        ver_smtp()
+
+        def leer():
+            direcciones = [x.strip() for x in destinos.get().replace(";", ",").split(",") if x.strip()]
+            if (activo.get() and por_correo.get() and not direcciones) or not all("@" in x for x in direcciones):
+                messagebox.showwarning("Correo", "Escribí al menos una dirección de correo válida.", parent=v)
+                return None
+            try:
+                datetime.strptime(hora.get().strip(), "%H:%M")
+            except ValueError:
+                messagebox.showwarning("Hora", "Escribí la hora como hh:mm, por ejemplo 07:30.", parent=v)
+                return None
+            nuevo = correo.ConfigCorreo(
+                activo=activo.get(), por_correo=por_correo.get(), aviso=aviso.get(), ultimo=cfg.ultimo,
+                destinatarios=direcciones, hora=hora.get().strip().zfill(5),
+                seguimiento=con_seg.get(), grupos=[g for g, x in grupos.items() if x.get()],
+                asuntos=con_ae.get(), asuntos_tipos=[c for c, x in tipos.items() if x.get()],
+                asuntos_palabras=palabras.get().strip(), enviar_vacio=vacio.get(),
+                metodo=next(k for k, t in correo.METODOS.items() if t == metodo.get()),
+                smtp_servidor=servidor.get().strip(), smtp_puerto=int(puerto.get() or 587), smtp_tls=tls.get(),
+                smtp_usuario=usuario.get().strip(), smtp_clave=cfg.smtp_clave, remitente=cfg.remitente)
+            if clave.get():
+                nuevo.smtp_clave = correo.cifrar_clave(clave.get())
+            return nuevo
+
+        def guardar():
+            nuevo = leer()
+            if nuevo is None:
+                return
+            try:
+                nuevo.guardar()
+                correo.programar(nuevo)
+            except (OSError, correo.ErrorCorreo) as e:
+                messagebox.showwarning("Resumen diario", str(e), parent=v)
+                return
+            formas = [x for x, si in ((f"por correo a {', '.join(nuevo.destinatarios)}", nuevo.por_correo),
+                                      ("con aviso en pantalla", nuevo.aviso)) if si]
+            self._registro("Resumen diario: " + (f"activado, todos los días a las {nuevo.hora}, "
+                           + " y ".join(formas or ["sin correo ni aviso"]) + "." if nuevo.activo else "desactivado."))
+            v.destroy()
+
+        def probar():
+            nuevo = leer()
+            if nuevo is None or not nuevo.destinatarios:
+                messagebox.showinfo("Prueba", "Escribí una dirección de correo.", parent=v)
+                return
+            v.configure(cursor="watch")
+            v.update()
+            try:
+                correo.enviar(nuevo, "Prueba — Resumen parlamentario",
+                              "<p>Este es un correo de prueba del Sistema de Información Parlamentaria. "
+                              "Si lo recibiste, el resumen diario va a llegar a esta dirección.</p>",
+                              "Correo de prueba del Sistema de Información Parlamentaria.")
+                messagebox.showinfo("Prueba", "Correo de prueba enviado.", parent=v)
+            except (OSError, correo.ErrorCorreo) as e:
+                messagebox.showwarning("No se pudo enviar", str(e), parent=v)
+            finally:
+                v.configure(cursor="")
+
+        botones = ttk.Frame(m, style="Tarjeta.TFrame")
+        botones.grid(row=8, column=0, columnspan=2, sticky="e", pady=(14, 0))
+        ttk.Button(botones, text="Enviar una prueba", command=probar, style="Chico.TButton").pack(side="left", padx=(0, 6))
+        ttk.Button(botones, text="Cancelar", command=v.destroy, style="Chico.TButton").pack(side="left", padx=(0, 6))
+        ttk.Button(botones, text="Guardar", command=guardar).pack(side="left")
+        v.grab_set()
+
+    def _manual(self) -> None:
+        destino = actualizaciones.manual()
+        if destino.startswith("http"):
+            webbrowser.open(destino)
+        else:
+            abrir_en_sistema(destino)
+
+    def _buscar_version(self, manual: bool = False) -> None:
+        """Consulta en segundo plano si hay una versión nueva: al abrir, una vez por día; desde Ayuda, siempre."""
+        hoy = date.today().isoformat()
+        if not manual and self.cfg.get("version_consultada") == hoy:
+            return
+        self.cfg["version_consultada"] = hoy
+
+        def trabajo():
+            self.cola.put(("version", "", {"version": actualizaciones.hay_nueva(), "manual": manual}))
+        threading.Thread(target=trabajo, daemon=True).start()
+
+    def _ofrecer_version(self, version, manual: bool) -> None:
+        if version is None:
+            if manual:
+                messagebox.showinfo("Actualizaciones", f"Tenés la versión más nueva ({__version__}).")
+            return
+        if version.numero == self.cfg.get("version_omitida") and not manual:
+            return
+        if not (actualizaciones.es_ejecutable() and version.exe):
+            if messagebox.askyesno("Versión nueva", f"Hay una versión nueva del programa: {version.numero} "
+                                   f"(tenés la {__version__}).\n\n¿Querés abrir la página para descargarla?"):
+                webbrowser.open(version.pagina)
+            else:
+                self.cfg["version_omitida"] = version.numero
+            return
+        if not messagebox.askyesno("Versión nueva", f"Hay una versión nueva del programa: {version.numero} "
+                                   f"(tenés la {__version__}).\n\n¿Querés instalarla ahora? El programa se "
+                                   "cierra, se actualiza y se vuelve a abrir solo."):
+            self.cfg["version_omitida"] = version.numero
+            return
+        try:
+            bat = actualizaciones.instalar(version, self.var_estado.set)
+        except Exception as e:  # noqa: BLE001 - sin permisos en la carpeta, sin red…
+            if messagebox.askyesno("No se pudo instalar", f"No se pudo instalar la versión nueva: {e}\n\n"
+                                   "¿Querés abrir la página para descargarla a mano?"):
+                webbrowser.open(version.pagina)
+            return
+        actualizaciones.lanzar_reemplazo(bat)
+        self._cerrar()
+
     def _acerca(self) -> None:
         messagebox.showinfo("Acerca del programa", (
             f"{TITULO} (SIP – HSN), versión {__version__}\n\n"
@@ -2436,11 +2694,14 @@ class Aplicacion(tk.Tk):
         self.cfg.update({
             "reuniones": self.var_reuniones.get(), "asesores": self.var_asesores.get(),
             "agenda": self.var_agenda.get(), "docx": self.var_docx.get(), "html": self.var_html.get(),
+            "pdf": self.var_pdf.get(), "tema_pdf": self.var_t_pdf.get(),
             "carpeta": self.var_carpeta.get(), "usar_cache": self.var_cache.get(),
             "diagnostico": self.var_diagnostico.get(),
             "tema_tipos": [c for c, v in self.vars_tipos.items() if v.get()], "tema_detallar": self.var_detallar.get(),
             "tema_docx": self.var_t_docx.get(), "tema_html": self.var_t_html.get(), "tema_xlsx": self.var_t_xlsx.get(),
             "seguimiento_reuniones": self.var_seg_reuniones.get(),
+            "seguimiento_relacionados": self.var_seg_relacionados.get(),
+            "sesion_relacionados": self.var_ses_relacionados.get(),
             "seguimiento_archivo": self.var_seg_archivo.get(),
             "asuntos_informe": self.var_ae_informe.get(),
             "sesion_formatos": [f for f, v in self.vars_ses_formatos.items() if v.get()],

@@ -31,8 +31,8 @@ DIAS_AVISO_CADUCIDAD = 60
 VERSION = 1
 
 # Orden en que se listan las novedades de un expediente.
-CLASES = ("error", "alta", "situacion", "sancion", "votacion", "diputados", "dictamen", "egreso", "giro",
-          "convocatoria", "reunion", "caducidad")
+CLASES = ("error", "alta", "situacion", "sancion", "votacion", "diputados", "dictamen", "relacionado", "egreso",
+          "giro", "convocatoria", "reunion", "caducidad")
 # Movimientos del sitio de Diputados que interesan para el seguimiento.
 _MOVIMIENTOS = ("PASA A", "VUELVE A", "VETO", "INSISTENCIA", "OBSERVA")
 
@@ -98,6 +98,7 @@ class Revision:
 @dataclass
 class OpcionesSeguimiento:
     buscar_reuniones: bool = True
+    buscar_relacionados: bool = False      # lento: lee la ficha de cada relacionado
     incluir_asesores: bool = True
     formatos: tuple[str, ...] = ("html", "md")
     carpeta_salida: Path = field(default_factory=config.carpeta_informes_por_defecto)
@@ -260,6 +261,8 @@ def foto(r: Resultado) -> dict:
         "reuniones_buscadas": r.busqueda.realizada,
         "convocadas": [[_iso(c.fecha) or c.fecha_texto, c.hora, c.titulo, c.comision, c.url] for c in r.convocadas],
         "caducidad": _iso(s.caducidad.fecha) if s.caducidad else None,
+        "relacionados": [[x.ident.corto, x.texto_relacion(), x.url, x.situacion] for x in r.relacionados],
+        "relacionados_buscados": r.relacionados_consultados,
     }
 
 
@@ -410,6 +413,12 @@ def comparar(anterior: dict | None, nueva: dict, hoy: date) -> list[Novedad]:
         faltan = (caducidad - hoy).days
         cuando = "hoy" if faltan == 0 else f"en {cantidad(faltan, 'día', 'días')}"
         agregar(Novedad("caducidad", f"Caducidad cercana: {fmt_fecha(caducidad)} ({cuando})."))
+    if anterior is not None and anterior.get("relacionados_buscados") and nueva.get("relacionados_buscados"):
+        previos = {x[0] for x in anterior.get("relacionados", [])}
+        for numero, relacion, url, situacion in nueva["relacionados"]:
+            if numero not in previos:
+                agregar(Novedad("relacionado", f"Expediente relacionado nuevo: {numero} — {relacion}"
+                                               + (f" ({situacion})." if situacion else "."), url))
     novedades.sort(key=lambda n: CLASES.index(n.clase))
     return novedades
 
@@ -433,7 +442,7 @@ def revisar(lista: Lista, cliente: Cliente, opciones: OpcionesSeguimiento | None
         avisar("progreso", actual=i - 1, total=total)
         try:
             r = generar(s.expediente, Opciones(tipo=s.tipo, buscar_reuniones=opciones.buscar_reuniones,
-                                               buscar_relacionados=False,
+                                               buscar_relacionados=opciones.buscar_relacionados,
                                                incluir_asesores=opciones.incluir_asesores, formatos=()),
                         cliente, lambda ev, msg="", **d: avisar("log", msg) if ev in ("log", "advertencia") else None,
                         hoy=hoy, escribir=False)
@@ -532,6 +541,125 @@ def html(res: ResultadoSeguimiento) -> str:
             f"<style>{ESTILOS}</style></head><body><main class='hoja'>" + "".join(partes) + "</main></body></html>\n")
 
 
+# ============================================================ exportar la lista
+
+def filas_lista(lista: Lista, grupo: str | None = None) -> list[dict]:
+    """Una fila por expediente de la lista (o del grupo), con lo que se sabe de la última revisión."""
+    filas = []
+    for s in lista.del_grupo(grupo):
+        f = s.foto or {}
+        fecha, que = ultimo_movimiento(s.foto)
+        filas.append({"expediente": s.expediente, "nombre": s.alias, "grupos": ", ".join(s.grupos),
+                      "situacion": f.get("situacion", "Sin revisar"), "extracto": f.get("extracto", ""),
+                      "movimiento": fecha, "que": que, "caducidad": _fecha(f.get("caducidad")),
+                      "agregado": _fecha((s.agregado or "")[:10]), "revisado": (s.revisado or "").replace("T", " "),
+                      "url": f.get("url")})
+    return filas
+
+
+def escribir_lista_xlsx(lista: Lista, destino: Path, grupo: str | None = None) -> Path:
+    """Excel de la lista: una hoja con todos (con filtros) y una hoja por grupo."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    normal = Font(name="Arial", size=10)
+    blanco = Font(name="Arial", size=10, bold=True, color="FFFFFF")
+    enlace = Font(name="Arial", size=10, color="114E9A", underline="single")
+    relleno = PatternFill("solid", fgColor="1A64AB")
+    arriba, envolver = Alignment(vertical="top"), Alignment(vertical="top", wrap_text=True)
+    columnas = [("Expediente", 13, "expediente"), ("Nombre", 28, "nombre"), ("Grupos", 22, "grupos"),
+                ("Situación", 40, "situacion"), ("Extracto", 60, "extracto"), ("Último movimiento", 13, "movimiento"),
+                ("Qué fue", 26, "que"), ("Caducidad", 11, "caducidad"), ("Agregado", 11, "agregado"),
+                ("Revisado", 16, "revisado"), ("Ficha", 48, "url")]
+
+    def hoja(libro_hoja, filas):
+        for col, (nombre, ancho, _) in enumerate(columnas, 1):
+            celda = libro_hoja.cell(row=1, column=col, value=nombre)
+            celda.font, celda.fill = blanco, relleno
+            libro_hoja.column_dimensions[get_column_letter(col)].width = ancho
+        for n, fila in enumerate(filas, 2):
+            for col, (_, _, campo) in enumerate(columnas, 1):
+                celda = libro_hoja.cell(row=n, column=col, value=fila[campo] or None)
+                celda.font = normal
+                celda.alignment = envolver if campo in ("situacion", "extracto", "nombre") else arriba
+                if campo in ("movimiento", "caducidad", "agregado") and fila[campo]:
+                    celda.number_format = "DD/MM/YYYY"
+                if campo == "url" and fila[campo]:
+                    celda.hyperlink, celda.font = fila[campo], enlace
+        libro_hoja.freeze_panes = "B2"
+        libro_hoja.auto_filter.ref = f"A1:{get_column_letter(len(columnas))}{max(1, len(filas) + 1)}"
+
+    libro = Workbook()
+    primera = libro.active
+    primera.title = (grupo or "Todos")[:31]
+    hoja(primera, filas_lista(lista, grupo))
+    if not grupo:
+        usados = {primera.title}
+        for g in lista.grupos:
+            titulo = re.sub(r"[\\/*?:\[\]]", "-", g)[:31]
+            if titulo in usados:
+                continue
+            usados.add(titulo)
+            hoja(libro.create_sheet(titulo), filas_lista(lista, g))
+    destino = Path(destino)
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    libro.save(destino)
+    return destino
+
+
+def html_lista(lista: Lista, grupo: str | None = None) -> str:
+    """La lista como tabla, agrupada por grupo, para imprimir o pasar a PDF."""
+    from .informe_html import ESTILOS
+
+    def e(t) -> str:
+        return escape(str(t or ""), quote=True)
+
+    def tabla(filas) -> str:
+        def enlace(f) -> str:
+            return f'<a href="{e(f["url"])}">{e(f["expediente"])}</a>' if f["url"] else e(f["expediente"])
+
+        cuerpo = "".join(
+            f"<tr><td>{enlace(f)}"
+            + (f"<br><span class='secundario'>{e(f['nombre'])}</span>" if f["nombre"] else "")
+            + f"</td><td>{e(f['situacion'])}</td><td class='fecha'>{e(fmt_fecha(f['movimiento'], ''))}"
+            + (f"<br><span class='secundario'>{e(f['que'])}</span>" if f["que"] else "") + "</td></tr>"
+            for f in filas)
+        return ("<div class='tabla'><table><thead><tr><th>Expediente</th><th>Situación</th>"
+                f"<th>Último movimiento</th></tr></thead><tbody>{cuerpo}</tbody></table></div>")
+
+    ahora = datetime.now()
+    partes = ['<div class="membrete"><span>H. Senado de la Nación</span>'
+              f"<span>Lista al {ahora:%d/%m/%Y, %H:%M} h</span></div>",
+              '<h1 class="numero">Lista de seguimiento</h1>',
+              f'<p class="descripcion">Grupo: {e(grupo)}</p>' if grupo else ""]
+    if grupo or not lista.grupos:
+        partes.append(tabla(filas_lista(lista, grupo)))
+    else:
+        for g in lista.grupos:
+            filas = filas_lista(lista, g)
+            if filas:
+                partes += [f"<h2>{e(g)}</h2>", tabla(filas)]
+        sueltos = [f for f, s in zip(filas_lista(lista), lista.seguidos) if not s.grupos]
+        if sueltos:
+            partes += ["<h2>Sin grupo</h2>", tabla(sueltos)]
+    partes.append("<footer><p>Situación según la última revisión de cada expediente. Programa Informe de "
+                  f"Expedientes, versión {e(__version__)}.</p></footer>")
+    return ('<!DOCTYPE html>\n<html lang="es"><head><meta charset="utf-8">'
+            f"<title>Lista de seguimiento — {ahora:%d/%m/%Y}</title>"
+            f"<style>{ESTILOS}</style></head><body><main class='hoja'>" + "".join(partes) + "</main></body></html>\n")
+
+
+def exportar_lista(lista: Lista, carpeta: Path, formato: str, grupo: str | None = None) -> Path:
+    """Guarda la lista en Excel («xlsx») o PDF («pdf») y devuelve el archivo."""
+    base = nombre_archivo_seguro(f"Lista de seguimiento{' ' + grupo if grupo else ''} ({date.today():%Y-%m-%d})")
+    destino = Path(carpeta) / f"{base}.{formato}"
+    if formato == "xlsx":
+        return escribir_lista_xlsx(lista, destino, grupo)
+    from .pdf import texto_a_pdf
+    return texto_a_pdf(html_lista(lista, grupo), destino)
+
+
 def escribir(res: ResultadoSeguimiento, opciones: OpcionesSeguimiento) -> dict[str, Path]:
     carpeta = Path(opciones.carpeta_salida)
     carpeta.mkdir(parents=True, exist_ok=True)
@@ -542,4 +670,10 @@ def escribir(res: ResultadoSeguimiento, opciones: OpcionesSeguimiento) -> dict[s
             destino = carpeta / f"{base}.{formato}"
             destino.write_text(generador(res), encoding="utf-8")
             res.archivos[formato] = destino
+    if "pdf" in opciones.formatos:
+        from .pdf import ErrorPDF, texto_a_pdf
+        try:
+            res.archivos["pdf"] = texto_a_pdf(html(res), carpeta / f"{base}.pdf")
+        except ErrorPDF:
+            pass                                       # el HTML y el Markdown ya quedaron guardados
     return res.archivos

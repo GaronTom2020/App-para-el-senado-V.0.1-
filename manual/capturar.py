@@ -30,18 +30,19 @@ from informe_expedientes.servicio import Opciones, generar  # noqa: E402
 HOY = date(2026, 10, 30)
 
 
-def _por_pantalla(app, x, y, ancho, alto):
+def _por_pantalla(_widget, x, y, ancho, alto):
     return ImageGrab.grab(bbox=(x, y, x + ancho, y + alto), all_screens=True)
 
 
-def _por_ventana(app, x, y, ancho, alto):
+def _por_ventana(widget, x, y, ancho, alto):
     """PrintWindow de Win32: dibuja la ventana en memoria, sin depender de que esté a la vista (sirve en los
     runners de GitHub, donde el escritorio puede no estar disponible para ImageGrab)."""
     import ctypes
     from ctypes import wintypes
     user32, gdi32 = ctypes.windll.user32, ctypes.windll.gdi32
-    hwnd = app.winfo_id()
-    ancho_v, alto_v = app.winfo_width(), app.winfo_height()
+    ventana = widget.winfo_toplevel()
+    hwnd = ventana.winfo_id()
+    ancho_v, alto_v = ventana.winfo_width(), ventana.winfo_height()
     hdc = user32.GetDC(hwnd)
     memoria = gdi32.CreateCompatibleDC(hdc)
     mapa = gdi32.CreateCompatibleBitmap(hdc, ancho_v, alto_v)
@@ -64,7 +65,7 @@ def _por_ventana(app, x, y, ancho, alto):
         gdi32.DeleteDC(memoria)
         user32.ReleaseDC(hwnd, hdc)
     imagen = Image.frombuffer("RGB", (ancho_v, alto_v), datos, "raw", "BGRX", 0, 1)
-    dx, dy = x - app.winfo_rootx(), y - app.winfo_rooty()
+    dx, dy = x - ventana.winfo_rootx(), y - ventana.winfo_rooty()
     return imagen.crop((dx, dy, dx + ancho, dy + alto))
 
 
@@ -84,7 +85,7 @@ def capturar(app, nombre: str, widget=None) -> None:
     errores = []
     for metodo in (_por_pantalla, _por_ventana):
         try:
-            imagen = metodo(app, *caja)
+            imagen = metodo(w, *caja)
         except Exception as error:                              # noqa: BLE001 - se prueba el siguiente método
             errores.append(f"{metodo.__name__}: {error!r}")
             continue
@@ -127,6 +128,15 @@ def principal() -> None:
     for i, nombre in enumerate(["por_tema", "seguimiento", "sesion", "asuntos"], start=1):
         app.modos.select(i)
         capturar(app, f"{i + 3:02d}_{nombre}", app.modos)
+
+    # La ventana del resumen diario por correo, con dos grupos de ejemplo.
+    app.lista_seguimiento.crear_grupo("Presupuesto")
+    app.lista_seguimiento.crear_grupo("Salud")
+    app._config_correo()
+    ventana = next(w for w in app.winfo_children() if isinstance(w, gui.tk.Toplevel))
+    ventana.attributes("-topmost", True)
+    capturar(app, "09_correo", ventana)
+    ventana.destroy()
 
     html = r.archivos.get("html")
     if html:
