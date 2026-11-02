@@ -171,12 +171,13 @@ El correo sale de **una cuenta de Gmail de la oficina, creada solo para esto**. 
 **Configurar la cuenta (una vez, quien mantiene el programa).**
 
 1. En la cuenta de Gmail de la oficina, activá la *verificación en dos pasos* y creá una **contraseña de aplicación** en https://myaccount.google.com/apppasswords (16 letras).
-2. En GitHub: *Settings → Secrets and variables → Actions → New repository secret*, creá `GMAIL_ENVIO_CUENTA` (la dirección) y `GMAIL_ENVIO_CLAVE` (la contraseña de aplicación).
-3. Ejecutá *Actions → Compilar InformeExpediente.exe*. El `.exe` lleva la cuenta adentro.
+2. Junto a `InformeExpediente.exe` (en la carpeta compartida, o en cada PC), creá un archivo `cuenta_envio.txt` con la dirección en el primer renglón y la contraseña de aplicación en el segundo. Para correr desde el código, el mismo archivo junto a `app.py` o la variable de entorno `INFORME_CUENTA_ENVIO` (`cuenta_envio.txt` está en `.gitignore`).
 
-**Si cambia la contraseña.** Al cambiar la contraseña de la cuenta, Google borra sus contraseñas de aplicación. Creá una nueva, reemplazá `GMAIL_ENVIO_CLAVE` y volvé a ejecutar el workflow: cada compilación lleva su propio número (por ejemplo, `0.4.0.17`), así que cada PC ofrece actualizarse sola al abrir el programa. Si el `.exe` se usa desde una carpeta compartida, hay otra forma sin recompilar: un archivo `cuenta_envio.txt` junto al `.exe`, con la dirección en el primer renglón y la contraseña de aplicación en el segundo, tiene prioridad sobre la que trae el `.exe`. Para correr desde el código, el mismo archivo junto a `app.py` o la variable de entorno `INFORME_CUENTA_ENVIO` (está en `.gitignore`).
+El `.exe` **no** lleva la cuenta adentro: se publica en Releases, y cualquiera que lo descargue podría sacarla.
 
-Cualquiera con el `.exe` o con acceso a ese archivo podría, con conocimientos técnicos, sacar la contraseña de aplicación: por eso la cuenta tiene que servir solo para esto. Si pasa, se borra esa contraseña de aplicación en Google y se crea otra. Gmail admite unos 500 envíos por día; los primeros correos de una cuenta nueva pueden caer en spam (conviene marcarlos como «No es spam»).
+**Si cambia la contraseña.** Al cambiar la contraseña de la cuenta, Google borra sus contraseñas de aplicación. Creá una nueva y reemplazala en `cuenta_envio.txt`; no hace falta recompilar.
+
+Cualquiera con acceso a ese archivo podría, con conocimientos técnicos, sacar la contraseña de aplicación: por eso la cuenta tiene que servir solo para esto. Si pasa, se borra esa contraseña de aplicación en Google y se crea otra. Gmail admite unos 500 envíos por día; los primeros correos de una cuenta nueva pueden caer en spam (conviene marcarlos como «No es spam»).
 
 Al guardar se crea la tarea programada de Windows «Informe de Expedientes - resumen diario», que corre `InformeExpediente.exe --resumen-diario` a esa hora. La tarea tiene activada la opción de Windows «ejecutar la tarea lo antes posible si se omitió un inicio programado»: si a esa hora la PC estaba apagada o sin la sesión iniciada, el resumen se arma apenas el usuario entra. Se arma una sola vez por día (`--forzar` lo repite). El último resumen queda en `ultimo_resumen.html`. Lo que pasa en cada envío queda en `correo.log`, en la carpeta de configuración. El correo lleva su propio registro de lo ya avisado (`correo_seguimiento.json` y `correo_asuntos_entrados.json`): la primera vez solo toma el estado de cada expediente.
 

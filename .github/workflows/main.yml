@@ -52,25 +52,11 @@ jobs:
           gh release download manual --pattern Manual-de-usuario.pdf --dir informe_expedientes/recursos --clobber \
             || echo "::warning::No se encontró el manual publicado; el programa abrirá el de Releases."
 
-      # La cuenta de Gmail de la oficina para el resumen diario: secretos GMAIL_ENVIO_CUENTA (la dirección) y
-      # GMAIL_ENVIO_CLAVE (su contraseña de aplicación), en Settings → Secrets and variables → Actions.
-      - name: Incluir la cuenta de envío
-        shell: bash
-        env:
-          CUENTA: ${{ secrets.GMAIL_ENVIO_CUENTA }}
-          CLAVE: ${{ secrets.GMAIL_ENVIO_CLAVE }}
-        run: |
-          if [ -n "$CUENTA" ] && [ -n "$CLAVE" ]; then
-            printf '%s\n%s\n' "$CUENTA" "$CLAVE" > informe_expedientes/recursos/cuenta_envio.txt
-          else
-            echo "::warning::Faltan los secretos GMAIL_ENVIO_CUENTA y GMAIL_ENVIO_CLAVE: el resumen diario no va a poder enviarse por correo."
-          fi
-
       - name: Compilar
         shell: bash
         run: |
           extra=()
-          for f in Manual-de-usuario.pdf cuenta_envio.txt; do
+          for f in Manual-de-usuario.pdf; do
             if [ -f "informe_expedientes/recursos/$f" ]; then
               extra+=(--add-data "informe_expedientes/recursos/$f;informe_expedientes/recursos")
             fi
@@ -82,7 +68,6 @@ jobs:
             --add-data "informe_expedientes/recursos/icono.ico;informe_expedientes/recursos" \
             --add-data "informe_expedientes/recursos/logo_senado.png;informe_expedientes/recursos" \
             "${extra[@]}" app.py
-          rm -f informe_expedientes/recursos/cuenta_envio.txt
 
       - uses: actions/upload-artifact@v7
         with:

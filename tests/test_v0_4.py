@@ -241,20 +241,25 @@ def test_envio_desde_la_cuenta_de_la_oficina(tmp_path, monkeypatch):
     with pytest.raises(correo.ErrorCorreo, match="cuenta de envío"):
         correo.enviar(cfg, "Prueba", "<p>hola</p>", "hola")
 
-    # La que trae el .exe (recursos/cuenta_envio.txt), con la contraseña como la muestra Google.
+    # El .exe ya no trae la cuenta adentro: una en recursos/ se ignora.
     (tmp_path / "paquete" / "recursos").mkdir(parents=True)
-    (tmp_path / "paquete" / "recursos" / "cuenta_envio.txt").write_text(
+    (tmp_path / "paquete" / "recursos" / "cuenta_envio.txt").write_text("vieja@gmail.com\nclave0\n", encoding="utf-8")
+    assert correo.cuenta_envio() is None
+
+    # La de la carpeta compartida, con la contraseña como la muestra Google.
+    (tmp_path / "cuenta_envio.txt").write_text(
         "# cuenta de la oficina\nresumen.oficina@gmail.com\nabcd efgh ijkl mnop\n", encoding="utf-8")
     correo.enviar(cfg, "Prueba", "<p>hola</p>", "hola")
     assert _SMTPFalso.hechos == [("conectar", "smtp.gmail.com", 587), ("starttls",),
                                  ("login", "resumen.oficina@gmail.com", "abcdefghijklmnop"),
                                  ("enviar", "Resumen parlamentario <resumen.oficina@gmail.com>", "a@b.ar, c@d.ar",
                                   "Prueba")]
-    # La variable de entorno gana sobre la del .exe, y el archivo junto al .exe gana sobre las dos.
+    # El archivo gana sobre la variable de entorno; sin el archivo, vale la variable.
     monkeypatch.setenv("INFORME_CUENTA_ENVIO", "otra@gmail.com\nclave2")
+    assert correo.cuenta_envio() == ("resumen.oficina@gmail.com", "abcdefghijklmnop")
+    (tmp_path / "cuenta_envio.txt").unlink()
     assert correo.cuenta_envio() == ("otra@gmail.com", "clave2")
     (tmp_path / "cuenta_envio.txt").write_text("nueva@gmail.com\nclave3\n", encoding="utf-8")
-    assert correo.cuenta_envio() == ("nueva@gmail.com", "clave3")
 
     _SMTPFalso.rechazar = True
     try:
