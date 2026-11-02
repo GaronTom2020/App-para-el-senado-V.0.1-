@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import argparse
 import sys
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from informe_expedientes import __version__, config
@@ -80,15 +80,21 @@ def linea_de_comandos(argumentos: list[str]) -> int:
     s = p.add_argument_group("lista de seguimiento")
     s.add_argument("--seguimiento", choices=["revisar", "agregar", "quitar", "listar"],
                    help="revisar la lista y anotar las novedades; agregar o quitar los expedientes indicados; listar")
+    s.add_argument("--con-relacionados", action="store_true",
+                   help="En --seguimiento revisar y --sesion, buscar también los expedientes relacionados (lento)")
     s.add_argument("--lista-seguimiento", type=Path, help="Archivo de la lista (por defecto, el de la configuración)")
     ss = p.add_argument_group("informe de sesión")
     ss.add_argument("--sesion", help="Plan de labor: un archivo (.docx, .pdf o .txt), «ultima» (el último "
                                      "publicado en el sitio) o la fecha de la sesión (dd/mm/aaaa)")
     ss.add_argument("--solo-asuntos", action="store_true", help="Solo listar los asuntos del plan, sin consultar fichas")
+    p.add_argument("--resumen-diario", action="store_true",
+                   help="Armar y enviar el resumen diario por correo (lo corre la tarea programada de Windows)")
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     a = p.parse_args(argumentos)
 
     tematico = bool(a.tema or a.palabras or a.comision or a.autor or a.bloque or a.por_bloque or a.listar_bloques)
+    if a.resumen_diario:
+        return _resumen_diario(a)
     if not tematico and not a.expedientes and a.seguimiento not in ("revisar", "listar") and not a.sesion:
         p.error("indicá uno o más expedientes, o --tema / --palabras / --comision, o --seguimiento revisar")
 
@@ -160,6 +166,32 @@ def _editar_seguimiento(a) -> int:
     return 2 if errores else 0
 
 
+def _resumen_diario(a) -> int:
+    """Corre sin ventana (pythonw o el .exe): lo que pasa queda en correo.log, en la carpeta de configuración."""
+    from informe_expedientes.correo import ConfigCorreo, enviar_resumen
+
+    registro = config.carpeta_app() / "correo.log"
+    registro.parent.mkdir(parents=True, exist_ok=True)
+
+    def anotar(texto: str) -> None:
+        with open(registro, "a", encoding="utf-8") as f:
+            f.write(f"{datetime.now():%d/%m/%Y %H:%M} {texto}\n")
+        if sys.stdout:
+            print(texto, flush=True)
+
+    cfg = ConfigCorreo.cargar()
+    if not cfg.activo:
+        anotar("El resumen diario está desactivado.")
+        return 0
+    cliente = Cliente(carpeta_cache=config.carpeta_app() / "cache", usar_cache=not a.sin_cache)
+    try:
+        enviar_resumen(cfg, cliente, lambda ev, msg="", **_d: anotar(msg) if ev == "log" and msg else None)
+    except Exception as e:  # noqa: BLE001 - queda anotado para quien lo revise
+        anotar(f"Error: {e}")
+        return 1
+    return 0
+
+
 def _revisar_seguimiento(a, cliente: Cliente, avisar) -> int:
     from informe_expedientes.seguimiento import Lista, OpcionesSeguimiento, resumen, revisar
 
@@ -169,7 +201,8 @@ def _revisar_seguimiento(a, cliente: Cliente, avisar) -> int:
               "--seguimiento agregar S-1234/24.", file=sys.stderr)
         return 2
     formatos = tuple(f.strip().lower() for f in (a.formatos or "html,md").split(",") if f.strip())
-    opciones = OpcionesSeguimiento(buscar_reuniones=not a.sin_reuniones, incluir_asesores=not a.sin_asesores,
+    opciones = OpcionesSeguimiento(buscar_reuniones=not a.sin_reuniones, buscar_relacionados=a.con_relacionados,
+                                   incluir_asesores=not a.sin_asesores,
                                    formatos=formatos, carpeta_salida=a.salida, nombre_archivo=a.nombre)
     try:
         res = revisar(lista, cliente, opciones, avisar)
@@ -226,7 +259,8 @@ def _sesion(a, cliente: Cliente, avisar) -> int:
                   + ("" if asunto.seccion == "Temas acordados" else f"  ({asunto.seccion.lower()})"))
         return 0
     formatos = tuple(f.strip().lower() for f in (a.formatos or "docx,html,xlsx,csv").split(",") if f.strip())
-    opciones = OpcionesSesion(buscar_reuniones=a.con_reuniones, incluir_asesores=not a.sin_asesores,
+    opciones = OpcionesSesion(buscar_reuniones=a.con_reuniones, buscar_relacionados=a.con_relacionados,
+                              incluir_asesores=not a.sin_asesores,
                               formatos=formatos, carpeta_salida=a.salida, nombre_archivo=a.nombre)
     try:
         res = generar_sesion(plan, opciones, cliente, avisar)

@@ -60,7 +60,7 @@ Tiene cinco modos de trabajo, cada uno en una pestaña:
 - **Arriba**, la barra de menús: *Archivo*, *Herramientas*, *Enlaces útiles* y *Ayuda* (ver el capítulo «Menús y herramientas»).
 - **A la izquierda**, las cinco pestañas de trabajo. En cada una se completa qué se quiere buscar y se presiona el botón azul grande.
 - **A la derecha**, el resultado: un resumen con enlaces activos y otras pestañas (*Reuniones*, *Trámite*, *Registro*). Mientras trabaja, la barra de progreso avanza y el texto de arriba dice qué está consultando.
-- **Abajo a la derecha**, los botones **Abrir**: Word, HTML, Excel, la ficha en el sitio del Senado, copiar el resumen y la carpeta donde se guardan los informes.
+- **Abajo a la derecha**, los botones **Abrir**: Word, HTML, Excel, PDF, la ficha en el sitio del Senado, copiar el resumen y la carpeta donde se guardan los informes.
 
 >> El botón «Cancelar» detiene una consulta larga.
 
@@ -78,7 +78,7 @@ Mientras el programa consulta, puede seguir usando la PC. Si una consulta tarda 
 1. Abra la pestaña **Expedientes**.
 2. En el cuadro **Expedientes u órdenes del día** escriba el número. Puede escribir varios, **uno por renglón**.
 3. Deje **Tipo** en *Detectar automáticamente*: el programa averigua si es un proyecto de ley, de resolución, etc.
-4. Elija qué buscar (reuniones de comisión, reuniones ya convocadas) y los formatos (Word, HTML).
+4. Elija qué buscar (reuniones de comisión, reuniones ya convocadas) y los formatos (Word, HTML, PDF).
 5. Si quiere, escriba un **Comentario**: se agrega al final del informe, en la sección «Notas».
 6. Presione **Generar informe** (o las teclas **Ctrl + Enter**).
 
@@ -129,7 +129,7 @@ La pestaña **Trámite** muestra los giros a comisiones y los movimientos, con s
 
 >> Botones «Abrir» de abajo.
 
-Al terminar, use los botones de abajo: **Word** abre el documento para editar o imprimir; **HTML** lo abre en el navegador, con un índice navegable; **Carpeta** abre la carpeta donde quedan guardados. Así se ve el informe en HTML:
+Al terminar, use los botones de abajo: **Word** abre el documento para editar o imprimir; **HTML** lo abre en el navegador, con un índice navegable; **PDF**, listo para enviar o archivar; **Carpeta** abre la carpeta donde quedan guardados. Así se ve el informe en HTML:
 
 ![El informe en HTML, abierto en el navegador](capturas/08_informe_html.png)
 
@@ -158,7 +158,7 @@ Encuentra **todos los expedientes** sobre un tema, de un senador o de un bloque,
 3. Si quiere dejar afuera proyectos que mencionen otras palabras, escríbalas en **Excluir**.
 4. Ajuste los **Años**, el **Origen**, la **Comisión** y los **Tipos**. Por defecto se buscan ley, resolución y comunicación; las declaraciones quedan afuera porque son muy numerosas.
 5. Si quiere, elija un **senador** (escriba el apellido y elíjalo de la lista) o un **bloque**.
-6. En **De cada uno** deje marcada *Ficha* (recomendado, para saber la etapa de cada expediente).
+6. En **De cada uno** deje marcada *Ficha* (recomendado, para saber la etapa de cada expediente). En **Formato** elija Word, HTML, Excel o PDF.
 7. Presione **Generar informe temático**.
 
 >> Doble clic en la lista abre la ficha.
@@ -222,6 +222,23 @@ Arriba de la lista, el selector **Grupo** filtra lo que se ve. Con **Nuevo**, **
 !!! consejo "La primera vez"
     La primera revisión de cada expediente solo guarda su estado («Primera revisión»). Las novedades aparecen a partir de la segunda.
 
+## Expedientes relacionados
+
+>> Opcional: hace la revisión más lenta.
+
+Si marca **Relacionados (lento)**, el programa busca también los expedientes que se dictaminaron o se trataron junto con cada uno, o que se tuvieron a la vista. Cuando aparece uno nuevo, la revisión lo avisa así:
+
+> Expediente relacionado nuevo: S-865/26 — Dictaminado en conjunto (Orden del Día N° 366/26) (Con dictamen de comisión).
+
+## Exportar la lista
+
+>> Excel o PDF, con grupos y situación.
+
+El botón **Exportar** guarda la lista (o el grupo que se está viendo) en:
+
+- **Excel**: una hoja con todos los expedientes, con filtros, y una hoja por grupo. Trae el número, el nombre, los grupos, la situación, el extracto y el último movimiento.
+- **PDF**: una tabla por grupo, lista para imprimir o enviar.
+
 # Informe de sesión
 
 ## Para qué sirve
@@ -241,7 +258,7 @@ A partir del **plan de labor parlamentaria**, arma un único informe con cada as
     - **Buscar en el sitio**: lista los planes publicados por el Senado; elija uno de la lista;
     - pegue el texto en el cuadro.
 2. Presione **Ver los asuntos** para comprobar lo que entendió el programa, antes de consultar nada. Si algo está mal, corrija el texto en el cuadro.
-3. Marque **Versión taquigráfica** si la sesión ya se hizo: suma el desenlace y las votaciones.
+3. Marque **Versión taquigráfica** si la sesión ya se hizo: suma el desenlace y las votaciones. **Relacionados (lento)** agrega, en la ficha de cada expediente, los tratados en conjunto o tenidos a la vista.
 4. Elija los formatos y presione **Generar informe de sesión**.
 
 !!! atencion "Versión taquigráfica"
@@ -274,7 +291,39 @@ Lee el **Diario de Asuntos Entrados** (DAE) digital del Senado desde una fecha y
 
 >> El informe es opcional.
 
-Si necesita un documento, marque *Generar un informe de los asuntos (Word y HTML)* antes de buscar. **Ver la última revisión** vuelve a mostrar el resultado anterior.
+Si necesita un documento, marque *Generar un informe de los asuntos (Word, HTML y PDF)* antes de buscar. **Ver la última revisión** vuelve a mostrar el resultado anterior.
+
+# Resumen diario por correo
+
+## Para qué sirve
+
+>> Opcional: cada usuario lo configura en su PC.
+
+El programa puede mandarle todos los días un correo con las **novedades de su lista de seguimiento** y los **asuntos entrados nuevos**, para tenerlos al empezar el día sin abrir el programa.
+
+![La ventana «Resumen diario por correo»](capturas/09_correo.png)
+
+## Paso a paso
+
+>> Herramientas → Resumen diario por correo…
+
+1. Abra el menú **Herramientas → Resumen diario por correo…**
+2. Marque **Recibir todos los días un resumen por correo**.
+3. Escriba su **correo** (puede poner varios, separados por coma) y la **hora** de envío, por ejemplo `07:30`.
+4. Elija qué **incluir**: las novedades del seguimiento (de toda la lista o solo de los grupos que marque) y los asuntos entrados, con los tipos y las palabras que le interesen.
+5. En **Enviar con** deje *Outlook de esta PC*: usa su cuenta de correo, sin contraseña.
+6. Presione **Enviar una prueba** y revise que el correo llegó.
+7. Presione **Guardar**.
+
+!!! atencion "La PC tiene que estar encendida"
+    El correo se arma y se envía desde su PC a la hora elegida. Si la PC está apagada o sin su sesión iniciada, ese día no sale.
+
+!!! consejo "No le quita novedades a la ventana"
+    El correo lleva su propio registro. Lo que le avisa por correo también lo va a ver cuando presione **Revisar novedades** en la ventana.
+
+>> Para dejar de recibirlo, desmarque la casilla.
+
+Para dejar de recibirlo, vuelva a abrir la ventana, desmarque la primera casilla y presione **Guardar**.
 
 # Menús y herramientas
 
@@ -290,6 +339,7 @@ Si necesita un documento, marque *Generar un informe de los asuntos (Word y HTML
 
 >> Úselas cuando algo falla.
 
+- **Resumen diario por correo…**: ver el capítulo anterior.
 - **Usar caché**: recuerda las páginas ya leídas para que las consultas repetidas sean más rápidas. Conviene dejarla marcada.
 - **Guardar las páginas descargadas (diagnóstico)** y **Abrir carpeta de diagnóstico**: sirven para enviar a quien mantiene el programa lo que el programa vio, cuando un informe sale raro.
 - **Vaciar caché**: borra lo guardado y obliga a leer todo de nuevo. Úsela si ve datos viejos.
@@ -298,7 +348,24 @@ Si necesita un documento, marque *Generar un informe de los asuntos (Word y HTML
 
 >> Accesos directos a los sitios oficiales.
 
-**Enlaces útiles** abre en el navegador los buscadores de proyectos del Senado y de Diputados, la Constitución Nacional, los reglamentos de ambas cámaras, las versiones taquigráficas, las votaciones nominales y los planes de labor. **Ayuda** tiene un resumen de cómo funciona el programa y su versión.
+**Enlaces útiles** abre en el navegador los buscadores de proyectos del Senado y de Diputados, la Constitución Nacional, los reglamentos de ambas cámaras, las versiones taquigráficas, las votaciones nominales y los planes de labor.
+
+**Ayuda** tiene este **Manual de usuario**, un resumen de cómo funciona el programa, **Buscar actualizaciones** y la versión instalada.
+
+## Versiones nuevas
+
+>> El programa avisa solo.
+
+Al abrir, una vez por día, el programa se fija si hay una versión más nueva. Si la hay, pregunta **«¿Querés instalarla ahora?»**: con **Sí**, la descarga, se cierra, se actualiza y se vuelve a abrir solo. Con **No**, no vuelve a preguntar por esa versión (puede instalarla después desde *Ayuda → Buscar actualizaciones*).
+
+!!! atencion "Si el programa está en una carpeta compartida"
+    Si no tiene permiso para escribir en la carpeta del programa, el aviso ofrece abrir la página de descarga. Avise a quien mantiene el programa.
+
+## Dónde quedan los archivos
+
+>> Una carpeta por pestaña.
+
+Dentro de la carpeta de informes, cada pestaña guarda sus archivos en su propia carpeta: **Expedientes**, **Por tema**, **Seguimiento**, **Sesión** y **Asuntos entrados**. El botón **Carpeta** abre la carpeta del último informe.
 
 # Si algo no funciona
 

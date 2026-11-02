@@ -200,13 +200,15 @@ def comisiones(r: Resultado) -> list[str]:
 
 def escribir_informes(res: ResultadoSesion, opciones: OpcionesSesion, avisar=_nada) -> dict[str, Path]:
     from . import informe_sesion
+    from .pdf import ErrorPDF, desde_html
 
     carpeta = Path(opciones.carpeta_salida)
     carpeta.mkdir(parents=True, exist_ok=True)
     fecha = res.fecha or res.generado.date()
     base = nombre_archivo_seguro(opciones.nombre_archivo or f"Informe de sesión ({fecha:%Y-%m-%d})")
     escritores = {"docx": informe_sesion.escribir_docx, "html": informe_sesion.escribir_html,
-                  "xlsx": informe_sesion.escribir_xlsx, "csv": informe_sesion.escribir_csv}
+                  "xlsx": informe_sesion.escribir_xlsx, "csv": informe_sesion.escribir_csv,
+                  "pdf": desde_html(informe_sesion.escribir_html)}
     for formato in opciones.formatos:
         if formato not in escritores:
             continue
@@ -214,6 +216,9 @@ def escribir_informes(res: ResultadoSesion, opciones: OpcionesSesion, avisar=_na
         destino = carpeta / f"{base}.{formato}"
         try:
             escritores[formato](res, destino)
+        except ErrorPDF as e:
+            avisar("advertencia", str(e))
+            continue
         except PermissionError:
             destino = carpeta / f"{base} {res.generado:%H%M%S}.{formato}"
             escritores[formato](res, destino)

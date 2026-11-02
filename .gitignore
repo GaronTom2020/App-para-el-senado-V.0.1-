@@ -3,3 +3,4 @@ __pycache__/
 
 # Manual de usuario compilado (lo genera manual/construir_manual.py)
 manual/salida/
+informe_expedientes/recursos/Manual-de-usuario.pdf

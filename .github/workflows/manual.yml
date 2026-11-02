@@ -45,12 +45,11 @@ jobs:
       - name: Compilar el manual
         run: python manual/construir_manual.py --nombre Manual-de-usuario
 
-      - uses: actions/upload-artifact@v5
+      # Sin comprimir: se descarga el PDF suelto, no un .zip.
+      - uses: actions/upload-artifact@v7
         with:
-          name: Manual-de-usuario
-          path: |
-            manual/salida/Manual-de-usuario.pdf
-            manual/salida/Manual-de-usuario.html
+          path: manual/salida/Manual-de-usuario.pdf
+          archive: false
 
       - name: Publicar en Releases
         if: github.ref == 'refs/heads/main'

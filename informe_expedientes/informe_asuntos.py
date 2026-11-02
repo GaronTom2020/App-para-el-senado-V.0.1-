@@ -88,6 +88,8 @@ def escribir_docx(res: ResultadoAsuntos, asuntos: list[Asunto], destino: Path, f
 
 def escribir(res: ResultadoAsuntos, asuntos: list[Asunto], carpeta: Path, formatos=("docx", "html"),
              filtros: str = "") -> dict[str, Path]:
+    from .pdf import ErrorPDF, texto_a_pdf
+
     carpeta = Path(carpeta)
     carpeta.mkdir(parents=True, exist_ok=True)
     base = nombre_archivo_seguro(f"Asuntos entrados ({res.generado:%Y-%m-%d %H%M})")
@@ -97,6 +99,11 @@ def escribir(res: ResultadoAsuntos, asuntos: list[Asunto], carpeta: Path, format
             destino.write_text(generar_html(res, asuntos, filtros), encoding="utf-8")
         elif formato == "docx":
             escribir_docx(res, asuntos, destino, filtros)
+        elif formato == "pdf":
+            try:
+                texto_a_pdf(generar_html(res, asuntos, filtros), destino)
+            except ErrorPDF:
+                continue                               # sin Edge ni Chrome quedan el Word y el HTML
         else:
             continue
         res.archivos[formato] = destino

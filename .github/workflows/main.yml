@@ -3,6 +3,9 @@ name: Compilar InformeExpediente.exe
 on:
   workflow_dispatch: {}
 
+permissions:
+  contents: write
+
 jobs:
   exe:
     runs-on: windows-latest
@@ -29,16 +32,40 @@ jobs:
       - name: Correr las pruebas
         run: python -m pytest -q
 
+      # El manual viaja dentro del .exe (Ayuda → Manual de usuario); si todavía no se publicó, se abre el de Releases.
+      - name: Incluir el manual de usuario
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download manual --pattern Manual-de-usuario.pdf --dir informe_expedientes/recursos --clobber             || echo "::warning::No se encontró el manual publicado; el programa abrirá el de Releases."
+
       - name: Compilar
+        shell: bash
         run: >
           python -m PyInstaller --noconfirm --clean --onefile --windowed
           --name InformeExpediente --collect-submodules informe_expedientes --collect-data docx
           --hidden-import lxml.etree --hidden-import lxml._elementpath
           --icon informe_expedientes/recursos/icono.ico
           --add-data "informe_expedientes/recursos/icono.ico;informe_expedientes/recursos"
-          --add-data "informe_expedientes/recursos/logo_senado.png;informe_expedientes/recursos" app.py
+          --add-data "informe_expedientes/recursos/logo_senado.png;informe_expedientes/recursos"
+          $( [ -f informe_expedientes/recursos/Manual-de-usuario.pdf ] &&
+             echo '--add-data informe_expedientes/recursos/Manual-de-usuario.pdf;informe_expedientes/recursos' )
+          app.py
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
-          name: InformeExpediente
           path: dist/InformeExpediente.exe
+          archive: false
+
+      # Cada versión (la de informe_expedientes/__init__.py) queda en Releases como «v0.4.0»: el programa
+      # la encuentra al abrir y ofrece instalarla.
+      - name: Publicar la versión en Releases
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(python -c "import informe_expedientes as m; print(m.__version__)")
+          gh release view "v$VERSION" >/dev/null 2>&1 || gh release create "v$VERSION" --title "Versión $VERSION"             --notes "Descargá InformeExpediente.exe y reemplazá el anterior, o aceptá la actualización desde el programa."
+          gh release upload "v$VERSION" dist/InformeExpediente.exe --clobber
