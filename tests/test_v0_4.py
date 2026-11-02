@@ -203,3 +203,62 @@ def test_aviso_sin_correo_y_error_de_envio(config_vacia, monkeypatch):
     res = correo.ejecutar_diario(correo.ConfigCorreo.cargar(), ClienteFalso(), hoy=date(2026, 10, 31),
                                  mostrar=avisos.append)
     assert avisos and any("Outlook no está instalado" in x for x in correo.lineas_aviso(res))
+
+
+class _SMTPFalso:
+    """Imita smtplib.SMTP: anota lo que se hizo, sin conectarse a nada."""
+    hechos: list = []
+    rechazar = False
+
+    def __init__(self, servidor, puerto, timeout=None):
+        _SMTPFalso.hechos = [("conectar", servidor, puerto)]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_a):
+        return False
+
+    def starttls(self):
+        self.hechos.append(("starttls",))
+
+    def login(self, usuario, clave):
+        if _SMTPFalso.rechazar:
+            import smtplib
+            raise smtplib.SMTPAuthenticationError(535, b"Username and Password not accepted")
+        self.hechos.append(("login", usuario, clave))
+
+    def send_message(self, m):
+        self.hechos.append(("enviar", m["From"], m["To"], m["Subject"]))
+
+
+def test_envio_desde_la_cuenta_de_la_oficina(tmp_path, monkeypatch):
+    monkeypatch.setattr(correo.smtplib, "SMTP", _SMTPFalso)
+    monkeypatch.setattr(correo, "_carpeta_programa", lambda: tmp_path)
+    monkeypatch.setattr(correo, "__file__", str(tmp_path / "paquete" / "correo.py"))
+    monkeypatch.delenv("INFORME_CUENTA_ENVIO", raising=False)
+    cfg = correo.ConfigCorreo(destinatarios=["a@b.ar", "c@d.ar"])
+    with pytest.raises(correo.ErrorCorreo, match="cuenta de envío"):
+        correo.enviar(cfg, "Prueba", "<p>hola</p>", "hola")
+
+    # La que trae el .exe (recursos/cuenta_envio.txt), con la contraseña como la muestra Google.
+    (tmp_path / "paquete" / "recursos").mkdir(parents=True)
+    (tmp_path / "paquete" / "recursos" / "cuenta_envio.txt").write_text(
+        "# cuenta de la oficina\nresumen.oficina@gmail.com\nabcd efgh ijkl mnop\n", encoding="utf-8")
+    correo.enviar(cfg, "Prueba", "<p>hola</p>", "hola")
+    assert _SMTPFalso.hechos == [("conectar", "smtp.gmail.com", 587), ("starttls",),
+                                 ("login", "resumen.oficina@gmail.com", "abcdefghijklmnop"),
+                                 ("enviar", "Resumen parlamentario <resumen.oficina@gmail.com>", "a@b.ar, c@d.ar",
+                                  "Prueba")]
+    # La variable de entorno gana sobre la del .exe, y el archivo junto al .exe gana sobre las dos.
+    monkeypatch.setenv("INFORME_CUENTA_ENVIO", "otra@gmail.com\nclave2")
+    assert correo.cuenta_envio() == ("otra@gmail.com", "clave2")
+    (tmp_path / "cuenta_envio.txt").write_text("nueva@gmail.com\nclave3\n", encoding="utf-8")
+    assert correo.cuenta_envio() == ("nueva@gmail.com", "clave3")
+
+    _SMTPFalso.rechazar = True
+    try:
+        with pytest.raises(correo.ErrorCorreo, match="no aceptó la contraseña"):
+            correo.enviar(cfg, "Prueba", "<p>hola</p>", "hola")
+    finally:
+        _SMTPFalso.rechazar = False

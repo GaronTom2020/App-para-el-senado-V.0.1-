@@ -32,6 +32,17 @@ jobs:
       - name: Correr las pruebas
         run: python -m pytest -q
 
+      # Cada compilación lleva su propio número (0.4.0.17: la versión del código y el número de ejecución), así
+      # el programa ofrece actualizarse aunque solo haya cambiado la contraseña de la cuenta de envío.
+      - name: Número de compilación
+        shell: bash
+        run: |
+          BASE=$(python -c "import informe_expedientes as m; print(m.__version__)")
+          VERSION="$BASE.${{ github.run_number }}"
+          sed -i "s/__version__ = \"$BASE\"/__version__ = \"$VERSION\"/" informe_expedientes/__init__.py
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Versión: $VERSION"
+
       # El manual viaja dentro del .exe (Ayuda → Manual de usuario); si todavía no se publicó, se abre el de Releases.
       - name: Incluir el manual de usuario
         shell: bash
@@ -41,13 +52,29 @@ jobs:
           gh release download manual --pattern Manual-de-usuario.pdf --dir informe_expedientes/recursos --clobber \
             || echo "::warning::No se encontró el manual publicado; el programa abrirá el de Releases."
 
+      # La cuenta de Gmail de la oficina para el resumen diario: secretos GMAIL_ENVIO_CUENTA (la dirección) y
+      # GMAIL_ENVIO_CLAVE (su contraseña de aplicación), en Settings → Secrets and variables → Actions.
+      - name: Incluir la cuenta de envío
+        shell: bash
+        env:
+          CUENTA: ${{ secrets.GMAIL_ENVIO_CUENTA }}
+          CLAVE: ${{ secrets.GMAIL_ENVIO_CLAVE }}
+        run: |
+          if [ -n "$CUENTA" ] && [ -n "$CLAVE" ]; then
+            printf '%s\n%s\n' "$CUENTA" "$CLAVE" > informe_expedientes/recursos/cuenta_envio.txt
+          else
+            echo "::warning::Faltan los secretos GMAIL_ENVIO_CUENTA y GMAIL_ENVIO_CLAVE: el resumen diario no va a poder enviarse por correo."
+          fi
+
       - name: Compilar
         shell: bash
         run: |
           extra=()
-          if [ -f informe_expedientes/recursos/Manual-de-usuario.pdf ]; then
-            extra+=(--add-data "informe_expedientes/recursos/Manual-de-usuario.pdf;informe_expedientes/recursos")
-          fi
+          for f in Manual-de-usuario.pdf cuenta_envio.txt; do
+            if [ -f "informe_expedientes/recursos/$f" ]; then
+              extra+=(--add-data "informe_expedientes/recursos/$f;informe_expedientes/recursos")
+            fi
+          done
           python -m PyInstaller --noconfirm --clean --onefile --windowed \
             --name InformeExpediente --collect-submodules informe_expedientes --collect-data docx \
             --hidden-import lxml.etree --hidden-import lxml._elementpath \
@@ -55,21 +82,19 @@ jobs:
             --add-data "informe_expedientes/recursos/icono.ico;informe_expedientes/recursos" \
             --add-data "informe_expedientes/recursos/logo_senado.png;informe_expedientes/recursos" \
             "${extra[@]}" app.py
+          rm -f informe_expedientes/recursos/cuenta_envio.txt
 
       - uses: actions/upload-artifact@v7
         with:
           path: dist/InformeExpediente.exe
           archive: false
 
-      # Cada versión (la de informe_expedientes/__init__.py) queda en Releases como «v0.4.0»: el programa
-      # la encuentra al abrir y ofrece instalarla.
+      # Cada compilación queda en Releases como «v0.4.0.17»: el programa la encuentra al abrir y ofrece instalarla.
       - name: Publicar la versión en Releases
         if: github.ref == 'refs/heads/main'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION=$(python -c "import informe_expedientes as m; print(m.__version__)")
-          gh release view "v$VERSION" >/dev/null 2>&1 || gh release create "v$VERSION" --title "Versión $VERSION" \
+          gh release create "v$VERSION" dist/InformeExpediente.exe --title "Versión $VERSION" \
             --notes "Descargá InformeExpediente.exe y reemplazá el anterior, o aceptá la actualización desde el programa."
-          gh release upload "v$VERSION" dist/InformeExpediente.exe --clobber
