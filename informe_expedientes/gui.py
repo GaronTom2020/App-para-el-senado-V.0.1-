@@ -2547,11 +2547,35 @@ class Aplicacion(tk.Tk):
                         style="Tarjeta.TCheckbutton").pack(anchor="w", pady=(6, 0))
         renglon(5, "Incluir", caja)
 
-        cuenta = correo.cuenta_envio()
-        explicacion(m, f"Llega desde la cuenta de la oficina ({cuenta[0]})." if cuenta else
-                       "Falta configurar la cuenta de envío de la oficina: el correo no va a salir hasta que "
-                       "quien mantiene el programa la cargue. El aviso en pantalla funciona igual.").grid(
-            row=6, column=1, sticky="w", pady=(4, 0))
+        fila_cuenta = ttk.Frame(m, style="Tarjeta.TFrame")
+        fila_cuenta.grid(row=6, column=1, sticky="w", pady=(4, 0))
+        texto_cuenta = tk.StringVar()
+
+        def mostrar_cuenta():
+            cuenta = correo.cuenta_envio()
+            texto_cuenta.set(f"Llega desde la cuenta de la oficina ({cuenta[0]})." if cuenta else
+                             "Falta la cuenta de envío de la oficina: el correo no va a salir hasta cargar el "
+                             "archivo cuenta_envio.txt. El aviso en pantalla funciona igual.")
+
+        def elegir_cuenta():
+            ruta = filedialog.askopenfilename(parent=v, title="Archivo de la cuenta de envío",
+                                              filetypes=[("Cuenta de envío", "cuenta_envio.txt"),
+                                                         ("Texto", "*.txt"), ("Todos", "*.*")])
+            if not ruta:
+                return
+            try:
+                usuario, _ = correo.cargar_cuenta(Path(ruta))
+            except correo.ErrorCorreo as e:
+                messagebox.showwarning("Cuenta de envío", str(e), parent=v)
+                return
+            mostrar_cuenta()
+            self._registro(f"Resumen diario: cuenta de envío cargada ({usuario}).")
+
+        mostrar_cuenta()
+        ttk.Label(fila_cuenta, textvariable=texto_cuenta, style="Ayuda.TLabel", wraplength=380,
+                  justify="left").pack(anchor="w")
+        ttk.Button(fila_cuenta, text="Elegir archivo de la cuenta…", command=elegir_cuenta,
+                   style="Chico.TButton").pack(anchor="w", pady=(4, 0))
 
         def leer():
             direcciones = [x.strip() for x in destinos.get().replace(";", ",").split(",") if x.strip()]
