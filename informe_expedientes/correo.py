@@ -9,7 +9,9 @@ Se envía desde la cuenta de Gmail de la oficina, creada solo para esto: el usua
 dirección quiere recibirlo. La cuenta y su contraseña de aplicación se leen, en este orden, de:
 
 1. `cuenta_envio.txt` junto al .exe (o junto a app.py), en la carpeta compartida de la oficina;
-2. la variable de entorno INFORME_CUENTA_ENVIO, con el mismo contenido.
+2. la copia que guarda cada usuario en su carpeta de datos, si eligió el archivo a mano desde la ventana del
+   resumen diario (sirve en las PC donde el .exe no está en la carpeta compartida);
+3. la variable de entorno INFORME_CUENTA_ENVIO, con el mismo contenido.
 
 El .exe no la trae adentro: se publica en Releases y cualquiera podría sacarla de ahí.
 
@@ -256,7 +258,7 @@ def _leer_cuenta(texto: str) -> tuple[str, str] | None:
 
 def cuenta_envio() -> tuple[str, str] | None:
     """(dirección, contraseña de aplicación) de la cuenta de la oficina, o None si no está configurada."""
-    fuentes = [_carpeta_programa() / ARCHIVO_CUENTA, None]
+    fuentes = [_carpeta_programa() / ARCHIVO_CUENTA, config.carpeta_app() / ARCHIVO_CUENTA, None]
     for fuente in fuentes:
         if fuente is None:
             texto = os.environ.get("INFORME_CUENTA_ENVIO", "")
@@ -269,6 +271,26 @@ def cuenta_envio() -> tuple[str, str] | None:
         if cuenta:
             return cuenta
     return None
+
+
+def cargar_cuenta(origen: Path) -> tuple[str, str]:
+    """Copia el archivo de la cuenta que eligió el usuario a su carpeta de datos, así queda aunque después no
+    tenga a mano el original. Lanza ErrorCorreo si el archivo no tiene la forma esperada."""
+    try:
+        texto = Path(origen).read_text(encoding="utf-8-sig")
+    except OSError as e:
+        raise ErrorCorreo(f"No se pudo leer el archivo: {e}") from e
+    cuenta = _leer_cuenta(texto)
+    if cuenta is None:
+        raise ErrorCorreo("El archivo tiene que tener dos renglones: la dirección de Gmail y la contraseña de "
+                          "aplicación.")
+    destino = config.carpeta_app() / ARCHIVO_CUENTA
+    try:
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        destino.write_text(texto, encoding="utf-8")
+    except OSError as e:
+        raise ErrorCorreo(f"No se pudo guardar la cuenta: {e}") from e
+    return cuenta
 
 
 def enviar(cfg: ConfigCorreo, asunto: str, cuerpo_html: str, cuerpo_texto: str) -> None:
@@ -471,4 +493,4 @@ def programar(cfg: ConfigCorreo) -> None:
 
 __all__ = ["ConfigCorreo", "Resumen", "armar", "enviar", "enviar_resumen", "ejecutar_diario", "mostrar_aviso",
            "lineas_aviso", "programar", "ErrorCorreo",
-           "cifrar_clave", "descifrar_clave", "cuenta_envio", "TAREA"]
+           "cifrar_clave", "descifrar_clave", "cuenta_envio", "cargar_cuenta", "TAREA"]

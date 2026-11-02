@@ -311,3 +311,28 @@ def test_envio_desde_la_cuenta_de_la_oficina(tmp_path, monkeypatch):
             correo.enviar(cfg, "Prueba", "<p>hola</p>", "hola")
     finally:
         _SMTPFalso.rechazar = False
+
+
+def test_cuenta_elegida_a_mano(tmp_path, monkeypatch):
+    monkeypatch.setattr(correo, "_carpeta_programa", lambda: tmp_path / "programa")
+    monkeypatch.setattr(correo.config, "carpeta_app", lambda: tmp_path / "datos")
+    monkeypatch.delenv("INFORME_CUENTA_ENVIO", raising=False)
+    assert correo.cuenta_envio() is None
+    mal = tmp_path / "mal.txt"
+    mal.write_text("solo un renglon\n", encoding="utf-8")
+    with pytest.raises(correo.ErrorCorreo, match="dos renglones"):
+        correo.cargar_cuenta(mal)
+    assert correo.cuenta_envio() is None
+
+    # Se copia a la carpeta de datos: sirve aunque después se borre o no se tenga a mano el original.
+    elegido = tmp_path / "pendrive" / "cuenta_envio.txt"
+    elegido.parent.mkdir()
+    elegido.write_text("oficina@gmail.com\nabcd efgh ijkl mnop\n", encoding="utf-8")
+    assert correo.cargar_cuenta(elegido) == ("oficina@gmail.com", "abcdefghijklmnop")
+    elegido.unlink()
+    assert correo.cuenta_envio() == ("oficina@gmail.com", "abcdefghijklmnop")
+
+    # La de la carpeta compartida, junto al .exe, gana sobre la copia del usuario.
+    (tmp_path / "programa").mkdir()
+    (tmp_path / "programa" / "cuenta_envio.txt").write_text("compartida@gmail.com\nclave\n", encoding="utf-8")
+    assert correo.cuenta_envio() == ("compartida@gmail.com", "clave")
