@@ -1,0 +1,18 @@
+# Dependabot abre un PR por semana con las versiones nuevas de los paquetes de Python y de las acciones
+# de GitHub (los workflows las fijan por commit; Dependabot actualiza el commit y el comentario).
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      python:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      acciones:
+        patterns: ["*"]

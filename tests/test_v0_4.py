@@ -1,5 +1,6 @@
 """Versión 0.4.0: PDF, exportar el seguimiento, relacionados en el seguimiento, resumen por correo y versiones."""
 
+import hashlib
 import sys
 from datetime import date
 
@@ -186,18 +187,40 @@ def test_instalar_verifica_la_descarga(monkeypatch, tmp_path, partes, corte, com
     assert actual.read_bytes() == b"viejo"
 
 
+@pytest.mark.parametrize("huella, instala", [
+    (hashlib.sha256(b"x" * 1000).hexdigest(), True),
+    ("0" * 64, False),                     # el archivo no es el que publicó GitHub
+    ("", True),                            # GitHub no informó la huella: alcanza con el tamaño
+])
+def test_instalar_verifica_la_huella(monkeypatch, tmp_path, huella, instala):
+    actual = tmp_path / "InformeExpediente.exe"
+    actual.write_bytes(b"viejo")
+    monkeypatch.setattr(actualizaciones.sys, "executable", str(actual))
+    monkeypatch.setattr(actualizaciones.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(actualizaciones.requests, "get", lambda *a, **k: _Descarga([b"x" * 1000]))
+    version = actualizaciones.Version("9.0.0", "https://x", "https://x/InformeExpediente.exe", tamano=1000,
+                                      sha256=huella)
+    if instala:
+        assert actualizaciones.instalar(version).exists()
+    else:
+        with pytest.raises(OSError, match="no coincide"):
+            actualizaciones.instalar(version)
+        assert not (tmp_path / "InformeExpediente.nuevo.exe").exists()
+    assert actual.read_bytes() == b"viejo"
+
+
 def test_version_nueva(monkeypatch):
     publicadas = [
         {"tag_name": "manual", "assets": []},
         {"tag_name": "v9.1.0", "prerelease": True, "assets": []},
         {"tag_name": "v9.0.0", "html_url": "https://github.com/x/releases/tag/v9.0.0",
          "assets": [{"name": "InformeExpediente.exe", "browser_download_url": "https://x/InformeExpediente.exe",
-                     "size": 1234}]},
+                     "size": 1234, "digest": "sha256:ABC123"}]},
         {"tag_name": "v0.3.0", "assets": []},
     ]
     monkeypatch.setattr(actualizaciones.requests, "get", lambda *a, **k: _Respuesta(publicadas))
     v = actualizaciones.hay_nueva()
-    assert (v.numero, v.exe, v.tamano) == ("9.0.0", "https://x/InformeExpediente.exe", 1234)
+    assert (v.numero, v.exe, v.tamano, v.sha256) == ("9.0.0", "https://x/InformeExpediente.exe", 1234, "abc123")
     monkeypatch.setattr(actualizaciones, "__version__", "9.0.0")
     assert actualizaciones.hay_nueva() is None
     assert actualizaciones.clave("v0.10.1") > actualizaciones.clave("0.9.9")
