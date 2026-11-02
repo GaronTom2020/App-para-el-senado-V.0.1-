@@ -21,7 +21,7 @@ sys.path.insert(0, str(RAIZ))
 sys.path.insert(0, str(RAIZ / "tests"))
 os.environ["APPDATA"] = tempfile.mkdtemp(prefix="manual_")      # no toca la configuración real
 
-from PIL import ImageGrab  # noqa: E402
+from PIL import Image, ImageGrab  # noqa: E402
 
 from conftest import ClienteFalso  # noqa: E402
 from informe_expedientes import gui  # noqa: E402
@@ -30,16 +30,71 @@ from informe_expedientes.servicio import Opciones, generar  # noqa: E402
 HOY = date(2026, 10, 30)
 
 
+def _por_pantalla(app, x, y, ancho, alto):
+    return ImageGrab.grab(bbox=(x, y, x + ancho, y + alto), all_screens=True)
+
+
+def _por_ventana(app, x, y, ancho, alto):
+    """PrintWindow de Win32: dibuja la ventana en memoria, sin depender de que esté a la vista (sirve en los
+    runners de GitHub, donde el escritorio puede no estar disponible para ImageGrab)."""
+    import ctypes
+    from ctypes import wintypes
+    user32, gdi32 = ctypes.windll.user32, ctypes.windll.gdi32
+    hwnd = app.winfo_id()
+    ancho_v, alto_v = app.winfo_width(), app.winfo_height()
+    hdc = user32.GetDC(hwnd)
+    memoria = gdi32.CreateCompatibleDC(hdc)
+    mapa = gdi32.CreateCompatibleBitmap(hdc, ancho_v, alto_v)
+    gdi32.SelectObject(memoria, mapa)
+    try:
+        if not user32.PrintWindow(hwnd, memoria, 2):           # PW_RENDERFULLCONTENT
+            raise OSError("PrintWindow no pudo dibujar la ventana")
+
+        class BITMAPINFOHEADER(ctypes.Structure):
+            _fields_ = [("biSize", wintypes.DWORD), ("biWidth", wintypes.LONG), ("biHeight", wintypes.LONG),
+                        ("biPlanes", wintypes.WORD), ("biBitCount", wintypes.WORD),
+                        ("biCompression", wintypes.DWORD), ("biSizeImage", wintypes.DWORD),
+                        ("biXPelsPerMeter", wintypes.LONG), ("biYPelsPerMeter", wintypes.LONG),
+                        ("biClrUsed", wintypes.DWORD), ("biClrImportant", wintypes.DWORD)]
+        cabecera = BITMAPINFOHEADER(ctypes.sizeof(BITMAPINFOHEADER), ancho_v, -alto_v, 1, 32, 0, 0, 0, 0, 0, 0)
+        datos = ctypes.create_string_buffer(ancho_v * alto_v * 4)
+        gdi32.GetDIBits(memoria, mapa, 0, alto_v, datos, ctypes.byref(cabecera), 0)
+    finally:
+        gdi32.DeleteObject(mapa)
+        gdi32.DeleteDC(memoria)
+        user32.ReleaseDC(hwnd, hdc)
+    imagen = Image.frombuffer("RGB", (ancho_v, alto_v), datos, "raw", "BGRX", 0, 1)
+    dx, dy = x - app.winfo_rootx(), y - app.winfo_rooty()
+    return imagen.crop((dx, dy, dx + ancho, dy + alto))
+
+
+def _vacia(imagen) -> bool:
+    """Negra o de un solo color: el escritorio no estaba disponible."""
+    return imagen.convert("L").getextrema()[0] == imagen.convert("L").getextrema()[1]
+
+
 def capturar(app, nombre: str, widget=None) -> None:
-    """Guarda la ventana entera o, con ``widget``, solo ese recuadro."""
+    """Guarda la ventana entera o, con ``widget``, solo ese recuadro. Si ningún método da una imagen
+    válida, deja la captura anterior del repositorio y avisa."""
     app.update()
     app.after(350)
     app.update()
     w = widget or app
-    x, y = w.winfo_rootx(), w.winfo_rooty()
-    ImageGrab.grab(bbox=(x, y, x + w.winfo_width(), y + w.winfo_height()), all_screens=True).save(
-        SALIDA / f"{nombre}.png")
-    print("captura", nombre)
+    caja = (w.winfo_rootx(), w.winfo_rooty(), w.winfo_width(), w.winfo_height())
+    errores = []
+    for metodo in (_por_pantalla, _por_ventana):
+        try:
+            imagen = metodo(app, *caja)
+        except Exception as error:                              # noqa: BLE001 - se prueba el siguiente método
+            errores.append(f"{metodo.__name__}: {error!r}")
+            continue
+        if _vacia(imagen):
+            errores.append(f"{metodo.__name__}: imagen vacía")
+            continue
+        imagen.save(SALIDA / f"{nombre}.png")
+        print("captura", nombre, f"({metodo.__name__})")
+        return
+    raise RuntimeError(f"No se pudo capturar «{nombre}»: " + "; ".join(errores))
 
 
 def principal() -> None:
