@@ -143,17 +143,61 @@ class _Respuesta:
         return self._datos
 
 
+class _Descarga:
+    def __init__(self, partes, corte=False):
+        self._partes, self._corte = partes, corte
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return False
+
+    def raise_for_status(self):
+        pass
+
+    def iter_content(self, _tamano):
+        yield from self._partes
+        if self._corte:
+            raise actualizaciones.requests.ConnectionError("conexión cerrada")
+
+
+@pytest.mark.parametrize("partes, corte, completa", [
+    ([b"x" * 600, b"x" * 400], False, True),
+    ([b"x" * 600], False, False),          # llegó menos de lo que informa GitHub
+    ([b"x" * 600], True, False),           # se cortó la conexión a mitad de camino
+    ([], False, False),                    # no llegó nada
+])
+def test_instalar_verifica_la_descarga(monkeypatch, tmp_path, partes, corte, completa):
+    actual = tmp_path / "InformeExpediente.exe"
+    actual.write_bytes(b"viejo")
+    monkeypatch.setattr(actualizaciones.sys, "executable", str(actual))
+    monkeypatch.setattr(actualizaciones.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(actualizaciones.requests, "get", lambda *a, **k: _Descarga(partes, corte))
+    version = actualizaciones.Version("9.0.0", "https://x", "https://x/InformeExpediente.exe", tamano=1000)
+    nuevo = tmp_path / "InformeExpediente.nuevo.exe"
+    if completa:
+        assert actualizaciones.instalar(version).exists()
+        assert nuevo.stat().st_size == 1000
+    else:
+        with pytest.raises(OSError):
+            actualizaciones.instalar(version)
+        assert not nuevo.exists()
+    assert actual.read_bytes() == b"viejo"
+
+
 def test_version_nueva(monkeypatch):
     publicadas = [
         {"tag_name": "manual", "assets": []},
         {"tag_name": "v9.1.0", "prerelease": True, "assets": []},
         {"tag_name": "v9.0.0", "html_url": "https://github.com/x/releases/tag/v9.0.0",
-         "assets": [{"name": "InformeExpediente.exe", "browser_download_url": "https://x/InformeExpediente.exe"}]},
+         "assets": [{"name": "InformeExpediente.exe", "browser_download_url": "https://x/InformeExpediente.exe",
+                     "size": 1234}]},
         {"tag_name": "v0.3.0", "assets": []},
     ]
     monkeypatch.setattr(actualizaciones.requests, "get", lambda *a, **k: _Respuesta(publicadas))
     v = actualizaciones.hay_nueva()
-    assert (v.numero, v.exe) == ("9.0.0", "https://x/InformeExpediente.exe")
+    assert (v.numero, v.exe, v.tamano) == ("9.0.0", "https://x/InformeExpediente.exe", 1234)
     monkeypatch.setattr(actualizaciones, "__version__", "9.0.0")
     assert actualizaciones.hay_nueva() is None
     assert actualizaciones.clave("v0.10.1") > actualizaciones.clave("0.9.9")
