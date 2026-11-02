@@ -1,0 +1,114 @@
+/* Manual de usuario: portada al estilo del Informe de Gestión de la Prosecretaría Parlamentaria e
+   interior al estilo del Reglamento de la H. Cámara de Diputados (Cambria/Calibri, banda celeste,
+   notas al margen, recuadros). El encabezado, el pie y el número de página los agrega construir_manual.py. */
+
+:root {
+  --cupula: #1A64AB; --cupula-oscura: #114E9A; --noche: #0B3D7C; --celeste: #27AAE1; --celeste-claro: #8FD3F4;
+  --tenue: #E6EEF9; --tinta: #292F3D; --suave: #5A6478; --linea: #B9C8DE; --ambar: #8A5A10; --ambar-claro: #FFF4DE;
+  --serif: Cambria, Caladea, "DejaVu Serif", Georgia, serif;
+  --sans: Calibri, Carlito, "Segoe UI", "DejaVu Sans", Arial, sans-serif;
+}
+
+@page { size: A4; margin: 22mm 18mm 26mm 18mm; }
+@page portada { margin: 0; }
+
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { margin: 0; font-family: var(--serif); font-size: 10.8pt; line-height: 1.42; color: var(--tinta); }
+a { color: var(--cupula); text-decoration: none; }
+
+/* ------------------------------------------------------------------ portada */
+.portada { page: portada; width: 210mm; height: 297mm; position: relative; overflow: hidden;
+  background: linear-gradient(160deg, #2C7BC4 0%, var(--cupula) 45%, var(--noche) 100%); break-after: page; }
+.portada .foto { position: absolute; left: -18mm; top: 34mm; width: 175mm; opacity: .33;
+  filter: grayscale(1) contrast(1.15); mix-blend-mode: luminosity; transform: rotate(-4deg);
+  border-radius: 3mm; box-shadow: 0 0 0 1px rgba(255,255,255,.3); }
+.portada .hemiciclo { position: absolute; left: 20mm; top: 24mm; font-family: var(--serif); font-style: italic;
+  color: #fff; font-size: 11pt; line-height: 1.35; }
+.portada .hemiciclo b { font-style: italic; }
+.portada .columna { position: absolute; right: 0; top: 76mm; width: 74mm; }
+.portada .bloque { padding: 9mm 8mm; }
+.portada .b1 { background: var(--cupula-oscura); text-align: center; border-top-left-radius: 4mm; padding: 10mm 8mm; }
+.portada .b1 img { width: 44mm; }
+.portada .b2 { background: var(--celeste-claro); color: var(--noche); font-family: var(--sans); padding: 12mm 8mm 10mm; }
+.portada .b2 .t { font-weight: 700; font-size: 22pt; line-height: 1.02; letter-spacing: .3pt; }
+.portada .b2 .v { font-weight: 700; font-size: 17pt; margin-top: 2mm; }
+.portada .b3 { background: #fff; color: var(--cupula); font-family: var(--sans); padding: 10mm 8mm 22mm;
+  border-bottom-left-radius: 4mm; }
+.portada .b3 .raya { width: 8mm; height: 1.2mm; background: var(--celeste); margin-bottom: 4mm; }
+.portada .b3 .n { font-size: 10.5pt; text-transform: uppercase; line-height: 1.25; }
+.portada .b3 .n b { display: block; }
+.portada .b3 .f { margin-top: 6mm; font-size: 8.5pt; color: var(--suave); }
+.portada .titulo-reg { position: absolute; left: 20mm; bottom: 34mm; width: 105mm; color: #fff;
+  border-top: .4mm solid rgba(255,255,255,.55); border-bottom: .4mm solid rgba(255,255,255,.55); padding: 5mm 0; }
+.portada .titulo-reg div { font-family: var(--serif); font-style: italic; font-size: 20pt; line-height: 1.2; }
+.portada .titulo-reg span { display: block; font-family: var(--sans); font-size: 9pt; margin-top: 2mm; opacity: .85; }
+
+/* ------------------------------------------------------------------ índice general */
+.indice { break-after: page; }
+.banda { background: var(--celeste); color: #fff; font-family: var(--sans); font-size: 15pt; letter-spacing: .5pt;
+  padding: 4mm 6mm; margin: 0 0 12mm; text-transform: uppercase; }
+.indice .cap { margin: 0 0 6mm; break-inside: avoid; }
+.indice .cap .num { font-family: var(--sans); font-size: 10pt; text-transform: uppercase; color: var(--suave); }
+.indice .linea { display: flex; align-items: baseline; gap: 2mm; border-bottom: .3mm solid var(--tinta); }
+.indice .linea a { color: var(--tinta); }
+.indice .linea .tit { font-weight: 700; font-size: 12pt; flex: 1; }
+.indice .pag { font-family: var(--sans); min-width: 8mm; text-align: right; }
+.indice ul { list-style: none; margin: 1.5mm 0 0 10mm; padding: 0; font-size: 10.3pt; }
+.indice li { display: flex; gap: 2mm; margin: .6mm 0; }
+.indice li a.tit { color: var(--tinta); flex: 1; }
+.indice li .pag { color: var(--suave); }
+
+/* ------------------------------------------------------------------ capítulos */
+.capitulo { break-before: page; padding-left: 46mm; }
+.capitulo:first-of-type { break-before: auto; }
+.apertura { margin: 0 0 9mm -46mm; }
+.apertura .banda { margin-bottom: 4mm; }
+h1 { font-family: var(--serif); font-weight: 700; color: var(--cupula); font-size: 22pt; line-height: 1.15;
+  margin: 0; padding-bottom: 3mm; border-bottom: .4mm solid var(--linea); }
+h2 { font-family: var(--serif); font-weight: 700; font-size: 13.5pt; color: var(--cupula-oscura); margin: 8mm 0 3mm;
+  break-after: avoid; }
+h3 { font-family: var(--sans); font-size: 11.5pt; color: var(--cupula); margin: 6mm 0 2mm; break-after: avoid; }
+h4 { font-family: var(--sans); font-size: 10.5pt; margin: 4mm 0 1.5mm; break-after: avoid; }
+p { margin: 0 0 2.6mm; text-align: justify; hyphens: auto; }
+li { margin: 0 0 1.4mm; text-align: justify; }
+ol, ul { padding-left: 6mm; margin: 0 0 3mm; }
+code { font-family: Consolas, "DejaVu Sans Mono", monospace; font-size: 9pt; background: var(--tenue);
+  padding: 0 1mm; border-radius: .8mm; }
+pre { background: var(--tenue); padding: 3mm; font-size: 8.3pt; white-space: pre-wrap; border-left: 1mm solid var(--linea); }
+pre code { background: none; padding: 0; }
+blockquote { margin: 0 0 3mm; padding: 2mm 4mm; font-family: var(--sans); color: var(--cupula-oscura);
+  background: var(--tenue); border-radius: 1mm; }
+blockquote p { margin: 0; text-align: left; }
+
+/* Notas al margen, como las del Reglamento: a la izquierda, en cursiva, alineadas a la derecha. */
+aside.margen { float: left; clear: left; width: 38mm; margin: .6mm 0 2mm -46mm; text-align: right;
+  font-family: var(--sans); font-style: italic; font-size: 8.6pt; line-height: 1.3; color: var(--cupula);
+  border-right: .6mm solid var(--celeste); padding-right: 2.5mm; }
+
+/* Tablas */
+table { width: 100%; border-collapse: collapse; margin: 1mm 0 4mm; font-family: var(--sans); font-size: 9.6pt;
+  break-inside: avoid; }
+th { background: var(--cupula); color: #fff; text-align: left; padding: 1.6mm 2.4mm; font-weight: 700; }
+td { padding: 1.4mm 2.4mm; border-bottom: .3mm solid var(--linea); vertical-align: top; }
+tr:nth-child(even) td { background: #F5F8FD; }
+
+/* Figuras */
+figure { margin: 3mm 0 5mm; break-inside: avoid; }
+figure img { display: block; max-width: 100%; max-height: 120mm; margin: 0 auto; border: .3mm solid var(--linea);
+  box-shadow: 0 .8mm 2.4mm rgba(17,78,154,.18); }
+figure.ancha { margin-left: -46mm; }
+figure.ancha img { max-height: 135mm; }
+figcaption { font-family: var(--sans); font-size: 8.6pt; color: var(--suave); margin-top: 2mm; text-align: center; }
+figcaption b { color: var(--cupula); }
+
+/* Recuadros */
+.admonition { border: .4mm solid var(--linea); border-left: 2mm solid var(--celeste); background: #F3FAFE;
+  padding: 2.6mm 4mm 1mm; margin: 2mm 0 4.5mm; break-inside: avoid; border-radius: 0 1.2mm 1.2mm 0; }
+.admonition-title { font-family: var(--sans); font-weight: 700; color: var(--cupula-oscura); margin-bottom: 1.2mm;
+  text-transform: uppercase; font-size: 8.8pt; letter-spacing: .4pt; }
+.admonition p, .admonition li { font-family: var(--sans); font-size: 9.8pt; text-align: left; }
+.admonition.atencion { border-left-color: #E0A030; background: var(--ambar-claro); }
+.admonition.atencion .admonition-title { color: var(--ambar); }
+.admonition.paso { border-left-color: var(--cupula); background: var(--tenue); }
+
+.desde-readme { border-top: .3mm dashed var(--linea); padding-top: 2mm; }

@@ -1,0 +1,63 @@
+name: Manual de usuario
+
+# Compila el manual en PDF con el README vigente y capturas nuevas del programa. Corre al cambiar el README,
+# el manual o el programa en main, y a mano desde la pestaña Actions. El PDF queda como artefacto y en la
+# versión «manual» de Releases, siempre en la misma dirección:
+#   https://github.com/<usuario>/<repositorio>/releases/download/manual/Manual-de-usuario.pdf
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - README.md
+      - manual/**
+      - informe_expedientes/**
+      - .github/workflows/manual.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: manual
+  cancel-in-progress: true
+
+jobs:
+  manual:
+    runs-on: windows-latest          # para las capturas de la ventana y las fuentes Cambria y Calibri
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install -r requirements.txt pytest markdown pymupdf playwright
+          python -m playwright install chromium
+
+      - name: Capturas del programa
+        # Si el escritorio del runner no permite capturar, se usan las de manual/capturas del repositorio.
+        continue-on-error: true
+        run: python manual/capturar.py
+
+      - name: Compilar el manual
+        run: python manual/construir_manual.py --nombre Manual-de-usuario
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Manual-de-usuario
+          path: |
+            manual/salida/Manual-de-usuario.pdf
+            manual/salida/Manual-de-usuario.html
+
+      - name: Publicar en Releases
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view manual >/dev/null 2>&1 || gh release create manual --title "Manual de usuario" \
+            --notes "Manual de usuario en PDF, compilado automáticamente con la última versión del README."
+          gh release upload manual manual/salida/Manual-de-usuario.pdf --clobber

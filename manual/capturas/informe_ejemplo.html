@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Informe S-351/25 — H. Senado de la Nación</title><style>
+:root{
+  --tinta:#292F3D; --tinta-suave:#5A6478; --cupula:#1A64AB; --cupula-oscura:#114E9A;
+  --cupula-tenue:#E6EEF9; --piedra:#D8E4F7; --linea:#B9C8DE; --papel:#FFFFFF;
+  --lacre:#8C2F2F; --lacre-tenue:#F6E7E5; --ambar:#8A5A10; --ambar-tenue:#F7EEDC;
+  --serif: Georgia, "Times New Roman", serif;
+  --sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --tinta:#E3E8F2; --tinta-suave:#A9B6CC; --cupula:#7FB2E8; --cupula-oscura:#A8CBF0;
+    --cupula-tenue:#16263D; --piedra:#0E1420; --linea:#2A3A52; --papel:#131B2A;
+    --lacre:#E8A39B; --lacre-tenue:#3B201D; --ambar:#E6BC70; --ambar-tenue:#372B16;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--piedra);color:var(--tinta);font:15px/1.55 var(--sans)}
+.hoja{max-width:880px;margin:32px auto;background:var(--papel);padding:44px 56px 40px;border-top:6px solid var(--cupula)}
+.membrete{display:flex;justify-content:space-between;gap:16px;font-size:13px;color:var(--tinta-suave)}
+.numero{font-family:var(--serif);font-weight:normal;font-size:54px;line-height:1.05;margin:22px 0 6px;letter-spacing:.005em}
+.numero-cabecera{font-size:30px;margin:26px 0 4px;border:0;padding:0}
+.descripcion{font-size:16px;color:var(--tinta-suave);margin:0 0 14px}
+.extracto{font-family:var(--serif);font-size:17px;line-height:1.6;margin:0 0 16px;max-width:72ch}
+.enlaces{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:14px;margin:0}
+a{color:var(--cupula-oscura);text-decoration-thickness:1px;text-underline-offset:2px}
+a:hover{color:var(--cupula)}
+a:focus-visible{outline:2px solid var(--cupula);outline-offset:2px}
+.situacion{margin:30px 0 8px;padding:22px 26px 20px;background:var(--cupula-tenue);border-left:5px solid var(--cupula)}
+.situacion.ambar{background:var(--ambar-tenue);border-color:var(--ambar)}
+.situacion.lacre{background:var(--lacre-tenue);border-color:var(--lacre)}
+.situacion .rotulo{font-size:13px;color:var(--tinta-suave);margin:0}
+.situacion h2{font-family:var(--serif);font-weight:normal;font-size:25px;line-height:1.25;margin:4px 0 8px;border:0;padding:0}
+.situacion ul{margin:0 0 4px;padding-left:20px}
+.situacion li{margin:2px 0}
+.pasos{list-style:none;margin:20px 0 6px;padding:0;display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));counter-reset:paso}
+.paso{position:relative;padding:32px 10px 0 0;font-size:13px;line-height:1.35;color:var(--tinta-suave)}
+.paso::before{counter-increment:paso;content:counter(paso);position:absolute;top:0;left:0;width:24px;height:24px;border-radius:50%;
+  border:2px solid var(--linea);background:var(--papel);color:var(--tinta-suave);font-size:12px;line-height:20px;text-align:center;font-weight:600}
+.paso::after{content:"";position:absolute;top:11px;left:30px;right:6px;height:2px;background:var(--linea)}
+.paso:last-child::after{display:none}
+.paso strong{display:block;color:var(--tinta);font-weight:600}
+.paso.hecho::before{content:"✓";background:var(--cupula);border-color:var(--cupula);color:var(--papel)}
+.paso.hecho::after{background:var(--cupula)}
+.paso.actual::before{border-color:var(--cupula);color:var(--cupula-oscura);box-shadow:0 0 0 4px color-mix(in srgb,var(--cupula) 22%,transparent)}
+.paso.actual strong{color:var(--cupula-oscura)}
+.paso.detenido::before{content:"×";border-color:var(--lacre);color:var(--lacre);font-size:15px}
+.paso.detenido strong{color:var(--lacre)}
+.caducidad{margin:14px 0 0;font-size:13.5px}
+.caducidad.vencida{color:var(--lacre)}
+h2{font-family:var(--serif);font-weight:normal;font-size:26px;line-height:1.25;color:var(--cupula-oscura);margin:44px 0 14px;padding-bottom:6px;border-bottom:2px solid var(--linea)}
+h3{font-size:17px;font-weight:600;line-height:1.3;margin:28px 0 8px;color:var(--tinta)}
+h4{font-size:14.5px;font-weight:600;margin:18px 0 4px;color:var(--tinta)}
+.indice-doc{margin:28px 0 8px;padding:14px 22px 12px;background:var(--cupula-tenue);border-left:4px solid var(--cupula)}
+.indice-doc .rotulo{font-size:13px;color:var(--tinta-suave);margin:0 0 6px}
+.indice-doc ol{margin:0;padding-left:20px;columns:2 240px;column-gap:32px;font-size:14px}
+.indice-doc li{margin:2px 0;break-inside:avoid}
+dl.datos{display:grid;grid-template-columns:minmax(150px,230px) 1fr;gap:8px 24px;margin:0}
+dl.datos dt{color:var(--tinta-suave)}
+dl.datos dd{margin:0}
+.tabla{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-weight:600;color:var(--tinta-suave);background:var(--piedra);padding:8px 10px;white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--linea);vertical-align:top}
+td.fecha{white-space:nowrap;font-variant-numeric:tabular-nums}
+.sesiones{list-style:none;margin:0;padding:0}
+.sesiones li{display:grid;grid-template-columns:110px 1fr;gap:4px 18px;padding:10px 0;border-bottom:1px solid var(--linea)}
+.sesiones .fecha{font-variant-numeric:tabular-nums;color:var(--tinta-suave)}
+.sesiones p{margin:0}
+.situacion .contraste{margin:8px 0 0;padding-left:20px;font-size:13.5px;color:var(--tinta-suave)}
+@media (max-width:680px){.sesiones li{grid-template-columns:1fr}}
+.tipo{display:inline-block;font-size:12px;padding:1px 9px;border-radius:999px;background:var(--cupula-tenue);color:var(--cupula-oscura);white-space:nowrap}
+.tipo.asesores{background:var(--piedra);color:var(--tinta-suave)}
+.secundario{color:var(--tinta-suave);font-size:13px;margin:4px 0 0}
+.docs a{display:inline-block;margin-right:12px;white-space:nowrap}
+.vacio{color:var(--tinta-suave);font-style:italic}
+.bloques{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.bloque{border:1px solid var(--linea);padding:14px 16px}
+.bloque h3{font-size:14px;margin:0 0 8px;font-weight:600}
+.bloque dl{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;margin:0;font-size:13.5px}
+.bloque dt{color:var(--tinta-suave)}
+.bloque dd{margin:0}
+.notas{white-space:pre-wrap;font-family:var(--serif);font-size:16px;border-left:3px solid var(--linea);padding-left:16px}
+footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--linea);font-size:12.5px;color:var(--tinta-suave)}
+footer ul{padding-left:18px;margin:6px 0}
+@media (max-width:680px){
+  .hoja{margin:0;padding:28px 20px}
+  .numero{font-size:40px}
+  dl.datos{grid-template-columns:1fr;gap:2px}
+  dl.datos dd{margin-bottom:8px}
+  .pasos{grid-template-columns:1fr;gap:10px}
+  .paso{padding:2px 0 0 36px}
+  .paso::after{display:none}
+}
+@media print{
+  :root{--tinta:#292F3D;--tinta-suave:#5A6478;--papel:#fff;--piedra:#D8E4F7;--linea:#B9C8DE;
+        --cupula:#1A64AB;--cupula-oscura:#114E9A;--cupula-tenue:#E6EEF9;--lacre:#8C2F2F;--lacre-tenue:#F6E7E5;
+        --ambar:#8A5A10;--ambar-tenue:#F7EEDC}
+  body{background:#fff}
+  .hoja{margin:0;padding:0;max-width:none;border-top:0}
+  h2{break-after:avoid}
+  tr,.bloque{break-inside:avoid}
+  .situacion,.paso::before,th{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style></head><body><main class='hoja'><div class="membrete"><span>H. Senado de la Nación</span><span>Informe del 02/11/2026, 09:02 h</span></div><h1 class="numero">S-351/25</h1><p class="descripcion">Proyecto de ley presentado en el Senado</p><p class="extracto">GALARETTO Y OTROS: PROYECTO DE LEY QUE MODIFICA SU SIMILAR 26.529 -DERECHO DEL PACIENTE EN SU RELACION CON LOS PROFESIONALES E INSTITUCIONES DE SALUD- RESPECTO DE LOS REQUISITOS DEL CONSENTIMIENTO INFORMADO ESCRITO.</p><p class="enlaces"><span><a href="https://www.senado.gob.ar/parlamentario/comisiones/verExp/351.25/S/PL" target="_blank" rel="noopener">Ficha en el sitio del Senado</a></span><span><a href="https://www.senado.gob.ar/parlamentario/parlamentaria/486638/downloadPdf" target="_blank" rel="noopener">Texto original (PDF)</a></span></p><section class="situacion " aria-labelledby="situacion"><p class="rotulo">Situación actual</p><h2 id="situacion">En comisión: Salud</h2><ul><li>Ingresó a comisión el 05/03/2026.</li><li>Tuvo dictamen (Orden del Día N° 527/25), que caducó por la renovación bienal del cuerpo; el expediente volvió a comisión.</li></ul><ol class="pasos" style="--n:6" aria-label="Recorrido del trámite"><li class="paso hecho" aria-label="Ingreso al Senado: cumplido"><strong>Ingreso al Senado</strong>27/03/2025 DAE 18/2025</li><li class="paso actual" aria-label="Comisión: etapa actual"><strong>Comisión</strong>05/03/2026 Salud</li><li class="paso pendiente" aria-label="Dictamen: pendiente"><strong>Dictamen</strong></li><li class="paso pendiente" aria-label="Sanción del Senado: pendiente"><strong>Sanción del Senado</strong></li><li class="paso pendiente" aria-label="Cámara de Diputados: pendiente"><strong>Cámara de Diputados</strong></li><li class="paso pendiente" aria-label="Ley y Poder Ejecutivo: pendiente"><strong>Ley y Poder Ejecutivo</strong></li></ol><p class="caducidad"><strong>Caducidad estimada: 28/02/2027.</strong> Ley 13.640 (texto según Ley 23.821): caduca si no obtiene sanción en una de las cámaras durante el año parlamentario de ingreso (2025) o el siguiente.</p></section><nav class="indice-doc" aria-label="Índice"><p class="rotulo">En este informe</p><ol><li><a href="#seccion-1">Datos del expediente</a></li><li><a href="#seccion-2">Giros a comisiones</a></li><li><a href="#seccion-3">Reuniones de comisión en que se trató</a></li><li><a href="#seccion-4">Órdenes del Día del Senado</a></li><li><a href="#seccion-5">Expedientes relacionados</a></li><li><a href="#seccion-6">Votaciones en el recinto</a></li><li><a href="#seccion-7">Observaciones de la ficha</a></li></ol></nav><h2 id="seccion-1">Datos del expediente</h2><dl class="datos"><dt>Expediente</dt><dd><a href="https://www.senado.gob.ar/parlamentario/comisiones/verExp/351.25/S/PL" target="_blank" rel="noopener">S-351/25 (PL)</a></dd><dt>Tipo</dt><dd>Proyecto de ley</dd><dt>Origen</dt><dd>Senado de la Nación</dd><dt>Autores</dt><dd><a href="https://www.senado.gob.ar/senadores/senador/573" target="_blank" rel="noopener">Galaretto, Eduardo Horacio</a>; <a href="https://www.senado.gob.ar/senadores/senador/546" target="_blank" rel="noopener">Abad, Maximiliano</a>; <a href="https://www.senado.gob.ar/senadores/senador/536" target="_blank" rel="noopener">Losada, Carolina</a>; Zimmermann, Victor</dd><dt>Ingreso por mesa de entradas</dt><dd>27/03/2025</dd><dt>Dado cuenta en sesión</dt><dd>24/04/2025</dd><dt>Diario de Asuntos Entrados</dt><dd>N° 18/2025 (normal)</dd><dt>Textos</dt><dd><a href="https://www.senado.gob.ar/parlamentario/parlamentaria/486638/downloadPdf" target="_blank" rel="noopener">Texto original (PDF)</a>; texto definitivo en proceso de carga</dd></dl><h2 id="seccion-2">Giros a comisiones</h2><div class="tabla"><table><thead><tr><th>Comisión</th><th>Orden de giro</th><th>Ingreso</th><th>Egreso</th></tr></thead><tbody><tr><td>Salud</td><td>2</td><td class="fecha">05/03/2026</td><td class="fecha">en curso</td></tr><tr><td>Salud</td><td>1</td><td class="fecha">04/04/2025</td><td class="fecha">28/08/2025</td></tr></tbody></table></div><h2 id="seccion-3">Reuniones de comisión en que se trató</h2><p class="vacio">No se buscaron reuniones de comisión para este informe.</p><p class="secundario">No se buscaron reuniones de comisión.</p><h2 id="seccion-4">Órdenes del Día del Senado</h2><div class="tabla"><table><thead><tr><th>Número</th><th>Fecha</th><th>Estado</th><th>Texto</th></tr></thead><tbody><tr><td><a href="https://www.senado.gob.ar/parlamentario/parlamentaria/ordenDelDiaResultadoLink/2025/527" target="_blank" rel="noopener">N° 527/25</a></td><td class='fecha'>28/08/2025</td><td>Caduca por renov. bienal</td><td><a href="https://www.senado.gob.ar/parlamentario/parlamentaria/38001/downloadOrdenDia" target="_blank" rel="noopener">Dictamen (PDF)</a></td></tr></tbody></table></div><h2 id="seccion-5">Expedientes relacionados</h2><p>No se encontraron expedientes tratados en conjunto ni tenidos a la vista en la orden del día, el dictamen, la ficha ni el temario de las reuniones.</p><h2 id="seccion-6">Votaciones en el recinto</h2><p>No se encontraron votaciones del recinto sobre este expediente ni sobre sus órdenes del día.</p><h2 id="seccion-7">Observaciones de la ficha</h2><ul><li>04-03-26 VUELVE A COMISION POR ISP 27/26 , SEGUN EL ART. 106 PARRAFO 4° DEL REGLAMENTO DEL H. SENADO, POR RENOVACION BIENAL DEL CUERPO.</li><li>31-07-25 INC. DE FIRMA SDOR. ABAD (F. 6)</li></ul><footer><p>Informe generado automáticamente con datos públicos del sitio del H. Senado de la Nación (<a href="https://www.senado.gob.ar/parlamentario/comisiones/verExp/351.25/S/PL" target="_blank" rel="noopener">ficha del expediente</a>). Antes de usarlo en un trámite oficial, verificá los datos en la fuente. Programa Informe de Expedientes, versión 0.2.0.</p></footer></main></body></html>
