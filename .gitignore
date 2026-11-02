@@ -1,2 +1,5 @@
 __pycache__/
 *.pyc
+
+# Manual de usuario compilado (lo genera manual/construir_manual.py)
+manual/salida/

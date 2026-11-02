@@ -46,6 +46,19 @@ Usa solamente información pública de www.senado.gob.ar y www.hcdn.gob.ar.
 - **Votaciones en el recinto**: una línea por sesión. La votación en general con su resultado («aprobado (42 a 21)»); en particular, solo los artículos rechazados o modificados, en rangos («se rechazaron los arts. 23-24»), o «aprobado sin observaciones»; y las insistencias (art. 83), con si alcanzaron los dos tercios. Las mociones, preferencias y habilitaciones sobre tablas no se incluyen. Si el Senado aprobó con modificaciones y las actas no dicen qué artículos, se aclara y se enlaza el texto aprobado. Si el detalle del acta y su PDF dan totales distintos, se avisa. Si hay una votación más reciente que lo que registra la ficha, la situación lo dice («Votado en el recinto el 29/10/2026 (42 a 21); la ficha oficial todavía no registra la sanción») y la línea de pasos marca la sanción del Senado como hecha.
 - Sanción, número de ley, resolución del Poder Ejecutivo (veto o promulgación, decreto y Boletín Oficial), observaciones de la ficha y notas propias.
 
+## Manual de usuario
+
+El manual para el uso diario, paso a paso y con capturas de cada pestaña, se compila en PDF a partir de `manual/contenido.md`, de las secciones vigentes de este README (lo que incluye el informe, las novedades, «Si algo no funciona» y la línea de comandos) y de capturas nuevas del programa. El workflow `.github/workflows/manual.yml` lo vuelve a armar cada vez que cambian el README, el manual o el programa en `main`, y lo publica en *Releases → Manual de usuario*. Para compilarlo en la PC:
+
+```
+python -m pip install markdown pymupdf playwright pytest
+python -m playwright install chromium
+python manual/capturar.py
+python manual/construir_manual.py
+```
+
+Deja `manual/salida/Manual de usuario.pdf` (y una copia en HTML). Para cambiar el texto, editá `manual/contenido.md`: al comienzo del archivo están las convenciones para notas al margen, recuadros, figuras y secciones tomadas del README.
+
 ## Instalación
 
 **Opción A, con el ejecutable (recomendada para la oficina).** El `.exe` se compila una sola vez y después se copia a cada PC, que no necesita Python. Para compilarlo hay dos caminos:
