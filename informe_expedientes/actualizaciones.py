@@ -7,6 +7,7 @@ si hay una más nueva, ofrece instalarla: descarga el .exe nuevo y lo reemplaza 
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import subprocess
@@ -34,6 +35,7 @@ class Version:
     exe: str | None              # dirección de descarga del .exe, si la versión lo trae
     notas: str = ""
     tamano: int = 0              # bytes del .exe según GitHub (0 si no lo informa)
+    sha256: str = ""             # huella del .exe según GitHub («digest» del archivo; vacío si no la informa)
 
 
 def clave(numero: str) -> tuple[int, ...]:
@@ -58,7 +60,8 @@ def ultima(espera: float = 8) -> Version | None:
         archivo = next((a for a in v.get("assets", []) if a.get("name", "").lower() == NOMBRE_EXE.lower()), {})
         versiones.append(Version(etiqueta.lstrip("v"), v.get("html_url") or URL_PAGINA,
                                  archivo.get("browser_download_url"), v.get("body") or "",
-                                 int(archivo.get("size") or 0)))
+                                 int(archivo.get("size") or 0),
+                                 (archivo.get("digest") or "").removeprefix("sha256:").lower()))
     return max(versiones, key=lambda v: clave(v.numero), default=None)
 
 
@@ -77,13 +80,15 @@ def instalar(version: Version, avisar=lambda *_: None) -> Path:
 
     Devuelve el archivo .bat que hay que ejecutar antes de salir. Lanza OSError si no se puede escribir
     junto al .exe actual (por ejemplo, en una carpeta de red de solo lectura) o si la descarga quedó
-    incompleta: en ese caso se borra lo descargado y el .exe actual no se toca."""
+    incompleta o no coincide con la huella SHA-256 que publica GitHub: en ese caso se borra lo descargado y
+    el .exe actual no se toca."""
     if not version.exe:
         raise OSError("Esta versión no trae el archivo .exe.")
     actual = Path(sys.executable)
     nuevo = actual.with_name(actual.stem + ".nuevo.exe")
     avisar("Descargando la versión nueva…")
     bajado = 0
+    huella = hashlib.sha256()
     try:
         with requests.get(version.exe, stream=True, timeout=60, headers={"User-Agent": config.USER_AGENT}) as r:
             r.raise_for_status()
@@ -91,6 +96,7 @@ def instalar(version: Version, avisar=lambda *_: None) -> Path:
                 for parte in r.iter_content(1 << 16):
                     f.write(parte)
                     bajado += len(parte)
+                    huella.update(parte)
     except requests.RequestException as e:
         nuevo.unlink(missing_ok=True)
         raise OSError(f"Se cortó la descarga ({e}). Probá de nuevo más tarde.") from e
@@ -98,6 +104,10 @@ def instalar(version: Version, avisar=lambda *_: None) -> Path:
         nuevo.unlink(missing_ok=True)
         raise OSError(f"La descarga quedó incompleta ({bajado:,} de {version.tamano:,} bytes). "
                       "Probá de nuevo más tarde.".replace(",", "."))
+    if version.sha256 and huella.hexdigest() != version.sha256:
+        nuevo.unlink(missing_ok=True)
+        raise OSError("El archivo descargado no coincide con el publicado en GitHub. No se instaló; "
+                      "avisá a quien mantiene el programa.")
     bat = Path(tempfile.gettempdir()) / "actualizar_informe_expediente.bat"
     bat.write_text(
         "@echo off\r\n"
