@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="220" viewBox="0 0 900 220" role="img" aria-label="Sistema de Información Parlamentaria — H. Senado de la Nación">
+  <defs>
+    <linearGradient id="fondo" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2C7BC4"/>
+      <stop offset="0.45" stop-color="#1A64AB"/>
+      <stop offset="1" stop-color="#0B3D7C"/>
+    </linearGradient>
+  </defs>
+  <rect width="900" height="220" rx="14" fill="url(#fondo)"/>
+  <!-- Cúpula estilizada del Congreso -->
+  <g fill="none" stroke="#8FD3F4" stroke-width="2" opacity="0.55" transform="translate(705 30)">
+    <line x1="80" y1="0" x2="80" y2="14"/>
+    <circle cx="80" cy="17" r="3" fill="#8FD3F4"/>
+    <path d="M58 52 Q80 18 102 52"/>
+    <rect x="56" y="52" width="48" height="10"/>
+    <path d="M30 100 Q80 42 130 100"/>
+    <line x1="80" y1="62" x2="80" y2="100"/><line x1="58" y1="70" x2="50" y2="100"/><line x1="102" y1="70" x2="110" y2="100"/>
+    <rect x="22" y="100" width="116" height="10"/>
+    <line x1="34" y1="110" x2="34" y2="150"/><line x1="56" y1="110" x2="56" y2="150"/><line x1="80" y1="110" x2="80" y2="150"/>
+    <line x1="104" y1="110" x2="104" y2="150"/><line x1="126" y1="110" x2="126" y2="150"/>
+    <rect x="12" y="150" width="136" height="10"/>
+  </g>
+  <rect x="48" y="58" width="6" height="104" rx="3" fill="#27AAE1"/>
+  <text x="74" y="92" font-family="Georgia, 'Times New Roman', serif" font-size="34" fill="#FFFFFF">Sistema de Información Parlamentaria</text>
+  <text x="74" y="128" font-family="Georgia, 'Times New Roman', serif" font-size="22" font-style="italic" fill="#8FD3F4">Honorable Senado de la Nación Argentina</text>
+  <text x="74" y="160" font-family="Segoe UI, Arial, sans-serif" font-size="15" fill="#E6EEF9">Expedientes · Seguimiento · Sesiones · Asuntos entrados</text>
+</svg>

@@ -1,14 +1,38 @@
+<p align="center">
+  <img src="docs/img/banner.svg" alt="Sistema de Información Parlamentaria — H. Senado de la Nación" width="100%">
+</p>
+
+<p align="center">
+  <a href="https://github.com/GaronTom2020/App-para-el-senado-V.0.1-/releases/latest"><img alt="Versión" src="https://img.shields.io/github/v/release/GaronTom2020/App-para-el-senado-V.0.1-?label=versi%C3%B3n&color=1A64AB&style=flat-square"></a>
+  <a href="https://github.com/GaronTom2020/App-para-el-senado-V.0.1-/releases/tag/manual"><img alt="Manual de usuario" src="https://img.shields.io/badge/manual-PDF-27AAE1?style=flat-square"></a>
+  <img alt="Windows" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0B3D7C?style=flat-square">
+  <img alt="Python" src="https://img.shields.io/badge/Python-3-114E9A?style=flat-square">
+  <img alt="Fuentes públicas" src="https://img.shields.io/badge/fuentes-senado.gob.ar%20%C2%B7%20hcdn.gob.ar-5A6478?style=flat-square">
+</p>
+
+<p align="center">
+  <b><a href="https://github.com/GaronTom2020/App-para-el-senado-V.0.1-/releases/latest">⬇️ Descargar el programa</a></b>
+  &nbsp;·&nbsp;
+  <b><a href="https://github.com/GaronTom2020/App-para-el-senado-V.0.1-/releases/tag/manual">📘 Manual de usuario</a></b>
+  &nbsp;·&nbsp;
+  <b><a href="#si-algo-no-funciona">🛟 Si algo no funciona</a></b>
+</p>
+
 # Sistema de Información Parlamentaria — H. Senado de la Nación
 
 Versión actual: **0.4.0**. Programa de escritorio con cinco modos:
 
-- **Un expediente**: a partir de su número, arma un informe en Word y HTML con su situación en el trámite parlamentario, las reuniones de comisión en que se trató y los enlaces a cada fuente.
-- **Por tema**: a partir de un eje temático o de palabras clave, encuentra todos los expedientes que responden a ese tema y arma un informe consolidado en Word, HTML y Excel con la etapa de cada uno.
-- **Seguimiento**: una lista de expedientes que se revisa seguido para avisar qué cambió.
-- **Sesión**: a partir del plan de labor parlamentaria, un único informe con cada asunto en el orden de tratamiento y la ficha de sus expedientes, más un CSV para el tablero de sesiones. También arma el informe de una orden del día («OD 366/26») y lee la versión taquigráfica de la sesión.
-- **Asuntos entrados**: lee el Diario de Asuntos Entrados (DAE) digital del Senado desde una fecha de partida y después solo lo nuevo, con filtros por tipo, origen y palabras.
+| | Modo | Qué hace |
+|:-:|---|---|
+| 📄 | **Un expediente** | A partir de su número, arma un informe en Word y HTML con su situación en el trámite parlamentario, las reuniones de comisión en que se trató y los enlaces a cada fuente. |
+| 🔎 | **Por tema** | A partir de un eje temático o de palabras clave, encuentra todos los expedientes que responden a ese tema y arma un informe consolidado en Word, HTML y Excel con la etapa de cada uno. |
+| 👁️ | **Seguimiento** | Una lista de expedientes que se revisa seguido para avisar qué cambió. |
+| 🏛️ | **Sesión** | A partir del plan de labor parlamentaria, un único informe con cada asunto en el orden de tratamiento y la ficha de sus expedientes, más un CSV para el tablero de sesiones. También arma el informe de una orden del día («OD 366/26») y lee la versión taquigráfica de la sesión. |
+| 📥 | **Asuntos entrados** | Lee el Diario de Asuntos Entrados (DAE) digital del Senado desde una fecha de partida y después solo lo nuevo, con filtros por tipo, origen y palabras. |
 
 Usa solamente información pública de www.senado.gob.ar y www.hcdn.gob.ar.
+
+**Contenido:** [Novedades](#novedades-de-la-versión-040) · [Qué incluye el informe](#qué-incluye-el-informe) · [Instalación](#instalación) · [Uso](#uso) · [Por tema](#informe-temático-por-eje-o-palabras-clave) · [Sesión](#informe-de-sesión-plan-de-labor) · [Asuntos entrados](#asuntos-entrados-dae) · [Resumen diario](#resumen-diario-correo-y-aviso-en-pantalla) · [Seguimiento](#lista-de-seguimiento) · [Si algo no funciona](#si-algo-no-funciona) · [Línea de comandos](#línea-de-comandos) · [Despliegue](#despliegue)
 
 ### Novedades de la versión 0.4.0
 
