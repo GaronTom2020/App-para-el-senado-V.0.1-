@@ -95,10 +95,9 @@ Deja `manual/salida/Manual de usuario.pdf` (y una copia en HTML). Para cambiar e
 
 ## Instalación
 
-**Opción A, con el ejecutable (recomendada para la oficina).** El `.exe` se compila una sola vez y después se copia a cada PC, que no necesita Python. Para compilarlo hay dos caminos:
+**Opción A, con el ejecutable (recomendada para la oficina).** Descargá `InformeExpediente.exe` de la última versión en [Releases](https://github.com/GaronTom2020/App-para-el-senado-V.0.1-/releases/latest) y abrilo: no necesita Python ni instalación. Desde ahí, el programa avisa solo cuando hay una versión nueva y ofrece instalarla.
 
-- *En una PC con Python.* Instalá Python desde https://www.python.org/downloads/ (3.10 o posterior), marcando **Add python.exe to PATH** en la primera pantalla del instalador; si no tenés permisos de administrador, desmarcá *Use admin privileges when installing py.exe*. Después, doble clic en `construir_exe_windows.bat`, que genera `dist\InformeExpediente.exe`. Ojo: el «python» que ofrece abrir la Microsoft Store no es Python, es un atajo de Windows.
-- *En GitHub, sin instalar nada.* Subí el programa a un repositorio, copiá `despliegue/compilar-exe-windows.yml` a `.github/workflows/` y ejecutalo desde la pestaña *Actions*: compila en una máquina Windows de GitHub, corre las pruebas y deja el `.exe` para descargar.
+El `.exe` se compila en GitHub: *Actions → Compilar InformeExpediente.exe → Run workflow* (`.github/workflows/main.yml`). Corre las pruebas en una máquina Windows, compila con la cuenta de envío del resumen diario (los secretos `GMAIL_ENVIO_CUENTA` y `GMAIL_ENVIO_CLAVE`) y publica la versión `v0.4.0.N` en Releases, donde N es el número de la ejecución. Para compilarlo en una PC con Python 3.10 o posterior (marcando **Add python.exe to PATH** al instalarlo; el «python» que ofrece la Microsoft Store no sirve), está `construir_exe_windows.bat`, que genera `dist\InformeExpediente.exe`; ese `.exe` no envía correos salvo que tenga al lado un `cuenta_envio.txt`.
 
 Si el antivirus o Sistemas bloquean el `.exe`, pedí que lo autoricen: es un programa sin firma digital.
 
@@ -259,11 +258,13 @@ python app.py --help
 
 ### En las PC de la oficina (recomendado)
 
-1. **Compilar una sola vez.** En una PC con Python 3.10 o posterior, doble clic en `construir_exe_windows.bat`. Genera `dist\InformeExpediente.exe`, un solo archivo que incluye todo lo necesario.
-2. **Distribuir.** Copiá el `.exe` a una carpeta compartida de la red (por ejemplo `\\servidor\Prosecretaria\InformeExpedientes\`) y creá un acceso directo en el escritorio de cada usuario. No hace falta instalar nada en las PC.
-3. **Primera ejecución.** Como el programa no tiene firma digital, Windows puede mostrar «Windows protegió su PC»: *Más información → Ejecutar de todas formas*. Para evitar el aviso, pedí a Sistemas que lo habilite o lo firme con el certificado institucional.
-4. **Red.** El programa necesita salir por HTTPS a `www.senado.gob.ar` y `www.hcdn.gob.ar`. Usa la configuración de proxy de Windows; si el proxy pide usuario y contraseña, definí la variable de entorno `HTTPS_PROXY` (por ejemplo `http://usuario:clave@proxy:8080`). Si la red usa un proxy con autenticación integrada de Windows, pedí a Sistemas que habilite esos dos sitios.
-5. **Actualizar.** Reemplazá el `.exe` de la carpeta compartida. La configuración, los ejes y la caché de cada usuario quedan en `%APPDATA%\InformeExpedientes` y no se pierden.
+1. **Publicar una versión.** Después de unir los cambios en `main`, ejecutá *Actions → Compilar InformeExpediente.exe → Run workflow*. En unos minutos aparece la versión nueva en Releases.
+2. **Primera vez en cada PC.** Descargá el `.exe` de Releases (o copialo de una carpeta compartida, por ejemplo `\\servidor\Prosecretaria\InformeExpedientes\`) y creá un acceso directo en el escritorio. No hace falta instalar nada.
+3. **Aviso de Windows.** Como el programa no tiene firma digital, Windows puede mostrar «Windows protegió su PC»: *Más información → Ejecutar de todas formas*. Para evitar el aviso, pedí a Sistemas que lo habilite o lo firme con el certificado institucional.
+4. **Red.** El programa necesita salir por HTTPS a `www.senado.gob.ar`, `www.hcdn.gob.ar`, `api.github.com` y `github.com` (para las actualizaciones) y, si se usa el resumen por correo, a `smtp.gmail.com` (puerto 587). Usa la configuración de proxy de Windows; si el proxy pide usuario y contraseña, definí la variable de entorno `HTTPS_PROXY` (por ejemplo `http://usuario:clave@proxy:8080`). Si la red usa un proxy con autenticación integrada de Windows, pedí a Sistemas que habilite esos sitios.
+5. **Actualizar.** No hace falta repartir el `.exe` de nuevo: al abrir (una vez por día) o desde *Ayuda → Buscar actualizaciones*, cada PC ofrece instalar la versión nueva. Si se usa desde una carpeta compartida, alcanza con reemplazar ese `.exe`. La configuración, los ejes y la caché de cada usuario quedan en `%APPDATA%\InformeExpedientes` y no se pierden.
+
+Los flujos de `despliegue/` (GitHub Pages y seguimiento con un issue) son opcionales y **no están activos**: GitHub solo ejecuta los que están en `.github/workflows/`. Para activar uno, copialo ahí y seguí las instrucciones de su comienzo. `despliegue/compilar-exe-windows.yml` es la versión para copiar a otro repositorio; en este ya está activo como `.github/workflows/main.yml`.
 
 ### Publicación automática en GitHub Pages
 
@@ -302,6 +303,13 @@ Si se quisiera usar desde el navegador sin instalar nada, el mismo paquete puede
 | `seguimiento.py` | Lista de seguimiento, foto del estado, comparación y resumen de novedades (HTML y Markdown). |
 | `plan_labor.py` | Lectura del plan de labor (Word, PDF, texto o sitio) y sus asuntos en el orden de tratamiento. |
 | `sesion.py`, `informe_sesion.py` | Informe de sesión: expedientes de cada asunto y escritura en Word, HTML, Excel y CSV. |
+| `asuntos_entrados.py`, `informe_asuntos.py` | Diario de Asuntos Entrados (DAE): lectura, registro de lo ya visto e informe. |
+| `orden_dia.py` | Búsqueda por orden del día y sus expedientes. |
+| `taquigrafica.py` | Versión taquigráfica de una sesión: qué se votó y las modificaciones aprobadas. |
+| `correo.py` | Resumen diario: armado, envío por Gmail, aviso en pantalla y tarea programada de Windows. |
+| `actualizaciones.py` | Versiones nuevas y manual en GitHub Releases; descarga y reemplazo del `.exe`. |
+| `pdf.py` | Informes en PDF, imprimiendo el HTML con Edge o Chrome. |
+| `config.py`, `modelos.py`, `paginas.py`, `util.py` | Direcciones y códigos, estructuras de datos y ayudas comunes. |
 | `numeros.py` | Cantidades en letras («VEINTIÚN (21)»). |
 | `contenido.py`, `informe_docx.py`, `informe_html.py` | Contenido y escritura de los informes. |
 | `servicio.py` | Encadena todo; es lo que usan la ventana (`gui.py`) y la línea de comandos (`app.py`). |
