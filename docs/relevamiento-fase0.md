@@ -1,5 +1,9 @@
 # Relevamiento de la Fase 0 (30/10/2026)
 
+> **Documento histórico.** Las decisiones pendientes que figuran al final ya se resolvieron (ver «Cómo se
+> resolvieron»). Lo que describe de los sitios sigue sirviendo para entender el código y las páginas de
+> `tests/fixtures/`; si un sitio cambia, el workflow «Control de sitios» lo avisa con un issue.
+
 Qué publica el sitio del Senado y el de Diputados para las funciones nuevas, con las páginas reales
 guardadas en `tests/fixtures/`. Todas se bajaron el 30/10/2026. De las páginas HTML se quitaron los
 `<script>`, `<style>`, `<link>` y comentarios para que pesen menos; el resto del HTML queda tal cual.
@@ -164,6 +168,13 @@ No hace falta recorrer los ID uno por uno.
    `ficha.py:102`; son importaciones a propósito para comprobar que está instalado). Propongo resolverlos en la
    Fase 1 con `importlib.util.find_spec("xlrd")`.
 4. **CSV para Power BI (Fase 2):** sigue pendiente que me pases el formato exacto del tablero.
+
+### Cómo se resolvieron
+
+1. `pypdf` se sumó a `requirements.txt` y al `.exe` (versión 0.2.0).
+2. El enlace a Diputados usa su buscador (versión 0.2.0).
+3. `busqueda.py` y `ficha.py` comprueban `xlrd` con `importlib.util.find_spec`.
+4. Las columnas del CSV se acordaron el 31/10/2026: están en `COLUMNAS_CSV` de `informe_sesion.py`.
 
 ## Adenda (31/10/2026)
 

@@ -1,0 +1,9 @@
+# Notas de cada versión (las arma GitHub con --generate-notes al publicar el .exe): la lista de PRs unidos
+# desde la versión anterior. Las actualizaciones de Dependabot quedan afuera: no cambian nada para el usuario.
+changelog:
+  exclude:
+    labels: [dependencies]
+    authors: [dependabot]
+  categories:
+    - title: Cambios
+      labels: ["*"]

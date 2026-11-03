@@ -2,7 +2,8 @@
 
 Cada compilación del .exe se publica como una versión «v0.4.0» con el archivo InformeExpediente.exe; el
 manual, en la versión «manual». Al abrir, el programa consulta la lista de versiones (una vez por día) y,
-si hay una más nueva, ofrece instalarla: descarga el .exe nuevo y lo reemplaza al cerrar.
+si hay una más nueva, ofrece instalarla con la lista de cambios: descarga el .exe nuevo y lo reemplaza al
+cerrar. El anterior queda guardado como «InformeExpediente.anterior.exe», para volver a él si hace falta.
 """
 
 from __future__ import annotations
@@ -108,15 +109,55 @@ def instalar(version: Version, avisar=lambda *_: None) -> Path:
         nuevo.unlink(missing_ok=True)
         raise OSError("El archivo descargado no coincide con el publicado en GitHub. No se instaló; "
                       "avisá a quien mantiene el programa.")
+    # El .exe actual queda como «.anterior.exe», por si la versión nueva anda mal (Ayuda → Volver a la versión
+    # anterior).
+    return _bat_reemplazo(nuevo, actual, f"copy /y \"{actual}\" \"{archivo_anterior()}\" >nul\r\n")
+
+
+def archivo_anterior() -> Path:
+    actual = Path(sys.executable)
+    return actual.with_name(actual.stem + ".anterior.exe")
+
+
+def hay_anterior() -> bool:
+    """True si quedó guardada la versión anterior a la última actualización."""
+    return es_ejecutable() and archivo_anterior().exists()
+
+
+def volver_a_anterior() -> Path:
+    """Deja preparado volver a la versión anterior al cerrar el programa; devuelve el .bat como instalar()."""
+    if not hay_anterior():
+        raise OSError("No quedó guardada ninguna versión anterior.")
+    return _bat_reemplazo(archivo_anterior(), Path(sys.executable))
+
+
+def _bat_reemplazo(nuevo: Path, actual: Path, antes: str = "") -> Path:
+    """.bat que espera a que se cierre el programa, pone `nuevo` en lugar de `actual` y lo vuelve a abrir."""
     bat = Path(tempfile.gettempdir()) / "actualizar_informe_expediente.bat"
     bat.write_text(
         "@echo off\r\n"
         f":espera\r\ntasklist /FI \"PID eq {os.getpid()}\" | find \"{os.getpid()}\" >nul && "
         "(timeout /t 1 /nobreak >nul & goto espera)\r\n"
+        + antes +
         f"move /y \"{nuevo}\" \"{actual}\" >nul\r\n"
         f"start \"\" \"{actual}\"\r\n"
         "del \"%~f0\"\r\n", encoding="mbcs" if os.name == "nt" else "utf-8")
     return bat
+
+
+def cambios(notas: str, maximo: int = 8) -> list[str]:
+    """Los títulos de la lista de cambios que arma GitHub en las notas de la versión.
+
+    «* Actualizaciones más seguras by @usuario in https://github.com/…/pull/16» → «Actualizaciones más seguras».
+    """
+    titulos = []
+    for renglon in notas.splitlines():
+        m = re.match(r"\s*[*-]\s+(.+?)(?:\s+by\s+@\S+)?(?:\s+in\s+https?://\S+)?\s*$", renglon)
+        if m:
+            titulos.append(m.group(1))
+    if len(titulos) > maximo:
+        titulos = titulos[:maximo] + [f"y {len(titulos) - maximo} cambios más"]
+    return titulos
 
 
 def lanzar_reemplazo(bat: Path) -> None:
@@ -129,4 +170,5 @@ def manual() -> str:
     return str(MANUAL_LOCAL) if MANUAL_LOCAL.exists() else URL_MANUAL
 
 
-__all__ = ["Version", "ultima", "hay_nueva", "instalar", "lanzar_reemplazo", "manual", "es_ejecutable", "clave"]
+__all__ = ["Version", "ultima", "hay_nueva", "instalar", "lanzar_reemplazo", "manual", "es_ejecutable", "clave",
+           "cambios", "hay_anterior", "volver_a_anterior", "archivo_anterior"]

@@ -401,6 +401,8 @@ class Aplicacion(tk.Tk):
         ayuda.add_command(label="Manual de usuario", command=self._manual)
         ayuda.add_command(label="Cómo funciona", command=self._ayuda)
         ayuda.add_command(label="Buscar actualizaciones", command=lambda: self._buscar_version(manual=True))
+        if actualizaciones.hay_anterior():
+            ayuda.add_command(label="Volver a la versión anterior", command=self._volver_a_anterior)
         ayuda.add_command(label="Acerca del programa", command=self._acerca)
         barra.add_cascade(label="Ayuda", menu=ayuda)
         self.config(menu=barra)
@@ -2661,15 +2663,17 @@ class Aplicacion(tk.Tk):
             return
         if version.numero == self.cfg.get("version_omitida") and not manual:
             return
+        cambios = actualizaciones.cambios(version.notas)
+        aviso = f"Hay una versión nueva del programa: {version.numero} (tenés la {__version__})."
+        if cambios:
+            aviso += "\n\nQué cambia:\n" + "\n".join(f"• {c}" for c in cambios)
         if not (actualizaciones.es_ejecutable() and version.exe):
-            if messagebox.askyesno("Versión nueva", f"Hay una versión nueva del programa: {version.numero} "
-                                   f"(tenés la {__version__}).\n\n¿Querés abrir la página para descargarla?"):
+            if messagebox.askyesno("Versión nueva", f"{aviso}\n\n¿Querés abrir la página para descargarla?"):
                 webbrowser.open(version.pagina)
             else:
                 self.cfg["version_omitida"] = version.numero
             return
-        if not messagebox.askyesno("Versión nueva", f"Hay una versión nueva del programa: {version.numero} "
-                                   f"(tenés la {__version__}).\n\n¿Querés instalarla ahora? El programa se "
+        if not messagebox.askyesno("Versión nueva", f"{aviso}\n\n¿Querés instalarla ahora? El programa se "
                                    "cierra, se actualiza y se vuelve a abrir solo."):
             self.cfg["version_omitida"] = version.numero
             return
@@ -2680,6 +2684,21 @@ class Aplicacion(tk.Tk):
                                    "¿Querés abrir la página para descargarla a mano?"):
                 webbrowser.open(version.pagina)
             return
+        actualizaciones.lanzar_reemplazo(bat)
+        self._cerrar()
+
+    def _volver_a_anterior(self) -> None:
+        if not messagebox.askyesno("Volver a la versión anterior", (
+                f"Tenés la versión {__version__}. ¿Querés volver a la que tenías antes de la última "
+                "actualización? El programa se cierra y se vuelve a abrir solo.\n\nNo se va a ofrecer de nuevo "
+                "esta versión; sí la próxima que se publique.")):
+            return
+        try:
+            bat = actualizaciones.volver_a_anterior()
+        except OSError as e:
+            messagebox.showerror("Volver a la versión anterior", str(e))
+            return
+        self.cfg["version_omitida"] = __version__
         actualizaciones.lanzar_reemplazo(bat)
         self._cerrar()
 
