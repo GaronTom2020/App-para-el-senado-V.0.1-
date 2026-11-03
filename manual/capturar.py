@@ -82,6 +82,7 @@ def capturar(app, nombre: str, widget=None) -> None:
     app.update()
     w = widget or app
     caja = (w.winfo_rootx(), w.winfo_rooty(), w.winfo_width(), w.winfo_height())
+    print("capturando", nombre, caja, flush=True)
     errores = []
     for metodo in (_por_pantalla, _por_ventana):
         try:
@@ -93,7 +94,7 @@ def capturar(app, nombre: str, widget=None) -> None:
             errores.append(f"{metodo.__name__}: imagen vacía")
             continue
         imagen.save(SALIDA / f"{nombre}.png")
-        print("captura", nombre, f"({metodo.__name__})")
+        print("captura", nombre, f"({metodo.__name__})", flush=True)
         return
     raise RuntimeError(f"No se pudo capturar «{nombre}»: " + "; ".join(errores))
 
@@ -115,6 +116,11 @@ def principal() -> None:
         ventana.tk.call("tk", "scaling", 96 / 72)
 
     gui.tk.Tk.__init__ = a_escala_100
+    # Sin nadie que conteste, un aviso o la consulta de versión nueva dejarían la captura esperando para siempre.
+    gui.Aplicacion._buscar_version = lambda *_a, **_k: None
+    for nombre in ("showinfo", "showwarning", "showerror", "askyesno", "askokcancel", "askyesnocancel"):
+        setattr(gui.messagebox, nombre, lambda titulo="", texto="", *_a, _n=nombre, **_k:
+                print(f"aviso omitido ({_n}): {titulo}", flush=True) or False)
     app = gui.Aplicacion()
     app.geometry("1280x800+0+0")
     app.attributes("-topmost", True)

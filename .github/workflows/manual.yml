@@ -8,7 +8,7 @@ name: Manual de usuario
 on:
   workflow_dispatch: {}
   push:
-    branches: [main]
+    branches: [main, claude/capturas-en-github]
     paths:
       - README.md
       - manual/**
@@ -34,8 +34,11 @@ jobs:
 
       - name: Instalar dependencias
         run: |
-          python -m pip install -r requirements.txt pytest markdown pymupdf playwright
+          python -m pip install -r requirements.txt pytest markdown pymupdf playwright pillow
           python -m playwright install chromium
+
+      - name: Pantalla de 1920 × 1080
+        run: Set-DisplayResolution -Width 1920 -Height 1080 -Force
 
       - name: Capturas del programa
         # Si el escritorio del runner no permite capturar, se usan las de manual/capturas del repositorio, y la
@@ -43,7 +46,15 @@ jobs:
         # «python manual/capturar.py» y subirlas.
         shell: bash
         run: |
-          python manual/capturar.py || echo "::warning::No se pudieron tomar las capturas en GitHub: el manual usa las de manual/capturas. Si cambió la ventana, tomalas en una PC con «python manual/capturar.py» y subilas."
+          python -c "import ctypes;u=ctypes.windll.user32;print('pantalla',u.GetSystemMetrics(0),u.GetSystemMetrics(1),'escritorio',u.GetThreadDesktop(0),u.OpenInputDesktop(0,False,0x100))" > diag.txt 2>&1 || true
+          timeout 300 python -u manual/capturar.py >> diag.txt 2>&1 || echo "salida $?" >> diag.txt
+          echo "::warning::DIAG $(tail -c 2500 diag.txt | tr '\n\r' '  ')"
+
+      - name: DIAG subir capturas
+        shell: bash
+        run: |
+          git config user.name diag; git config user.email diag@example.com
+          git checkout -b diag-capturas; git add -f manual/capturas; git commit -qm diag; git push -f origin diag-capturas
 
       - name: Compilar el manual
         run: python manual/construir_manual.py --nombre Manual-de-usuario
