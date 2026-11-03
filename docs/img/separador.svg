@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="36" viewBox="0 0 900 36" role="img" aria-label="">
+  <defs>
+    <linearGradient id="izquierda" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#1A64AB" stop-opacity="0"/>
+      <stop offset="1" stop-color="#1A64AB"/>
+    </linearGradient>
+    <linearGradient id="derecha" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#1A64AB"/>
+      <stop offset="1" stop-color="#1A64AB" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <!-- Línea que se desvanece hacia los costados -->
+  <rect x="60" y="25" width="330" height="2" rx="1" fill="url(#izquierda)"/>
+  <rect x="510" y="25" width="330" height="2" rx="1" fill="url(#derecha)"/>
+  <!-- Hemiciclo de puntos, como el logo del Senado -->
+  <g fill="#27AAE1">
+    <circle cx="414" cy="26" r="3"/><circle cx="418" cy="17" r="3"/><circle cx="425" cy="10" r="3"/>
+    <circle cx="434" cy="5.5" r="3"/><circle cx="445" cy="3.5" r="3"/><circle cx="455" cy="3.5" r="3"/>
+    <circle cx="466" cy="5.5" r="3"/><circle cx="475" cy="10" r="3"/><circle cx="482" cy="17" r="3"/>
+    <circle cx="486" cy="26" r="3"/>
+  </g>
+  <g fill="#1A64AB">
+    <circle cx="430" cy="26" r="2.5"/><circle cx="434" cy="18.5" r="2.5"/><circle cx="442" cy="13.5" r="2.5"/>
+    <circle cx="450" cy="12" r="2.5"/><circle cx="458" cy="13.5" r="2.5"/><circle cx="466" cy="18.5" r="2.5"/>
+    <circle cx="470" cy="26" r="2.5"/>
+  </g>
+</svg>

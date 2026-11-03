@@ -32,7 +32,7 @@ Versión actual: **1.1.4**. Programa de escritorio con cinco modos:
 
 Usa solamente información pública de www.senado.gob.ar y www.hcdn.gob.ar.
 
-**Contenido:** [Novedades](#novedades-de-la-versión-11) · [Historial de versiones](#historial-de-versiones) · [Qué incluye el informe](#qué-incluye-el-informe) · [Instalación](#instalación) · [Uso](#uso) · [Por tema](#informe-temático-por-eje-o-palabras-clave) · [Sesión](#informe-de-sesión-plan-de-labor) · [Asuntos entrados](#asuntos-entrados-dae) · [Resumen diario](#resumen-diario-correo-y-aviso-en-pantalla) · [Seguimiento](#lista-de-seguimiento) · [Si algo no funciona](#si-algo-no-funciona) · [Línea de comandos](#línea-de-comandos) · [Despliegue](#despliegue)
+**Contenido:** 📰 [Novedades](#novedades-de-la-versión-11) · 🗂️ [Historial de versiones](#historial-de-versiones) · 📋 [Qué incluye el informe](#qué-incluye-el-informe) · 💾 [Instalación](#instalación) · ▶️ [Uso](#uso) · 🔎 [Por tema](#informe-temático-por-eje-o-palabras-clave) · 🏛️ [Sesión](#informe-de-sesión-plan-de-labor) · 📥 [Asuntos entrados](#asuntos-entrados-dae) · ✉️ [Resumen diario](#resumen-diario-correo-y-aviso-en-pantalla) · 👁️ [Seguimiento](#lista-de-seguimiento) · 🛟 [Si algo no funciona](#si-algo-no-funciona) · ⌨️ [Línea de comandos](#línea-de-comandos) · 🚀 [Despliegue](#despliegue)
 
 ### Novedades de la versión 1.1
 
@@ -51,6 +51,8 @@ Primera versión estable, con actualizaciones más seguras y controles para que 
 - **Control diario de los sitios**: los días hábiles, GitHub consulta el Senado y Diputados con casos conocidos y avisa con un issue si alguno dejó de leerse.
 
 Lo anterior, versión por versión, está en el historial.
+
+<p align="center"><img src="docs/img/separador.svg" width="70%" alt=""></p>
 
 ## Historial de versiones
 
@@ -92,9 +94,11 @@ Cada cambio entra al programa por un *pull request* (PR) en GitHub: un pedido de
 | 1.1.1 | Parche | #23 | Manual: capturas de la versión 1.1 | 1.1.0.11 |
 | 1.1.2 | Parche | #24 | Manual: GitHub toma las capturas solo | |
 | 1.1.3 | Parche | #25 | Numeración lanzamiento.función.parche; limpieza del manual | 1.1.3 |
-| 1.1.4 | Parche | #26 | README más corto; el manual se arma con capturas tomadas en GitHub | 1.1.4 |
+| 1.1.4 | Parche | #26 | README más corto y con separadores; el manual se arma con capturas tomadas en GitHub | 1.1.4 |
 
 Desde la 1.1.3, la versión publicada es exactamente la de la tabla.
+
+<p align="center"><img src="docs/img/separador.svg" width="70%" alt=""></p>
 
 ## Qué incluye el informe
 
@@ -125,9 +129,12 @@ python manual/construir_manual.py
 
 Deja `manual/salida/Manual de usuario.pdf` (y una copia en HTML). Para cambiar el texto, editá `manual/contenido.md`: al comienzo del archivo están las convenciones para notas al margen, recuadros, figuras y secciones tomadas del README.
 
+<p align="center"><img src="docs/img/separador.svg" width="70%" alt=""></p>
+
 ## Instalación
 
-**Opción A, con el ejecutable (recomendada para la oficina).** Descargá `InformeExpediente.exe` de la última versión en [Releases](https://github.com/GaronTom2020/App-para-el-senado-V.0.1-/releases/latest) y abrilo: no necesita Python ni instalación. Desde ahí, el programa avisa solo cuando hay una versión nueva y ofrece instalarla.
+> [!TIP]
+> **Opción A, con el ejecutable (recomendada para la oficina).** Descargá `InformeExpediente.exe` de la última versión en [Releases](https://github.com/GaronTom2020/App-para-el-senado-V.0.1-/releases/latest) y abrilo: no necesita Python ni instalación. Desde ahí, el programa avisa solo cuando hay una versión nueva y ofrece instalarla.
 
 El `.exe` se compila en GitHub: *Actions → Compilar InformeExpediente.exe → Run workflow* (`.github/workflows/main.yml`). Corre las pruebas en una máquina Windows, compila y publica la versión que figura en `informe_expedientes/__init__.py` (por ejemplo `v1.1.4`) en Releases, con la lista de cambios desde la anterior. Las versiones siguen el esquema lanzamiento.función.parche: cada PR sube su número (una función nueva, el del medio; un arreglo, el último). Si la versión ya está publicada, la compilación se detiene y pide subir el número. El `.exe` no lleva la cuenta de envío del resumen diario: se lee de `cuenta_envio.txt`, junto al `.exe` (ver [Resumen diario](#resumen-diario-correo-y-aviso-en-pantalla)). Para compilarlo en una PC con Python 3.10 o posterior (marcando **Add python.exe to PATH** al instalarlo; el «python» que ofrece la Microsoft Store no sirve), está `construir_exe_windows.bat`, que genera `dist\InformeExpediente.exe`; lo mismo vale para la cuenta de envío.
 
@@ -146,6 +153,8 @@ En Linux o macOS: `python3 -m venv .venv && .venv/bin/pip install -r requirement
 3. Al terminar, el resumen aparece en la ventana con los enlaces activos. Los botones de abajo abren el Word, el HTML o la carpeta de informes.
 
 En la pestaña *Reuniones*, el doble clic abre la nota de la reunión y el clic derecho ofrece la versión taquigráfica, el video o copiar el enlace.
+
+<p align="center"><img src="docs/img/separador.svg" width="70%" alt=""></p>
 
 ## Informe temático (por eje o palabras clave)
 
@@ -193,6 +202,8 @@ En la pestaña **Sesión**:
 
 En la pestaña **Asuntos entrados** se elige una fecha de partida y el programa lee los Diarios de Asuntos Entrados digitales del Senado desde esa fecha; en las consultas siguientes trae solo los nuevos. Si la fecha cae en el período parlamentario anterior (marzo a febrero), sigue la numeración de ambos. Se filtran por tipo, origen y palabras, y cada asunto se puede sumar a la lista de seguimiento. El informe en Word y HTML es opcional.
 
+<p align="center"><img src="docs/img/separador.svg" width="70%" alt=""></p>
+
 ## Resumen diario (correo y aviso en pantalla)
 
 En *Herramientas → Resumen diario (correo y aviso)…* cada usuario elige si quiere recibir, todos los días a una hora, un resumen con las novedades de la lista de seguimiento (de toda la lista o de los grupos que marque) y los asuntos entrados nuevos (con los tipos y las palabras que elija). Puede llegarle por correo, como un aviso en la esquina de la pantalla (con *Ver el resumen*, *Abrir el programa* y *Cerrar*), o de las dos formas. *Enviar una prueba* comprueba que el correo llega.
@@ -204,7 +215,8 @@ El correo sale de **una cuenta de Gmail de la oficina, creada solo para esto**. 
 1. En la cuenta de Gmail de la oficina, activá la *verificación en dos pasos* y creá una **contraseña de aplicación** en https://myaccount.google.com/apppasswords (16 letras).
 2. Junto a `InformeExpediente.exe` (en la carpeta compartida, o en cada PC), creá un archivo `cuenta_envio.txt` con la dirección en el primer renglón y la contraseña de aplicación en el segundo. Para correr desde el código, el mismo archivo junto a `app.py` o la variable de entorno `INFORME_CUENTA_ENVIO` (`cuenta_envio.txt` está en `.gitignore`).
 
-El `.exe` **no** lleva la cuenta adentro: se publica en Releases, y cualquiera que lo descargue podría sacarla.
+> [!WARNING]
+> El `.exe` **no** lleva la cuenta adentro: se publica en Releases, y cualquiera que lo descargue podría sacarla.
 
 **Si cambia la contraseña.** Al cambiar la contraseña de la cuenta, Google borra sus contraseñas de aplicación. Creá una nueva y reemplazala en `cuenta_envio.txt`; no hace falta recompilar.
 
@@ -225,7 +237,12 @@ En la pestaña **Seguimiento** se arma una lista de expedientes para revisar seg
 - reunión convocada con el expediente en el temario y reunión de comisión en que se trató (si se buscan reuniones);
 - cambio de situación y caducidad cercana (menos de 60 días).
 
-La primera revisión de cada expediente solo guarda su estado («Primera revisión»). El resumen queda en la ventana y en un HTML y un Markdown en la carpeta de informes; *Copiar resumen* copia el Markdown. La lista y la última «foto» de cada expediente se guardan en `seguimiento.json`, en la carpeta de configuración.
+> [!NOTE]
+> La primera revisión de cada expediente solo guarda su estado («Primera revisión»).
+
+El resumen queda en la ventana y en un HTML y un Markdown en la carpeta de informes; *Copiar resumen* copia el Markdown. La lista y la última «foto» de cada expediente se guardan en `seguimiento.json`, en la carpeta de configuración.
+
+<p align="center"><img src="docs/img/separador.svg" width="70%" alt=""></p>
 
 ## Cómo se buscan las votaciones
 
@@ -250,7 +267,12 @@ Puede tardar entre medio minuto y un par de minutos según cuántas reuniones ha
 
 - Solo aparecen las reuniones publicadas en las páginas de las comisiones del giro. Una reunión que no se publicó, o una nota que menciona el expediente de forma abreviada (por ejemplo, una lista "S-285, 637 y 638/24"), puede no detectarse.
 - Las reuniones de asesores se incluyen o no según la opción elegida, y se marcan como tales.
-- La situación se deduce de los datos de la ficha, y la caducidad estimada es **orientativa**: antes de usarla en un trámite oficial, verificala con la Dirección de Mesa de Entradas.
+- La situación se deduce de los datos de la ficha.
+
+> [!IMPORTANT]
+> La caducidad estimada es **orientativa**: antes de usarla en un trámite oficial, verificala con la Dirección de Mesa de Entradas.
+
+<p align="center"><img src="docs/img/separador.svg" width="70%" alt=""></p>
 
 ## Si algo no funciona
 
@@ -289,6 +311,8 @@ python app.py --help
 
 `--nombre` fija el nombre del archivo (sin fecha), útil para publicar siempre en la misma dirección.
 
+<p align="center"><img src="docs/img/separador.svg" width="70%" alt=""></p>
+
 ## Despliegue
 
 ### En las PC de la oficina (recomendado)
@@ -302,6 +326,8 @@ python app.py --help
 ### Flujos opcionales (no activos)
 
 En `despliegue/` hay flujos de GitHub Actions listos para copiar a `.github/workflows/`, con las instrucciones al comienzo de cada archivo: `informe-tematico.yml` publica en GitHub Pages informes temáticos y por bloque actualizados todos los días hábiles (lo publicado es público: conviene acordarlo con la Prosecretaría), y `seguimiento.yml` revisa una lista guardada en el repositorio y abre un issue con las novedades. `compilar-exe-windows.yml` es la versión del compilador para otro repositorio. No se puede publicar el programa como página web que consulte al Senado desde el navegador: el navegador no deja leer `senado.gob.ar` desde otro dominio.
+
+<p align="center"><img src="docs/img/separador.svg" width="70%" alt=""></p>
 
 ## Para quien mantiene el programa
 
@@ -342,3 +368,7 @@ Pruebas: `pip install pytest` y luego `python -m pytest`. No usan internet: trab
 Direcciones que usa: `parlamentario/comisiones/verExp/{número}.{año}/{origen}/{tipo}` (ficha), `parlamentario/parlamentaria/avanzada` (búsqueda) y `micrositios/DatosAbiertosExpedientes/BusquedaAvanzada/XLS` (su exportación completa), `parlamentario/comisiones/info/{id}` y `?Reuniones=N` (reuniones), `micrositios/nota/{id}/noticias` (nota de cada reunión), `parlamentario/comisiones/agenda/{id}` (agenda) `parlamentario/parlamentaria/ordenDelDiaResultadoLink/{año}/{número}` (órdenes del día), `votaciones/actas` (listado anual; otros años por POST con `busqueda_actas[anio]`), `votaciones/detalleActa/{id}` y `votaciones/verActaVotacion/{id}` (detalle y PDF de cada acta), `senadores/listados/agrupados-por-bloques` (bloques actuales) y `parlamentario/parlamentaria/actas` (Plenario de Labor Parlamentaria, con el PDF de cada plan; los nombres de archivo no siguen un patrón, por eso se usa el enlace de la tabla). En Diputados, la búsqueda `proyectos/resultado.html?strNumExp={número}&strNumExpOrig={origen}&strNumExpAnio={año}` (con `strMostrarTramites=on` y las demás opciones para que traiga el trámite), que sirve también como enlace (la dirección `proyecto.jsp` ya no existe). Se busca por el número del Senado; la respuesta puede traer otros proyectos con el mismo número, y se toma el que tiene ese «Expediente Senado».
 
 Los PDF de actas se leen con `pypdf`, incluida en `requirements.txt`; sin ella, las votaciones de sesiones recientes figuran solo con su resultado.
+
+<p align="center"><img src="docs/img/separador.svg" width="70%" alt=""></p>
+
+<p align="center"><sub>🏛️ Hecho para el H. Senado de la Nación · solo usa información pública de <a href="https://www.senado.gob.ar">senado.gob.ar</a> y <a href="https://www.hcdn.gob.ar">hcdn.gob.ar</a></sub></p>
