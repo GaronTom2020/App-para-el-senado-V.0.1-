@@ -60,11 +60,15 @@ Tiene cinco modos de trabajo, cada uno en una pestaña:
 - **Arriba**, la barra de menús: *Archivo*, *Herramientas*, *Enlaces útiles* y *Ayuda* (ver el capítulo «Menús y herramientas»).
 - **A la izquierda**, las cinco pestañas de trabajo. En cada una se completa qué se quiere buscar y se presiona el botón azul grande.
 - **A la derecha**, el resultado: un resumen con enlaces activos y otras pestañas (*Reuniones*, *Trámite*, *Registro*). Mientras trabaja, la barra de progreso avanza y el texto de arriba dice qué está consultando.
-- **Abajo a la derecha**, los botones **Abrir**: Word, HTML, Excel, PDF, la ficha en el sitio del Senado, copiar el resumen y la carpeta donde se guardan los informes.
+- **Abajo a la derecha**, los botones **Abrir**: los formatos que se guardaron (Word, HTML, Excel o PDF), la ficha en el sitio del Senado, copiar el resumen y la carpeta donde se guardan los informes. Solo aparecen los que sirven para el informe que se está viendo.
 
->> El botón «Cancelar» detiene una consulta larga.
+>> Mientras trabaja, el botón azul dice «Cancelar».
 
-Mientras el programa consulta, puede seguir usando la PC. Si una consulta tarda demasiado, presione **Cancelar**.
+Mientras el programa consulta, puede seguir usando la PC. El botón azul grande se vuelve rojo y dice **Cancelar**: si una consulta tarda demasiado, presiónelo.
+
+>> Ayudas: el mouse sobre un campo.
+
+Si deja el mouse quieto sobre un campo, aparece una explicación breve de qué escribir en él. Debajo de cada botón azul, el renglón **Formatos: … · cambiar** dice qué archivos se van a guardar; un clic ahí los cambia (es lo mismo que *Herramientas → Formatos de los informes…*).
 
 # Informe de un expediente
 
@@ -77,10 +81,10 @@ Mientras el programa consulta, puede seguir usando la PC. Si una consulta tarda 
 
 1. Abra la pestaña **Expedientes**.
 2. En el cuadro **Expedientes u órdenes del día** escriba el número. Puede escribir varios, **uno por renglón**.
-3. Deje **Tipo** en *Detectar automáticamente*: el programa averigua si es un proyecto de ley, de resolución, etc.
-4. Elija qué buscar (reuniones de comisión, reuniones ya convocadas) y los formatos (Word, HTML, PDF).
-5. Si quiere, escriba un **Comentario**: se agrega al final del informe, en la sección «Notas».
-6. Presione **Generar informe** (o las teclas **Ctrl + Enter**).
+3. Elija qué buscar (reuniones de comisión, reuniones ya convocadas).
+4. Presione **Generar informe** (o las teclas **Ctrl + Enter**).
+
+En **Más opciones** hay dos campos que se usan poco: **Tipo**, que conviene dejar en *Detectar automáticamente* (el programa averigua si es un proyecto de ley, de resolución, etc.), y **Comentario**, un texto suyo que se agrega al final del informe, en la sección «Notas».
 
 >> Formas válidas de escribir un número.
 
@@ -129,7 +133,7 @@ La pestaña **Trámite** muestra los giros a comisiones y los movimientos, con s
 
 >> Botones «Abrir» de abajo.
 
-Al terminar, use los botones de abajo: **Word** abre el documento para editar o imprimir; **HTML** lo abre en el navegador, con un índice navegable; **PDF**, listo para enviar o archivar; **Carpeta** abre la carpeta donde quedan guardados. Así se ve el informe en HTML:
+Al terminar, use los botones de abajo: **Word** abre el documento para editar o imprimir; **HTML** lo abre en el navegador, con un índice navegable; **PDF**, listo para enviar o archivar; **Carpeta** abre la carpeta donde quedan guardados. Qué formatos se guardan se elige con **Formatos: … · cambiar**, debajo del botón azul. Así se ve el informe en HTML:
 
 ![El informe en HTML, abierto en el navegador](capturas/08_informe_html.png)
 
@@ -158,7 +162,7 @@ Encuentra **todos los expedientes** sobre un tema, de un senador o de un bloque,
 3. Si quiere dejar afuera proyectos que mencionen otras palabras, escríbalas en **Excluir**.
 4. Ajuste los **Años**, el **Origen**, la **Comisión** y los **Tipos**. Por defecto se buscan ley, resolución y comunicación; las declaraciones quedan afuera porque son muy numerosas.
 5. Si quiere, elija un **senador** (escriba el apellido y elíjalo de la lista) o un **bloque**.
-6. En **De cada uno** deje marcada *Ficha* (recomendado, para saber la etapa de cada expediente). En **Formato** elija Word, HTML, Excel o PDF.
+6. En **Incluir** deje marcada *Ficha* (recomendado, para saber la etapa de cada expediente). Los formatos (Word, HTML, Excel o PDF) se eligen con **Formatos: … · cambiar**, debajo del botón.
 7. Presione **Generar informe temático**.
 
 >> Doble clic en la lista abre la ficha.
@@ -197,9 +201,9 @@ Arma una lista de expedientes para revisar seguido. Al presionar **Revisar noved
 
 >> Uno por renglón o separados por coma.
 
-1. En **Agregar expedientes u órdenes del día** escriba uno o más números (uno por renglón o separados por coma).
-2. Si agrega uno solo, puede ponerle un **Nombre** propio («Ley de financiamiento universitario»).
-3. Presione **Agregar**.
+1. En **Agregar expedientes** escriba uno o más números, separados por coma (también órdenes del día, «OD 413/26»).
+2. Presione **Agregar** (o Enter).
+3. Para ponerle un nombre propio a uno («Ley de financiamiento universitario»), márquelo en la lista y use **Acciones → Ponerle nombre…**.
 
 >> «Traer de un tema» suma los de un eje.
 
@@ -209,14 +213,18 @@ También puede usar **Traer de un tema** para sumar todos los expedientes de un 
 
 >> Los grupos ordenan la lista.
 
-Arriba de la lista, el selector **Grupo** filtra lo que se ve. Con **Nuevo**, **Renombrar** y **Borrar** se administran los grupos; con **Agrupar…** se mueven los expedientes marcados a un grupo. Las casillas de la primera columna sirven para marcar varios a la vez; **Quitar** saca de la lista los marcados.
+Arriba de la lista, el selector **Grupo** filtra lo que se ve, y el botón **Grupos** crea, renombra o borra grupos. Las casillas de la primera columna sirven para marcar varios a la vez.
+
+>> «Acciones»: lo que se hace con los marcados.
+
+El botón **Acciones**, debajo de la lista, actúa sobre los expedientes marcados (o sobre la fila elegida): ponerle nombre, agregarlos a un grupo o sacarlos del que se está viendo, ver la ficha, generar el informe completo o quitarlos de la lista. El **clic derecho** sobre la lista abre el mismo menú.
 
 ## Revisar novedades
 
 >> La primera revisión solo guarda el estado.
 
 1. Presione **Revisar novedades**.
-2. El resumen de cambios aparece a la derecha. Si está marcado *Guardar resumen en archivo*, queda también un HTML en la carpeta de informes.
+2. El resumen de cambios aparece a la derecha y queda también un HTML en la carpeta de informes.
 3. La columna **Desde** indica la fecha del último movimiento.
 
 !!! consejo "La primera vez"
@@ -230,14 +238,19 @@ Si marca **Relacionados (lento)**, el programa busca también los expedientes qu
 
 > Expediente relacionado nuevo: S-865/26 — Dictaminado en conjunto (Orden del Día N° 366/26) (Con dictamen de comisión).
 
-## Exportar la lista
+## Informes de la lista
 
->> Excel o PDF, con grupos y situación.
+>> Estado, vencimientos y agenda.
 
-El botón **Exportar** guarda la lista (o el grupo que se está viendo) en:
+El botón **Informes**, debajo de la lista, arma informes de toda la lista (o del grupo que se está viendo):
 
-- **Excel**: una hoja con todos los expedientes, con filtros, y una hoja por grupo. Trae el número, el nombre, los grupos, la situación, el extracto y el último movimiento.
-- **PDF**: una tabla por grupo, lista para imprimir o enviar.
+- **Estado de la lista (Excel)**: una hoja con todos los expedientes, con filtros, y una hoja por grupo. Trae el número, el nombre, los grupos, la situación, el extracto, el último movimiento y la caducidad.
+- **Estado de la lista (PDF)**: una tabla por grupo, lista para imprimir o enviar.
+- **Vencimientos**: los expedientes ordenados por fecha de caducidad, del que vence antes al que vence después. Los que caducan en menos de 60 días van en rojo, y los de menos de 15, además en negrita.
+- **Agenda de la semana**: las reuniones de comisión ya convocadas de hoy a siete días que tratan expedientes de la lista, día por día. Si una reunión trata varios, aparece una sola vez con todos ellos.
+
+!!! consejo "Vencimientos y agenda son instantáneos"
+    Salen de la última revisión de cada expediente, sin consultar el sitio. Para que estén al día, presione antes **Revisar novedades**.
 
 # Informe de sesión
 
@@ -259,7 +272,7 @@ A partir del **plan de labor parlamentaria**, arma un único informe con cada as
     - pegue el texto en el cuadro.
 2. Presione **Ver los asuntos** para comprobar lo que entendió el programa, antes de consultar nada. Si algo está mal, corrija el texto en el cuadro.
 3. Marque **Versión taquigráfica** si la sesión ya se hizo: suma el desenlace y las votaciones. **Relacionados (lento)** agrega, en la ficha de cada expediente, los tratados en conjunto o tenidos a la vista.
-4. Elija los formatos y presione **Generar informe de sesión**.
+4. Presione **Generar informe de sesión**. Los formatos (Word, HTML, Excel, CSV para Power BI y PDF) se eligen con **Formatos: … · cambiar**, debajo del botón.
 
 !!! atencion "Versión taquigráfica"
     La lectura de la versión taquigráfica es automática. El informe lo aclara; revise los puntos importantes contra el texto oficial.
@@ -353,6 +366,7 @@ Para dejar de recibirlo, vuelva a abrir la ventana, desmarque la primera casilla
 
 >> Úselas cuando algo falla.
 
+- **Formatos de los informes…**: qué archivos guarda cada pestaña (Word, HTML, Excel, PDF y, en *Sesión*, el CSV para Power BI). Es lo mismo que el renglón **Formatos: … · cambiar** debajo de cada botón azul.
 - **Resumen diario (correo y aviso)…**: ver el capítulo anterior.
 - **Usar caché**: recuerda las páginas ya leídas para que las consultas repetidas sean más rápidas. Conviene dejarla marcada.
 - **Guardar las páginas descargadas (diagnóstico)** y **Abrir carpeta de diagnóstico**: sirven para enviar a quien mantiene el programa lo que el programa vio, cuando un informe sale raro.

@@ -660,6 +660,164 @@ def exportar_lista(lista: Lista, carpeta: Path, formato: str, grupo: str | None 
     return texto_a_pdf(html_lista(lista, grupo), destino)
 
 
+# ================================================== vencimientos y agenda de la lista
+# Salen de la «foto» de la última revisión de cada expediente: no consultan el sitio, por eso son instantáneos.
+# Para tenerlos al día, primero «Revisar novedades».
+
+AVISO_VENCE = 60          # días: se marca en rojo
+URGENTE_VENCE = 15        # días: además, en negrita
+DIAS_AGENDA = 7           # «de la semana»: hoy y los seis días siguientes
+
+
+def filas_vencimientos(lista: Lista, grupo: str | None = None, hoy: date | None = None) -> list[dict]:
+    """Los expedientes con fecha de caducidad, del que vence antes al que vence después (los ya vencidos primero)."""
+    hoy = hoy or date.today()
+    filas = [f | {"faltan": (f["caducidad"] - hoy).days} for f in filas_lista(lista, grupo) if f["caducidad"]]
+    return sorted(filas, key=lambda f: f["caducidad"])
+
+
+def filas_agenda(lista: Lista, grupo: str | None = None, hoy: date | None = None) -> list[dict]:
+    """Las reuniones de comisión ya convocadas con algún expediente de la lista, de hoy en adelante, en orden.
+
+    Una reunión que trata varios expedientes de la lista aparece una vez, con todos ellos."""
+    hoy = hoy or date.today()
+    reuniones: dict[tuple, dict] = {}
+    for s in lista.del_grupo(grupo):
+        for fecha, hora, titulo, comision, url in (s.foto or {}).get("convocadas", []):
+            dia = _fecha(fecha) or parsear_fecha(fecha)
+            if dia is not None and dia < hoy:
+                continue
+            r = reuniones.setdefault((dia, hora or "", comision or titulo), {
+                "fecha": dia, "fecha_texto": "" if dia else (fecha or ""), "hora": hora or "",
+                "comision": comision or "", "titulo": titulo or "", "url": url, "expedientes": []})
+            if s.nombre not in r["expedientes"]:
+                r["expedientes"].append(s.nombre)
+    return sorted(reuniones.values(), key=lambda r: (r["fecha"] is None, r["fecha"] or hoy, r["hora"]))
+
+
+_DIAS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+
+
+def _dia(d: date) -> str:
+    """«Martes 10/11»."""
+    return f"{_DIAS[d.weekday()]} {d:%d/%m}"
+
+
+def _cuantos(n: int, singular: str, plural: str) -> str:
+    return f"{n} {singular if n == 1 else plural}"
+
+
+def _ultima_revision(lista: Lista, grupo: str | None) -> str:
+    fechas = [s.revisado for s in lista.del_grupo(grupo) if s.revisado]
+    return fmt_fecha(_fecha(min(fechas)[:10])) if fechas else ""
+
+
+def _pagina(titulo: str, cuerpo: list[str], lista: Lista, grupo: str | None, estilos: str = "") -> str:
+    from .informe_html import ESTILOS
+    ahora = datetime.now()
+    revision = _ultima_revision(lista, grupo)
+    pie = ("Según la última revisión de cada expediente"
+           + (f" (la más antigua, del {revision})" if revision else "")
+           + ". Para tenerlo al día, primero «Revisar novedades». "
+           f"Programa Informe de Expedientes, versión {escape(__version__)}.")
+    return ('<!DOCTYPE html>\n<html lang="es"><head><meta charset="utf-8">'
+            f"<title>{escape(titulo)} — {ahora:%d/%m/%Y}</title><style>{ESTILOS}{estilos}</style></head>"
+            "<body><main class='hoja'>"
+            f'<div class="membrete"><span>H. Senado de la Nación</span><span>{ahora:%d/%m/%Y, %H:%M} h</span></div>'
+            f'<h1 class="numero">{escape(titulo)}</h1>'
+            + (f'<p class="descripcion">Grupo: {escape(grupo)}</p>' if grupo else "")
+            + "".join(cuerpo) + f"<footer><p>{pie}</p></footer></main></body></html>\n")
+
+
+def _enlace_exp(f: dict) -> str:
+    texto = escape(f["expediente"])
+    enlace = f'<a href="{escape(f["url"], quote=True)}">{texto}</a>' if f["url"] else texto
+    return enlace + (f"<br><span class='secundario'>{escape(f['nombre'])}</span>" if f["nombre"] else "")
+
+
+def html_vencimientos(lista: Lista, grupo: str | None = None, hoy: date | None = None) -> str:
+    filas = filas_vencimientos(lista, grupo, hoy)
+    if not filas:
+        cuerpo = ["<p>Ningún expediente de la lista tiene fecha de caducidad conocida. Si todavía no se revisaron, "
+                  "usá «Revisar novedades».</p>"]
+    else:
+        def faltan(n: int) -> str:
+            return "venció" if n < 0 else "hoy" if n == 0 else "1 día" if n == 1 else f"{n} días"
+
+        def clase(n: int) -> str:
+            return "urgente" if n <= URGENTE_VENCE else "pronto" if n <= AVISO_VENCE else ""
+
+        pronto = sum(1 for f in filas if 0 <= f["faltan"] <= AVISO_VENCE)
+        cuerpo = [f"<p>{_cuantos(pronto, 'expediente caduca', 'expedientes caducan')} en los próximos "
+                  f"{AVISO_VENCE} días.</p>" if pronto else
+                  f"<p>Ninguno caduca en los próximos {AVISO_VENCE} días.</p>",
+                  "<div class='tabla'><table><thead><tr><th>Expediente</th><th>Caduca</th><th>Falta</th>"
+                  "<th>Situación</th></tr></thead><tbody>"]
+        cuerpo += [f"<tr class='{clase(f['faltan'])}'><td>{_enlace_exp(f)}</td>"
+                   f"<td class='fecha'>{fmt_fecha(f['caducidad'])}</td><td class='fecha'>{faltan(f['faltan'])}</td>"
+                   f"<td>{escape(f['situacion'])}</td></tr>" for f in filas]
+        cuerpo.append("</tbody></table></div>")
+        sin = len(lista.del_grupo(grupo)) - len(filas)
+        if sin:
+            cuerpo.append(f"<p class='secundario'>{_cuantos(sin, 'expediente no tiene', 'expedientes no tienen')} "
+                          "fecha de caducidad conocida (sin revisar, o ya sancionados o archivados).</p>")
+    return _pagina("Vencimientos", cuerpo, lista, grupo,
+                   ".urgente td{color:var(--lacre);font-weight:700}.pronto td{color:var(--lacre)}")
+
+
+def html_agenda(lista: Lista, grupo: str | None = None, hoy: date | None = None) -> str:
+    hoy = hoy or date.today()
+    hasta = date.fromordinal(hoy.toordinal() + DIAS_AGENDA - 1)
+    reuniones = filas_agenda(lista, grupo, hoy)
+    semana = [r for r in reuniones if r["fecha"] and r["fecha"] <= hasta]
+    despues = [r for r in reuniones if r not in semana]
+
+    def reunion(r) -> str:
+        """«Comisión de Salud» (los nombres vienen en mayúsculas del sitio)."""
+        return f"Comisión de {nombre_comision(r['comision'])}" if r["comision"] else r["titulo"]
+
+    def tabla(rs: list[dict]) -> str:
+        def fila(r):
+            titulo = escape(reunion(r))
+            if r["url"]:
+                titulo = f'<a href="{escape(r["url"], quote=True)}">{titulo}</a>'
+            return (f"<tr><td class='fecha'>{escape(r['hora'] or '—')}</td><td>{titulo}</td>"
+                    f"<td>{'<br>'.join(escape(x) for x in r['expedientes'])}</td></tr>")
+        # Columnas de ancho fijo: así las tablas de los distintos días quedan alineadas.
+        return ("<div class='tabla'><table class='agenda'><thead><tr><th>Hora</th><th>Reunión</th>"
+                "<th>Expedientes de la lista</th></tr></thead><tbody>" + "".join(fila(r) for r in rs)
+                + "</tbody></table></div>")
+
+    cuerpo = [f"<p>Reuniones de comisión ya convocadas del {fmt_fecha(hoy)} al {fmt_fecha(hasta)} que tratan "
+              "expedientes de la lista.</p>"]
+    if not semana:
+        cuerpo.append("<p>No hay reuniones convocadas esta semana con expedientes de la lista.</p>")
+    dias: dict[date, list[dict]] = {}
+    for r in semana:
+        dias.setdefault(r["fecha"], []).append(r)
+    for dia, rs in dias.items():
+        cuerpo += [f"<h2>{_dia(dia)}</h2>", tabla(rs)]
+    if despues:
+        cuerpo.append("<h2>Más adelante</h2>")
+        cuerpo.append("<ul>" + "".join(
+            f"<li>{escape(fmt_fecha(r['fecha'], r['fecha_texto']))} · {escape(reunion(r))}: "
+            f"{escape(', '.join(r['expedientes']))}</li>" for r in despues) + "</ul>")
+    return _pagina("Agenda de la semana", cuerpo, lista, grupo,
+                   "table.agenda{table-layout:fixed;width:100%}table.agenda th:nth-child(1){width:14%}"
+                   "table.agenda th:nth-child(2){width:40%}")
+
+
+def guardar_vista(lista: Lista, carpeta: Path, vista: str, grupo: str | None = None) -> Path:
+    """Guarda «vencimientos» o «agenda» en HTML y devuelve el archivo."""
+    titulo, generador = {"vencimientos": ("Vencimientos", html_vencimientos),
+                         "agenda": ("Agenda de la semana", html_agenda)}[vista]
+    base = nombre_archivo_seguro(f"{titulo}{' ' + grupo if grupo else ''} ({date.today():%Y-%m-%d})")
+    destino = Path(carpeta) / f"{base}.html"
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    destino.write_text(generador(lista, grupo), encoding="utf-8")
+    return destino
+
+
 def escribir(res: ResultadoSeguimiento, opciones: OpcionesSeguimiento) -> dict[str, Path]:
     carpeta = Path(opciones.carpeta_salida)
     carpeta.mkdir(parents=True, exist_ok=True)
