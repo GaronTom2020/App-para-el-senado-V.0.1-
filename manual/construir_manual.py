@@ -70,7 +70,13 @@ def _secciones(readme: str) -> list[tuple[int, str, int, int]]:
     return salida
 
 
+def _sin_adornos(texto: str) -> str:
+    """Saca los separadores decorativos del README (docs/img/separador.svg): en el manual sobran."""
+    return re.sub(r"^<p[^>]*><img[^>]*separador\.svg[^>]*></p>\s*$", "", texto, flags=re.M).strip()
+
+
 def _bajar_encabezados(texto: str, nivel_origen: int, nivel_destino: int = 3) -> str:
+    texto = _sin_adornos(texto)
     dif = nivel_destino - nivel_origen - 1
 
     def cambiar(m):
