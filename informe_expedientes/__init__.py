@@ -8,4 +8,4 @@ por tema, autor o bloque, de sesión (a partir del plan de labor) y una lista de
 seguimiento con sus novedades.
 """
 
-__version__ = "1.1.2"
+__version__ = "1.1.3"

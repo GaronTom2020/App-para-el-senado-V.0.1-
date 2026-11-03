@@ -20,7 +20,7 @@
 
 # Sistema de Información Parlamentaria — H. Senado de la Nación
 
-Versión actual: **1.1.2**. Programa de escritorio con cinco modos:
+Versión actual: **1.1.3**. Programa de escritorio con cinco modos:
 
 | | Modo | Qué hace |
 |:-:|---|---|
@@ -32,12 +32,12 @@ Versión actual: **1.1.2**. Programa de escritorio con cinco modos:
 
 Usa solamente información pública de www.senado.gob.ar y www.hcdn.gob.ar.
 
-**Contenido:** [Novedades](#novedades-de-la-versión-112) · [Qué incluye el informe](#qué-incluye-el-informe) · [Instalación](#instalación) · [Uso](#uso) · [Por tema](#informe-temático-por-eje-o-palabras-clave) · [Sesión](#informe-de-sesión-plan-de-labor) · [Asuntos entrados](#asuntos-entrados-dae) · [Resumen diario](#resumen-diario-correo-y-aviso-en-pantalla) · [Seguimiento](#lista-de-seguimiento) · [Si algo no funciona](#si-algo-no-funciona) · [Línea de comandos](#línea-de-comandos) · [Despliegue](#despliegue)
+**Contenido:** [Novedades](#novedades-de-la-versión-113) · [Historial de versiones](#historial-de-versiones) · [Qué incluye el informe](#qué-incluye-el-informe) · [Instalación](#instalación) · [Uso](#uso) · [Por tema](#informe-temático-por-eje-o-palabras-clave) · [Sesión](#informe-de-sesión-plan-de-labor) · [Asuntos entrados](#asuntos-entrados-dae) · [Resumen diario](#resumen-diario-correo-y-aviso-en-pantalla) · [Seguimiento](#lista-de-seguimiento) · [Si algo no funciona](#si-algo-no-funciona) · [Línea de comandos](#línea-de-comandos) · [Despliegue](#despliegue)
 
-### Novedades de la versión 1.1.2
+### Novedades de la versión 1.1.3
 
 - **Manual de usuario al día**: las capturas muestran la ventana de la versión 1.1 (1.1.1), y GitHub las vuelve a tomar solo cada vez que cambia el programa (1.1.2).
-- **Números de versión**: desde esta versión se usa el esquema lanzamiento.función.parche. Las anteriores se publicaban con un cuarto número, el de la compilación (por ejemplo, 1.1.0.11).
+- **Números de versión**: desde esta versión se usa el esquema lanzamiento.función.parche (ver [Historial de versiones](#historial-de-versiones)). Las anteriores se publicaban con un cuarto número, el de la compilación (por ejemplo, 1.1.0.11).
 
 ### Novedades de la versión 1.1.0
 
@@ -86,6 +86,49 @@ Primera versión estable: los mismos cinco modos de la 0.4.0, con actualizacione
 - **Búsqueda por autor y por bloque** en el modo temático, y una página por bloque en GitHub Pages.
 - El enlace a Diputados usa su buscador (la dirección anterior ya no existe). Nueva dependencia: `pypdf`.
 
+## Historial de versiones
+
+Cada versión tiene tres números, **V.lanzamiento.función.parche**:
+
+| Número | Sube cuando… | Ejemplo |
+|---|---|---|
+| **Lanzamiento** | se lanza una etapa nueva del programa (0 = antes del lanzamiento, 1 = primer lanzamiento). Los otros dos vuelven a 0. | 0.4.12 → **1**.0.0 |
+| **Función** | se agrega algo que el usuario puede hacer y antes no podía. El parche vuelve a 0. | 1.0.0 → 1.**1**.0 |
+| **Parche** | se une cualquier otro cambio: un arreglo, una mejora interna, documentación o una actualización de componentes. | 1.1.0 → 1.1.**1** |
+
+Cada cambio entra al programa por un *pull request* (PR) en GitHub: un pedido de cambio que se revisa, pasa las pruebas automáticas y se une a la rama principal. Cada PR unido suma un número. La tabla los ordena así; las versiones de antes de 1.1.3 se publicaron con otro número (columna «Publicada como»).
+
+| Versión | Tipo | PR | Qué cambió | Publicada como |
+|---|---|---|---|---|
+| 0.1.0 | Lanzamiento inicial | — | Primer código del programa | |
+| 0.2.0 | Función | #1 | Votaciones, seguimiento, informe de sesión, Diputados como cámara revisora, búsqueda por autor y bloque, relacionados | |
+| 0.3.0 | Función | #2 | Órdenes del día, seguimiento con grupos, versión taquigráfica, asuntos entrados, interfaz nueva | |
+| 0.3.1 | Parche | #3 | README: novedades de la 0.3.0 | |
+| 0.3.2 | Parche | #4 | Manual de usuario en PDF, compilado en GitHub | |
+| 0.3.3 | Parche | #5 | Manual: otra forma de tomar las capturas | |
+| 0.4.0 | Función | #6 | PDF, exportar el seguimiento, resumen diario por correo, aviso de versión nueva | |
+| 0.4.1 | Parche | #7 | Arreglo de la compilación del .exe | |
+| 0.4.2 | Parche | #8 | Correo enviado desde la cuenta de Gmail de la oficina | |
+| 0.4.3 | Parche | #9 | Limpieza: sacar `desktop.ini` | |
+| 0.4.4 | Parche | #10 | README con los colores del Senado | |
+| 0.4.5 | Parche | #11 | README: instalación y despliegue | |
+| 0.4.6 | Parche | #12 | Seguridad: cómo reportar vulnerabilidades (`SECURITY.md`) | |
+| 0.4.7 | Parche | #13 | Seguridad: la contraseña del correo ya no va dentro del .exe | |
+| 0.4.8 | Parche | #14 | Actualizaciones: no instalar una descarga incompleta | |
+| 0.4.9 | Parche | #15 | Actualizaciones más seguras; elegir a mano el archivo de la cuenta | |
+| 0.4.10 | Parche | #16 | Seguridad: huella de las descargas, pruebas en cada PR, Dependabot | |
+| 0.4.11 | Parche | #18 | Componente actualizado: xlrd 2.0.2 | |
+| 0.4.12 | Parche | #17 | Componentes de GitHub Actions actualizados | 0.4.0.8 |
+| 0.5.0 | Función | #19 | Control diario de los sitios, lista de cambios al actualizar, volver a la versión anterior | |
+| 0.5.1 | Parche | #20 | Actualizaciones: reemplazo confiable del .exe | |
+| **1.0.0** | **Lanzamiento** | #21 | **Primera versión estable** | 1.0.0.9 |
+| 1.1.0 | Función | #22 | Vencimientos, agenda de la semana, interfaz más limpia | 1.1.0.10 |
+| 1.1.1 | Parche | #23 | Manual: capturas de la versión 1.1 | 1.1.0.11 |
+| 1.1.2 | Parche | #24 | Manual: GitHub toma las capturas solo | |
+| 1.1.3 | Parche | #25 | Numeración lanzamiento.función.parche; limpieza del manual | 1.1.3 |
+
+Desde la 1.1.3, la versión publicada es exactamente la de la tabla.
+
 ## Qué incluye el informe
 
 - **Situación actual**: en comisión, con dictamen, aprobado, sancionado, vetado, caducado o archivado, con una línea de pasos del trámite que marca dónde está o dónde se detuvo. En los proyectos de ley, la situación sigue el recorrido de la Constitución (arts. 77 a 84) y dice qué sigue: el pase a la cámara revisora (art. 78), la vuelta a la cámara de origen cuando la revisora lo modificó y las mayorías para aceptar o insistir (art. 81), la promulgación tácita a los diez días útiles y la promulgación parcial (art. 80), el veto y la insistencia con dos tercios (art. 83), y que un proyecto rechazado o con el veto firme no puede repetirse en las sesiones de ese año.
@@ -119,7 +162,7 @@ Deja `manual/salida/Manual de usuario.pdf` (y una copia en HTML). Para cambiar e
 
 **Opción A, con el ejecutable (recomendada para la oficina).** Descargá `InformeExpediente.exe` de la última versión en [Releases](https://github.com/GaronTom2020/App-para-el-senado-V.0.1-/releases/latest) y abrilo: no necesita Python ni instalación. Desde ahí, el programa avisa solo cuando hay una versión nueva y ofrece instalarla.
 
-El `.exe` se compila en GitHub: *Actions → Compilar InformeExpediente.exe → Run workflow* (`.github/workflows/main.yml`). Corre las pruebas en una máquina Windows, compila y publica la versión que figura en `informe_expedientes/__init__.py` (por ejemplo `v1.1.2`) en Releases, con la lista de cambios desde la anterior. Las versiones siguen el esquema lanzamiento.función.parche: cada PR sube su número (una función nueva, el del medio; un arreglo, el último). Si la versión ya está publicada, la compilación se detiene y pide subir el número. El `.exe` no lleva la cuenta de envío del resumen diario: se lee de `cuenta_envio.txt`, junto al `.exe` (ver [Resumen diario](#resumen-diario-correo-y-aviso-en-pantalla)). Para compilarlo en una PC con Python 3.10 o posterior (marcando **Add python.exe to PATH** al instalarlo; el «python» que ofrece la Microsoft Store no sirve), está `construir_exe_windows.bat`, que genera `dist\InformeExpediente.exe`; lo mismo vale para la cuenta de envío.
+El `.exe` se compila en GitHub: *Actions → Compilar InformeExpediente.exe → Run workflow* (`.github/workflows/main.yml`). Corre las pruebas en una máquina Windows, compila y publica la versión que figura en `informe_expedientes/__init__.py` (por ejemplo `v1.1.3`) en Releases, con la lista de cambios desde la anterior. Las versiones siguen el esquema lanzamiento.función.parche: cada PR sube su número (una función nueva, el del medio; un arreglo, el último). Si la versión ya está publicada, la compilación se detiene y pide subir el número. El `.exe` no lleva la cuenta de envío del resumen diario: se lee de `cuenta_envio.txt`, junto al `.exe` (ver [Resumen diario](#resumen-diario-correo-y-aviso-en-pantalla)). Para compilarlo en una PC con Python 3.10 o posterior (marcando **Add python.exe to PATH** al instalarlo; el «python» que ofrece la Microsoft Store no sirve), está `construir_exe_windows.bat`, que genera `dist\InformeExpediente.exe`; lo mismo vale para la cuenta de envío.
 
 Si el antivirus o Sistemas bloquean el `.exe`, pedí que lo autoricen: es un programa sin firma digital.
 

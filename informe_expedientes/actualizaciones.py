@@ -1,6 +1,6 @@
 """Versiones nuevas del programa y manual de usuario, publicados en GitHub Releases.
 
-Cada compilación del .exe se publica como una versión «v1.1.2» con el archivo InformeExpediente.exe; el
+Cada compilación del .exe se publica como una versión «v1.1.3» con el archivo InformeExpediente.exe; el
 manual, en la versión «manual». Al abrir, el programa consulta la lista de versiones (una vez por día) y,
 si hay una más nueva, ofrece instalarla con la lista de cambios: descarga el .exe nuevo y lo reemplaza al
 cerrar. El anterior queda guardado como «InformeExpediente.anterior.exe», para volver a él si hace falta.
