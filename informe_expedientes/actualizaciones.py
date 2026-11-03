@@ -132,17 +132,46 @@ def volver_a_anterior() -> Path:
 
 
 def _bat_reemplazo(nuevo: Path, actual: Path, antes: str = "") -> Path:
-    """.bat que espera a que se cierre el programa, pone `nuevo` en lugar de `actual` y lo vuelve a abrir."""
+    """.bat que espera a que se cierre el programa, pone `nuevo` en lugar de `actual` y lo vuelve a abrir.
+
+    El .exe de un solo archivo corre en dos procesos: el lanzador sigue unos segundos después de que termina el
+    programa (borra sus archivos temporales) y mientras tanto Windows no deja reemplazar el .exe. Por eso el
+    reemplazo se reintenta hasta 30 veces, una por segundo, en vez de probar una sola vez.
+
+    Para esperar un segundo se usa ping y no timeout: el .bat corre sin ventana y timeout, sin consola, falla
+    en el acto («Input redirection is not supported»), con lo que los reintentos se agotaban enseguida."""
+    pausa = "ping -n 2 127.0.0.1 >nul\r\n"
     bat = Path(tempfile.gettempdir()) / "actualizar_informe_expediente.bat"
     bat.write_text(
         "@echo off\r\n"
-        f":espera\r\ntasklist /FI \"PID eq {os.getpid()}\" | find \"{os.getpid()}\" >nul && "
-        "(timeout /t 1 /nobreak >nul & goto espera)\r\n"
+        f":espera\r\ntasklist /FI \"PID eq {os.getpid()}\" | find \"{os.getpid()}\" >nul || goto cerrado\r\n"
+        + pausa +
+        "goto espera\r\n"
+        ":cerrado\r\n"
         + antes +
-        f"move /y \"{nuevo}\" \"{actual}\" >nul\r\n"
+        "set intentos=0\r\n"
+        ":mover\r\n"
+        f"move /y \"{nuevo}\" \"{actual}\" >nul 2>&1 && goto listo\r\n"
+        "set /a intentos+=1\r\n"
+        "if %intentos% geq 30 goto listo\r\n"
+        + pausa +
+        "goto mover\r\n"
+        ":listo\r\n"
         f"start \"\" \"{actual}\"\r\n"
         "del \"%~f0\"\r\n", encoding="mbcs" if os.name == "nt" else "utf-8")
     return bat
+
+
+def limpiar_restos() -> None:
+    """Borra un «.nuevo.exe» que quedó de una actualización que no llegó a reemplazar el .exe (las versiones
+    anteriores probaban una sola vez). Se llama al abrir el programa."""
+    if not es_ejecutable():
+        return
+    actual = Path(sys.executable)
+    try:
+        actual.with_name(actual.stem + ".nuevo.exe").unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 def cambios(notas: str, maximo: int = 8) -> list[str]:
@@ -171,4 +200,5 @@ def manual() -> str:
 
 
 __all__ = ["Version", "ultima", "hay_nueva", "instalar", "lanzar_reemplazo", "manual", "es_ejecutable", "clave",
-           "cambios", "hay_anterior", "volver_a_anterior", "archivo_anterior"]
+           "cambios", "hay_anterior", "volver_a_anterior", "archivo_anterior",
+           "limpiar_restos"]
