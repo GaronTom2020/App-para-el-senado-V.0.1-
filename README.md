@@ -147,10 +147,10 @@ Desde la 1.1.3, la versión publicada es exactamente la de la tabla.
 
 ## Manual de usuario
 
-El manual para el uso diario, paso a paso y con capturas de cada pestaña, se compila en PDF a partir de `manual/contenido.md`, de las secciones vigentes de este README (lo que incluye el informe, las novedades, «Si algo no funciona» y la línea de comandos) y de capturas nuevas del programa. El workflow `.github/workflows/manual.yml` lo vuelve a armar cada vez que cambian el README, el manual o el programa en `main`, y lo publica en *Releases → Manual de usuario*. Para compilarlo en la PC:
+El manual para el uso diario, paso a paso y con capturas de cada pestaña, se compila en PDF a partir de `manual/contenido.md`, de las secciones vigentes de este README (lo que incluye el informe, las novedades, «Si algo no funciona» y la línea de comandos) y de capturas nuevas del programa. El workflow `.github/workflows/manual.yml` lo vuelve a armar cada vez que cambian el README, el manual o el programa en `main`, con capturas tomadas en GitHub (no hace falta tomarlas a mano ni subirlas), y lo publica en *Releases → Manual de usuario*. Para compilarlo en la PC:
 
 ```
-python -m pip install markdown pymupdf playwright pytest
+python -m pip install markdown pymupdf playwright pytest pillow
 python -m playwright install chromium
 python manual/capturar.py
 python manual/construir_manual.py
