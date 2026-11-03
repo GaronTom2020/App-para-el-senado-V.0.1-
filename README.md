@@ -20,7 +20,7 @@
 
 # Sistema de Información Parlamentaria — H. Senado de la Nación
 
-Versión actual: **0.4.0**. Programa de escritorio con cinco modos:
+Versión actual: **1.0.0**. Programa de escritorio con cinco modos:
 
 | | Modo | Qué hace |
 |:-:|---|---|
@@ -32,7 +32,18 @@ Versión actual: **0.4.0**. Programa de escritorio con cinco modos:
 
 Usa solamente información pública de www.senado.gob.ar y www.hcdn.gob.ar.
 
-**Contenido:** [Novedades](#novedades-de-la-versión-040) · [Qué incluye el informe](#qué-incluye-el-informe) · [Instalación](#instalación) · [Uso](#uso) · [Por tema](#informe-temático-por-eje-o-palabras-clave) · [Sesión](#informe-de-sesión-plan-de-labor) · [Asuntos entrados](#asuntos-entrados-dae) · [Resumen diario](#resumen-diario-correo-y-aviso-en-pantalla) · [Seguimiento](#lista-de-seguimiento) · [Si algo no funciona](#si-algo-no-funciona) · [Línea de comandos](#línea-de-comandos) · [Despliegue](#despliegue)
+**Contenido:** [Novedades](#novedades-de-la-versión-100) · [Qué incluye el informe](#qué-incluye-el-informe) · [Instalación](#instalación) · [Uso](#uso) · [Por tema](#informe-temático-por-eje-o-palabras-clave) · [Sesión](#informe-de-sesión-plan-de-labor) · [Asuntos entrados](#asuntos-entrados-dae) · [Resumen diario](#resumen-diario-correo-y-aviso-en-pantalla) · [Seguimiento](#lista-de-seguimiento) · [Si algo no funciona](#si-algo-no-funciona) · [Línea de comandos](#línea-de-comandos) · [Despliegue](#despliegue)
+
+### Novedades de la versión 1.0.0
+
+Primera versión estable: los mismos cinco modos de la 0.4.0, con actualizaciones más seguras y controles para que el programa siga funcionando cuando cambian los sitios.
+
+- **Actualizaciones verificadas**: antes de instalar una versión nueva, el programa comprueba que el archivo descargado esté completo y que sea idéntico al publicado en GitHub (huella SHA-256). Si no coincide, no lo instala.
+- **Qué cambia en cada versión**: el aviso de versión nueva muestra la lista de cambios antes de instalarla.
+- **Volver a la versión anterior** (*Ayuda → Volver a la versión anterior*): si una versión nueva anda mal, se vuelve a la que había antes con un clic.
+- **Reemplazo confiable del .exe**: la actualización espera a que Windows libere el programa y ya no deja un `InformeExpediente.nuevo.exe` al lado del viejo; si quedó uno de antes, se borra solo.
+- **Cuenta de envío fuera del .exe**: la contraseña del correo de la oficina ya no viaja dentro del programa publicado; se lee de `cuenta_envio.txt`, junto al `.exe`.
+- **Control diario de los sitios**: los días hábiles, GitHub consulta el Senado y Diputados con casos conocidos y avisa con un issue si alguno dejó de leerse, antes de que lo note quien usa el programa.
 
 ### Novedades de la versión 0.4.0
 
@@ -97,7 +108,7 @@ Deja `manual/salida/Manual de usuario.pdf` (y una copia en HTML). Para cambiar e
 
 **Opción A, con el ejecutable (recomendada para la oficina).** Descargá `InformeExpediente.exe` de la última versión en [Releases](https://github.com/GaronTom2020/App-para-el-senado-V.0.1-/releases/latest) y abrilo: no necesita Python ni instalación. Desde ahí, el programa avisa solo cuando hay una versión nueva y ofrece instalarla.
 
-El `.exe` se compila en GitHub: *Actions → Compilar InformeExpediente.exe → Run workflow* (`.github/workflows/main.yml`). Corre las pruebas en una máquina Windows, compila con la cuenta de envío del resumen diario (los secretos `GMAIL_ENVIO_CUENTA` y `GMAIL_ENVIO_CLAVE`) y publica la versión `v0.4.0.N` en Releases, donde N es el número de la ejecución. Para compilarlo en una PC con Python 3.10 o posterior (marcando **Add python.exe to PATH** al instalarlo; el «python» que ofrece la Microsoft Store no sirve), está `construir_exe_windows.bat`, que genera `dist\InformeExpediente.exe`; ese `.exe` no envía correos salvo que tenga al lado un `cuenta_envio.txt`.
+El `.exe` se compila en GitHub: *Actions → Compilar InformeExpediente.exe → Run workflow* (`.github/workflows/main.yml`). Corre las pruebas en una máquina Windows, compila y publica la versión `v1.0.0.N` en Releases, donde N es el número de la ejecución, con la lista de cambios desde la anterior. El `.exe` no lleva la cuenta de envío del resumen diario: se lee de `cuenta_envio.txt`, junto al `.exe` (ver [Resumen diario](#resumen-diario-correo-y-aviso-en-pantalla)). Para compilarlo en una PC con Python 3.10 o posterior (marcando **Add python.exe to PATH** al instalarlo; el «python» que ofrece la Microsoft Store no sirve), está `construir_exe_windows.bat`, que genera `dist\InformeExpediente.exe`; lo mismo vale para la cuenta de envío.
 
 Si el antivirus o Sistemas bloquean el `.exe`, pedí que lo autoricen: es un programa sin firma digital.
 
