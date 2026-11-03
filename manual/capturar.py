@@ -106,6 +106,15 @@ def principal() -> None:
         except Exception:
             pass
     SALIDA.mkdir(exist_ok=True)
+    # Las capturas se toman siempre a escala 100 % (96 ppp), aunque la PC tenga Windows al 125 % o 150 %: si no,
+    # las letras salen más grandes, no entran en la ventana de 1280 × 800 y las columnas quedan cortadas.
+    iniciar = gui.tk.Tk.__init__
+
+    def a_escala_100(ventana, *args, **kwargs):
+        iniciar(ventana, *args, **kwargs)
+        ventana.tk.call("tk", "scaling", 96 / 72)
+
+    gui.tk.Tk.__init__ = a_escala_100
     app = gui.Aplicacion()
     app.geometry("1280x800+0+0")
     app.attributes("-topmost", True)

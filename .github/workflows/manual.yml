@@ -38,9 +38,12 @@ jobs:
           python -m playwright install chromium
 
       - name: Capturas del programa
-        # Si el escritorio del runner no permite capturar, se usan las de manual/capturas del repositorio.
-        continue-on-error: true
-        run: python manual/capturar.py
+        # Si el escritorio del runner no permite capturar, se usan las de manual/capturas del repositorio, y la
+        # ejecución lo avisa en amarillo: en ese caso, si cambió la ventana, hay que tomarlas en una PC con
+        # «python manual/capturar.py» y subirlas.
+        shell: bash
+        run: |
+          python manual/capturar.py || echo "::warning::No se pudieron tomar las capturas en GitHub: el manual usa las de manual/capturas. Si cambió la ventana, tomalas en una PC con «python manual/capturar.py» y subilas."
 
       - name: Compilar el manual
         run: python manual/construir_manual.py --nombre Manual-de-usuario
