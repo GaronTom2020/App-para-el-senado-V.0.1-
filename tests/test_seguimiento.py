@@ -180,3 +180,53 @@ def test_el_informe_dice_el_ultimo_movimiento(tmp_path):
     assert texto in res.archivos["html"].read_text(encoding="utf-8")
     sin_archivo = revisar(lista, ClienteFalso(), _opciones(tmp_path / "otra", formatos=()), hoy=HOY)
     assert sin_archivo.archivos == {} and not (tmp_path / "otra").exists()
+
+
+def _lista_con_fotos(tmp_path):
+    lista = Lista(tmp_path / "seguimiento.json")
+    datos = [("S-351/25", "2026-11-10", [["2026-11-03", "10:00", "Reunión", "SALUD", "https://n/1"]]),
+             ("PE-99/26", "2027-02-28", [["2026-11-03", "10:00", "Reunión", "SALUD", "https://n/1"],
+                                         ["2026-11-20", "11:00", "Plenario", "PRESUPUESTO", None]]),
+             ("S-702/26", "2026-10-01", [["2026-10-20", "9:00", "Pasada", "SALUD", None]]),
+             ("S-808/26", None, [["a confirmar", "", "Reunión", "EDUCACIÓN", None]])]
+    for numero, caducidad, convocadas in datos:
+        s, _ = lista.agregar(numero, hoy=HOY)
+        s.foto = {"situacion": "En comisión", "url": f"https://f/{numero}", "caducidad": caducidad,
+                  "convocadas": convocadas}
+        s.revisado = "2026-10-30T08:00:00"
+    lista.seguidos[1].alias = "Presupuesto"
+    lista.sumar_a_grupo(lista.seguidos[1], "Economía")
+    return lista
+
+
+def test_vencimientos(tmp_path):
+    lista = _lista_con_fotos(tmp_path)
+    filas = seguimiento.filas_vencimientos(lista, hoy=HOY)
+    assert [(f["expediente"], f["faltan"]) for f in filas] == [("S-702/26", -29), ("S-351/25", 11), ("PE-99/26", 121)]
+    html = seguimiento.html_vencimientos(lista, hoy=HOY)
+    assert "1 expediente caduca en los próximos 60 días" in html
+    assert "<tr class='urgente'>" in html and "venció" in html and "11 días" in html
+    assert "1 expediente no tiene fecha de caducidad" in html and "30/10/2026" in html
+    assert [f["expediente"] for f in seguimiento.filas_vencimientos(lista, "Economía", hoy=HOY)] == ["PE-99/26"]
+
+
+def test_agenda(tmp_path):
+    lista = _lista_con_fotos(tmp_path)
+    reuniones = seguimiento.filas_agenda(lista, hoy=HOY)
+    # La reunión de Salud del 3/11 trata dos expedientes de la lista: aparece una sola vez; la pasada no.
+    assert [(r["fecha"], r["comision"], r["expedientes"]) for r in reuniones] == [
+        (date(2026, 11, 3), "SALUD", ["S-351/25", "Presupuesto (PE-99/26)"]),
+        (date(2026, 11, 20), "PRESUPUESTO", ["Presupuesto (PE-99/26)"]),
+        (None, "EDUCACIÓN", ["S-808/26"])]
+    html = seguimiento.html_agenda(lista, hoy=HOY)
+    assert "<h2>Martes 03/11</h2>" in html and "del 30/10/2026 al 05/11/2026" in html
+    assert "<h2>Más adelante</h2>" in html and "a confirmar · Comisión de Educación: S-808/26" in html
+    vacia = seguimiento.html_agenda(lista, hoy=date(2026, 11, 10))
+    assert "No hay reuniones convocadas esta semana" in vacia
+
+
+def test_guardar_vista(tmp_path):
+    lista = _lista_con_fotos(tmp_path)
+    destino = seguimiento.guardar_vista(lista, tmp_path / "informes", "vencimientos", "Economía")
+    assert destino.name.startswith("Vencimientos Economía") and destino.suffix == ".html"
+    assert "PE-99/26" in destino.read_text(encoding="utf-8")

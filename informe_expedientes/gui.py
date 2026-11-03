@@ -28,7 +28,7 @@ from .orden_dia import OrdenDelDiaVacia, parsear_od
 from .identificador import ErrorIdentificador, parsear, separar_lote
 from .busqueda import OTROS, Consulta, separar_palabras
 from .ejes import Eje, buscar_eje, cargar_ejes, guardar_ejes
-from . import actualizaciones, asuntos_entrados, plan_labor, senadores
+from . import actualizaciones, asuntos_entrados, plan_labor, seguimiento, senadores
 from .seguimiento import (
     Lista, OpcionesSeguimiento, ResultadoSeguimiento, exportar_lista, markdown, revisar, situacion_breve, ultimo_movimiento,
 )
@@ -171,6 +171,38 @@ def barra_horizontal_automatica(contenedor, widget) -> ttk.Scrollbar:
     return barra
 
 
+class Ayuda:
+    """Texto de ayuda que aparece al dejar el mouse sobre un campo (en lugar de una explicación siempre visible)."""
+
+    def __init__(self, widget, texto: str):
+        self.widget, self.texto, self.ventana, self._espera = widget, texto, None, None
+        widget.bind("<Enter>", self._programar, add="+")
+        widget.bind("<Leave>", self._ocultar, add="+")
+        widget.bind("<ButtonPress>", self._ocultar, add="+")
+
+    def _programar(self, _e=None):
+        self._espera = self.widget.after(500, self._mostrar)
+
+    def _mostrar(self):
+        if self.ventana:
+            return
+        x = self.widget.winfo_rootx() + 8
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
+        self.ventana = v = tk.Toplevel(self.widget)
+        v.wm_overrideredirect(True)
+        v.wm_geometry(f"+{x}+{y}")
+        tk.Label(v, text=self.texto, justify="left", wraplength=340, bg="#FFFDF2", fg=P["tinta"],
+                 relief="solid", borderwidth=1, padx=8, pady=5).pack()
+
+    def _ocultar(self, _e=None):
+        if self._espera:
+            self.widget.after_cancel(self._espera)
+            self._espera = None
+        if self.ventana:
+            self.ventana.destroy()
+            self.ventana = None
+
+
 def mensaje_de_error(error: Exception) -> str:
     if isinstance(error, (ErrorIdentificador, ExpedienteNoEncontrado, OrdenDelDiaVacia)):
         return str(error)
@@ -260,6 +292,7 @@ class Aplicacion(tk.Tk):
                     font=self.f_chica)
         e.map("Chico.TMenubutton", background=[("active", P["boton_activo"]), ("pressed", P["boton_activo"])])
         e.configure("Ayuda.TLabel", background=P["papel"], foreground=P["suave"], font=self.f_chica)
+        e.configure("Enlace.TLabel", background=P["papel"], foreground=P["cupula"], font=self.f_chica)
         e.configure("Estado.TLabel", background=P["piedra"], foreground=P["tinta"])
         e.configure("Tarjeta.TCheckbutton", background=P["papel"], indicatorbackground=P["papel"],
                     indicatorforeground=P["cupula_oscura"], indicatormargin=(0, 0, 6, 0))
@@ -279,6 +312,10 @@ class Aplicacion(tk.Tk):
         e.configure("Chico.TButton", padding=(8, 2), font=self.f_chica, width=0)
         e.configure("Barra.TButton", padding=(10, 6), width=0)
         e.configure("Acento.TButton", padding=(18, 8), font=self.f_negrita)
+        # El botón principal mientras se trabaja: «Cancelar», en el rojo lacre de la paleta.
+        e.configure("Cancelar.TButton", padding=(18, 8), font=self.f_negrita, background=P["lacre"],
+                    bordercolor=P["lacre"], lightcolor=P["lacre"], darkcolor=P["lacre"])
+        e.map("Cancelar.TButton", background=[("disabled", P["apagado"]), ("active", "#6E2424")])
         e.configure("Vertical.TScrollbar", background=P["linea"], troughcolor=P["papel"], bordercolor=P["papel"],
                     arrowcolor=P["suave"], lightcolor=P["linea"], darkcolor=P["linea"], gripcount=0, arrowsize=11)
         e.map("Vertical.TScrollbar", background=[("active", P["apagado"])])
@@ -348,7 +385,9 @@ class Aplicacion(tk.Tk):
         self._ae_lista: list = []
         self.var_seg_info = tk.StringVar()
         self.var_seg_ultima = tk.StringVar()
-        self.var_seg_archivo = tk.BooleanVar(value=c.get("seguimiento_archivo", True))
+        self.var_seg_archivo = tk.BooleanVar(value=True)     # el resumen de cada revisión siempre se guarda
+        self._principales: list = []                          # (botón principal de cada panel, su comando)
+        self._textos_principales: dict = {}                   # su texto mientras dice «Cancelar»
         self._ancla_seguimiento = None
         self._marcados: set[str] = set()
         self._mensaje_fin = ""
@@ -370,6 +409,52 @@ class Aplicacion(tk.Tk):
                                                                               key=lambda kv: nombre_comision(kv[1]))}
         self.var_estado = tk.StringVar(value="Escribí uno o más expedientes y presioná «Generar informe».")
         self.var_resultado = tk.StringVar()
+        # Formatos de cada panel (Herramientas → Formatos de los informes); debajo del botón principal, un resumen.
+        self.formatos_paneles = {
+            "expedientes": [("Word", self.var_docx), ("HTML", self.var_html), ("PDF", self.var_pdf)],
+            "tema": [("Word", self.var_t_docx), ("HTML", self.var_t_html), ("Excel", self.var_t_xlsx),
+                     ("PDF", self.var_t_pdf)],
+            "sesion": [("Word", self.vars_ses_formatos["docx"]), ("HTML", self.vars_ses_formatos["html"]),
+                       ("Excel", self.vars_ses_formatos["xlsx"]), ("CSV (Power BI)", self.vars_ses_formatos["csv"]),
+                       ("PDF", self.vars_ses_formatos["pdf"])],
+        }
+        self.vars_resumen_formatos = {panel: tk.StringVar() for panel in self.formatos_paneles}
+        for panel, opciones in self.formatos_paneles.items():
+            for _nombre, variable in opciones:
+                variable.trace_add("write", lambda *_a, p=panel: self._resumir_formatos(p))
+            self._resumir_formatos(panel)
+
+    def _resumir_formatos(self, panel: str) -> None:
+        """«Formatos: Word y HTML · cambiar»."""
+        elegidos = [nombre for nombre, variable in self.formatos_paneles[panel] if variable.get()]
+        texto = (", ".join(elegidos[:-1]) + " y " + elegidos[-1]) if len(elegidos) > 1 else \
+            (elegidos[0] if elegidos else "ninguno")
+        self.vars_resumen_formatos[panel].set(f"Formatos: {texto} · cambiar")
+
+    def _elegir_formatos(self) -> None:
+        """Herramientas → Formatos de los informes: qué archivos guarda cada panel."""
+        v = tk.Toplevel(self)
+        v.title("Formatos de los informes")
+        v.transient(self)
+        v.resizable(False, False)
+        marco = ttk.Frame(v, style="Tarjeta.TFrame", padding=(18, 14, 18, 14))
+        marco.pack(fill="both", expand=True)
+        ttk.Label(marco, text="Qué archivos se guardan al generar cada informe.", style="Tarjeta.TLabel").grid(
+            row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
+        for fila, (panel, titulo) in enumerate((("expedientes", "Expedientes"), ("tema", "Por tema"),
+                                                 ("sesion", "Sesión")), 1):
+            ttk.Label(marco, text=titulo, style="Rotulo.TLabel").grid(row=fila, column=0, sticky="w", padx=(0, 12),
+                                                                     pady=4)
+            caja = ttk.Frame(marco, style="Tarjeta.TFrame")
+            caja.grid(row=fila, column=1, sticky="w", pady=4)
+            for nombre, variable in self.formatos_paneles[panel]:
+                ttk.Checkbutton(caja, text=nombre, variable=variable, style="Tarjeta.TCheckbutton").pack(
+                    side="left", padx=(0, 10))
+        ttk.Label(marco, text="Asuntos entrados tiene su propia casilla para el informe; el seguimiento guarda "
+                              "siempre su resumen.", style="Ayuda.TLabel", wraplength=420, justify="left").grid(
+            row=4, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        ttk.Button(marco, text="Listo", command=v.destroy).grid(row=5, column=1, sticky="e", pady=(12, 0))
+        v.grab_set()
 
     # ---------------------------------------------------------------- menú
     def _menu(self) -> None:
@@ -382,6 +467,8 @@ class Aplicacion(tk.Tk):
         archivo.add_command(label="Salir", command=self._cerrar)
         barra.add_cascade(label="Archivo", menu=archivo)
         herramientas = tk.Menu(barra, tearoff=False)
+        herramientas.add_command(label="Formatos de los informes…", command=self._elegir_formatos)
+        herramientas.add_separator()
         herramientas.add_checkbutton(label="Usar caché (consultas repetidas más rápidas)", variable=self.var_cache)
         herramientas.add_checkbutton(label="Guardar las páginas descargadas (diagnóstico)",
                                      variable=self.var_diagnostico)
@@ -511,15 +598,42 @@ class Aplicacion(tk.Tk):
                 side="left", padx=(0, 12))
         return caja
 
-    def _botones_generar(self, marco, fila: int, texto: str, comando):
-        botones = ttk.Frame(marco, style="Tarjeta.TFrame")
-        botones.grid(row=fila, column=0, columnspan=4, sticky="ew", pady=(14, 0))
-        botones.columnconfigure(0, weight=1)
-        generar = ttk.Button(botones, text=texto, style="Acento.TButton", command=comando)
-        generar.grid(row=0, column=0, sticky="ew")
-        cancelar = ttk.Button(botones, text="Cancelar", command=self._cancelar, state="disabled")
-        cancelar.grid(row=0, column=1, padx=(8, 0))
-        return generar, cancelar
+    def _botones_generar(self, marco, fila: int, texto: str, comando, formatos: str | None = None):
+        """El botón principal del panel: mientras se trabaja dice «Cancelar» y cancela.
+
+        Con `formatos` («expedientes», «tema», «sesion»), debajo va un enlace con los formatos elegidos que abre
+        Herramientas → Formatos de los informes."""
+        boton = ttk.Button(marco, text=texto, style="Acento.TButton", command=comando)
+        boton.grid(row=fila, column=0, columnspan=4, sticky="ew", pady=(14, 0))
+        self._principales.append((boton, comando))
+        if formatos:
+            enlace = ttk.Label(marco, textvariable=self.vars_resumen_formatos[formatos], style="Enlace.TLabel",
+                               cursor="hand2")
+            enlace.grid(row=fila + 1, column=0, columnspan=4, sticky="w", pady=(4, 0))
+            enlace.bind("<Button-1>", lambda _e: self._elegir_formatos())
+        return boton
+
+    def _mas_opciones(self, marco, fila: int, clave: str) -> ttk.Frame:
+        """Un «Más opciones ▸» que despliega lo que se usa de vez en cuando; recuerda si quedó abierto."""
+        rotulo = tk.StringVar()
+        caja = ttk.Frame(marco, style="Tarjeta.TFrame")
+        caja.columnconfigure(1, weight=1)
+        caja.columnconfigure(2, weight=1)
+        caja.columnconfigure(3, weight=1)
+
+        def mostrar(abierto: bool):
+            self.cfg[clave] = abierto
+            rotulo.set(("▾ " if abierto else "▸ ") + "Más opciones")
+            if abierto:
+                caja.grid(row=fila + 1, column=0, columnspan=4, sticky="ew")
+            else:
+                caja.grid_remove()
+
+        enlace = ttk.Label(marco, textvariable=rotulo, style="Enlace.TLabel", cursor="hand2")
+        enlace.grid(row=fila, column=0, columnspan=4, sticky="w", pady=(PAD_FILA + 2, 0))
+        enlace.bind("<Button-1>", lambda _e: mostrar(not self.cfg.get(clave, False)))
+        mostrar(self.cfg.get(clave, False))
+        return caja
 
     def _marco_panel(self, padre) -> ttk.Frame:
         marco = ttk.Frame(padre, style="Tarjeta.TFrame", padding=(16, 10, 16, 12))
@@ -535,12 +649,10 @@ class Aplicacion(tk.Tk):
         self.txt_expedientes = self._texto(marco, 3, ajuste="none")
         self.txt_expedientes.grid(row=1, column=0, columnspan=4, sticky="ew")
         self.txt_expedientes.bind("<Return>", self._enter_en_expedientes)
-        self._explicacion(marco, "Uno por línea: S-1234/24, CD-14/24, PE-107/24, el enlace de la ficha o una orden del "
-                           "día, OD 413/26 (sus expedientes forman un único despacho).", 2)
+        Ayuda(self.txt_expedientes, "Uno por línea: S-1234/24, CD-14/24, PE-107/24, el enlace de la ficha o una orden "
+                                    "del día, OD 413/26 (sus expedientes forman un único despacho).")
+        self._explicacion(marco, "Uno por línea, p. ej. S-1234/24 u OD 413/26.", 2)
 
-        self._rotulo(marco, "Tipo", 3)
-        ttk.Combobox(marco, textvariable=self.var_tipo, values=OPCIONES_TIPO, state="readonly").grid(
-            row=3, column=1, columnspan=3, sticky="ew", pady=(PAD_FILA, 0))
         self._rotulo(marco, "Buscar", 4)
         caja = self._casillas(marco, 4, [])
         ttk.Checkbutton(caja, text="Reuniones de comisión", variable=self.var_reuniones, style="Tarjeta.TCheckbutton",
@@ -549,15 +661,17 @@ class Aplicacion(tk.Tk):
                                             style="Tarjeta.TCheckbutton")
         self.chk_asesores.pack(side="left")
         self._casillas(marco, 5, [("Reuniones ya convocadas (agenda)", self.var_agenda)])
-        self._rotulo(marco, "Formato", 6)
-        self._casillas(marco, 6, [("Word", self.var_docx), ("HTML", self.var_html), ("PDF", self.var_pdf)])
 
-        self._rotulo(marco, "Comentario", 7)
-        ttk.Entry(marco, textvariable=self.var_notas).grid(row=7, column=1, columnspan=3, sticky="ew",
-                                                           pady=(PAD_FILA, 0))
-        self._explicacion(marco, "Opcional: un texto tuyo que se agrega al final del informe, en la sección «Notas» "
-                           "(por ejemplo, una aclaración para quien lo recibe).", 8, columna=1)
-        self.btn_generar, self.btn_cancelar = self._botones_generar(marco, 9, "Generar informe", self._generar)
+        mas = self._mas_opciones(marco, 6, "expedientes_mas_opciones")
+        self._rotulo(mas, "Tipo", 0)
+        ttk.Combobox(mas, textvariable=self.var_tipo, values=OPCIONES_TIPO, state="readonly").grid(
+            row=0, column=1, columnspan=3, sticky="ew", pady=(PAD_FILA, 0))
+        self._rotulo(mas, "Comentario", 1)
+        comentario = ttk.Entry(mas, textvariable=self.var_notas)
+        comentario.grid(row=1, column=1, columnspan=3, sticky="ew", pady=(PAD_FILA, 0))
+        Ayuda(comentario, "Opcional: un texto tuyo que se agrega al final del informe, en la sección «Notas» "
+                          "(por ejemplo, una aclaración para quien lo recibe).")
+        self.btn_generar = self._botones_generar(marco, 9, "Generar informe", self._generar, formatos="expedientes")
         self._sincronizar()
         return marco
 
@@ -576,16 +690,15 @@ class Aplicacion(tk.Tk):
             side="left", padx=(4, 0))
 
         self._rotulo(marco, "Palabras", 1)
-        ttk.Entry(marco, textvariable=self.var_palabras).grid(row=1, column=1, columnspan=3, sticky="ew",
-                                                              pady=(PAD_FILA, 0))
+        palabras = ttk.Entry(marco, textvariable=self.var_palabras)
+        palabras.grid(row=1, column=1, columnspan=3, sticky="ew", pady=(PAD_FILA, 0))
+        Ayuda(palabras, "Separadas por coma. Se busca en el extracto el comienzo de cada palabra, sin importar tildes.")
         modos = ttk.Frame(marco, style="Tarjeta.TFrame")
         modos.grid(row=2, column=1, columnspan=3, sticky="w", pady=(2, 0))
         ttk.Radiobutton(modos, text="Que tenga alguna", value="alguna", variable=self.var_modo,
                         style="Tarjeta.TRadiobutton").pack(side="left")
         ttk.Radiobutton(modos, text="Que tenga todas", value="todas", variable=self.var_modo,
                         style="Tarjeta.TRadiobutton").pack(side="left", padx=(14, 0))
-        self._explicacion(marco, "Separadas por coma. Se busca en el extracto el comienzo de cada palabra, sin importar "
-                           "tildes.", 3, columna=1)
         self._rotulo(marco, "Excluir", 4)
         ttk.Entry(marco, textvariable=self.var_excluir).grid(row=4, column=1, columnspan=3, sticky="ew",
                                                              pady=(PAD_FILA, 0))
@@ -615,8 +728,10 @@ class Aplicacion(tk.Tk):
         self.combo_bloque = ttk.Combobox(firmas, textvariable=self.var_bloque, values=[CUALQUIER_BLOQUE], width=10,
                                          state="readonly", postcommand=self._cargar_senadores)
         self.combo_bloque.grid(row=0, column=1, sticky="ew", padx=(6, 0))
-        self._explicacion(marco, "Proyectos con su firma (autor o coautor). El bloque toma a sus integrantes actuales "
-                                 "y tiene prioridad sobre el senador.", 9, columna=1)
+        firmantes = "Proyectos con su firma (autor o coautor). El bloque toma a sus integrantes actuales y tiene " \
+                    "prioridad sobre el senador."
+        Ayuda(self.combo_autor, firmantes)
+        Ayuda(self.combo_bloque, firmantes)
 
         self._rotulo(marco, "Tipos", 10)
         tipos = ttk.Frame(marco, style="Tarjeta.TFrame")
@@ -624,14 +739,11 @@ class Aplicacion(tk.Tk):
         for k, (codigo, nombre) in enumerate(TIPOS_TEMA):
             ttk.Checkbutton(tipos, text=nombre, variable=self.vars_tipos[codigo], style="Tarjeta.TCheckbutton").grid(
                 row=k // 3, column=k % 3, sticky="w", padx=(0, 10))
-        self._rotulo(marco, "De cada uno", 11)
+        self._rotulo(marco, "Incluir", 11)
         self._casillas(marco, 11, [("Ficha", self.var_detallar), ("Reuniones (lento)", self.var_reuniones_tema),
                                    ("Informe completo", self.var_individuales)])
-        self._rotulo(marco, "Formato", 13)
-        self._casillas(marco, 13, [("Word", self.var_t_docx), ("HTML", self.var_t_html), ("Excel", self.var_t_xlsx),
-                                   ("PDF", self.var_t_pdf)])
-        self.btn_generar_tema, self.btn_cancelar_tema = self._botones_generar(
-            marco, 14, "Generar informe temático", self._generar_tematico)
+        self.btn_generar_tema = self._botones_generar(marco, 14, "Generar informe temático", self._generar_tematico,
+                                                      formatos="tema")
         return marco
 
     def _panel_seguimiento(self, padre) -> ttk.Frame:
@@ -640,11 +752,12 @@ class Aplicacion(tk.Tk):
         self.combo_grupo = ttk.Combobox(marco, textvariable=self.var_seg_grupo, state="readonly", width=16)
         self.combo_grupo.grid(row=0, column=1, columnspan=2, sticky="ew", pady=(PAD_FILA, 0))
         self.combo_grupo.bind("<<ComboboxSelected>>", lambda _e: self._llenar_seguimiento())
-        grupos = ttk.Frame(marco, style="Tarjeta.TFrame")
-        grupos.grid(row=0, column=3, sticky="e", pady=(PAD_FILA, 0))
-        for texto, comando in (("Nuevo", self._nuevo_grupo), ("Renombrar", self._renombrar_grupo),
-                               ("Borrar", self._borrar_grupo)):
-            ttk.Button(grupos, text=texto, style="Chico.TButton", command=comando).pack(side="left", padx=(4, 0))
+        menu_grupos = tk.Menu(self, tearoff=False)
+        menu_grupos.add_command(label="Grupo nuevo…", command=self._nuevo_grupo)
+        menu_grupos.add_command(label="Renombrar este grupo…", command=self._renombrar_grupo)
+        menu_grupos.add_command(label="Borrar este grupo", command=self._borrar_grupo)
+        ttk.Menubutton(marco, text="Grupos", menu=menu_grupos, style="Chico.TMenubutton").grid(
+            row=0, column=3, sticky="e", padx=(6, 0), pady=(PAD_FILA, 0))
 
         contenedor = ttk.Frame(marco, style="Tarjeta.TFrame")
         contenedor.grid(row=1, column=0, columnspan=4, sticky="nsew", pady=(8, 0))
@@ -675,37 +788,39 @@ class Aplicacion(tk.Tk):
 
         acciones = ttk.Frame(marco, style="Tarjeta.TFrame")
         acciones.grid(row=2, column=0, columnspan=4, sticky="w", pady=(6, 0))
-        for texto, comando in (("Nombre…", self._nombrar_seguido), ("Agrupar…", self._agrupar_elegidos),
-                               ("Ficha", self._ficha_seguimiento), ("Quitar", self._quitar_seguimiento)):
-            ttk.Button(acciones, text=texto, style="Chico.TButton", command=comando).pack(side="left", padx=(0, 4))
-        menu_exportar = tk.Menu(self, tearoff=False)
-        menu_exportar.add_command(label="Excel (con grupos y situación)", command=lambda: self._exportar_seguimiento("xlsx"))
-        menu_exportar.add_command(label="PDF", command=lambda: self._exportar_seguimiento("pdf"))
-        ttk.Menubutton(acciones, text="Exportar", menu=menu_exportar, style="Chico.TMenubutton").pack(
+        self.menu_acciones = tk.Menu(self, tearoff=False,
+                                     postcommand=lambda: self._llenar_menu_seguido(
+                                         self.menu_acciones, bool(self._seguidos_elegidos())))
+        ttk.Menubutton(acciones, text="Acciones", menu=self.menu_acciones, style="Chico.TMenubutton").pack(
             side="left", padx=(0, 4))
-        self.btn_sacar_grupo = ttk.Button(acciones, text="Sacar del grupo", style="Chico.TButton",
-                                          command=self._sacar_del_grupo)
+        menu_informes = tk.Menu(self, tearoff=False)
+        menu_informes.add_command(label="Estado de la lista (Excel)", command=lambda: self._exportar_seguimiento("xlsx"))
+        menu_informes.add_command(label="Estado de la lista (PDF)", command=lambda: self._exportar_seguimiento("pdf"))
+        menu_informes.add_separator()
+        menu_informes.add_command(label="Vencimientos", command=lambda: self._vista_seguimiento("vencimientos"))
+        menu_informes.add_command(label="Agenda de la semana", command=lambda: self._vista_seguimiento("agenda"))
+        ttk.Menubutton(acciones, text="Informes", menu=menu_informes, style="Chico.TMenubutton").pack(
+            side="left", padx=(0, 4))
         self._explicacion(marco, "", 3).configure(textvariable=self.var_seg_info)
 
-        self._seccion(marco, "Agregar expedientes u órdenes del día", 4)
+        self._seccion(marco, "Agregar expedientes", 4)
         self.menu_traer = tk.Menu(self, tearoff=False, postcommand=self._armar_menu_traer)
         ttk.Menubutton(marco, text="Traer de un tema", menu=self.menu_traer, style="Chico.TMenubutton").grid(
             row=4, column=3, sticky="e", pady=(10, 2))
-        self.txt_seg_nuevos = self._texto(marco, 2)
-        self.txt_seg_nuevos.grid(row=5, column=0, columnspan=4, sticky="ew")
-        self._rotulo(marco, "Nombre", 6)
-        ttk.Entry(marco, textvariable=self.var_seg_alias).grid(row=6, column=1, columnspan=2, sticky="ew",
-                                                               pady=(PAD_FILA, 0))
-        ttk.Button(marco, text="Agregar", command=self._agregar_seguimiento).grid(row=6, column=3, sticky="e",
-                                                                                padx=(6, 0), pady=(PAD_FILA, 0))
-        self._explicacion(marco, "Por línea o con comas (también OD 413/26). El nombre vale si agregás uno solo.", 7)
+        agregar = ttk.Frame(marco, style="Tarjeta.TFrame")
+        agregar.grid(row=5, column=0, columnspan=4, sticky="ew")
+        agregar.columnconfigure(0, weight=1)
+        self.txt_seg_nuevos = self._texto(agregar, 1)
+        self.txt_seg_nuevos.grid(row=0, column=0, sticky="ew")
+        self.txt_seg_nuevos.bind("<Return>", lambda _e: self._agregar_seguimiento() or "break")
+        Ayuda(self.txt_seg_nuevos, "Uno o varios, separados por coma (también órdenes del día, OD 413/26). Enter "
+                                   "para agregar. Para ponerle un nombre: Acciones → Ponerle nombre…")
+        ttk.Button(agregar, text="Agregar", command=self._agregar_seguimiento).grid(row=0, column=1, padx=(6, 0))
 
         self._rotulo(marco, "Al revisar", 8)
         self._casillas(marco, 8, [("Reuniones (lento)", self.var_seg_reuniones),
                                   ("Relacionados (lento)", self.var_seg_relacionados)])
-        self._casillas(marco, 9, [("Guardar resumen en archivo", self.var_seg_archivo)])
-        self.btn_revisar, self.btn_cancelar_seg = self._botones_generar(marco, 10, "Revisar novedades",
-                                                                        self._revisar_seguimiento)
+        self.btn_revisar = self._botones_generar(marco, 10, "Revisar novedades", self._revisar_seguimiento)
         ttk.Label(marco, textvariable=self.var_seg_ultima, style="Revision.TLabel").grid(
             row=11, column=0, columnspan=4, sticky="w", pady=(6, 0))
         self.menu_seguido = tk.Menu(self, tearoff=False)
@@ -728,10 +843,11 @@ class Aplicacion(tk.Tk):
         ttk.Combobox(marco, textvariable=self.var_ae_origen, values=OPCIONES_ORIGEN, state="readonly").grid(
             row=4, column=1, columnspan=3, sticky="ew", pady=(PAD_FILA, 0))
         self._rotulo(marco, "Palabras", 5)
-        ttk.Entry(marco, textvariable=self.var_ae_texto).grid(row=5, column=1, columnspan=3, sticky="ew",
-                                                              pady=(PAD_FILA, 0))
-        self._explicacion(marco, "Busca en el extracto y en las comisiones del giro. Los filtros cambian la lista al "
-                                 "instante, sin volver a consultar el sitio.", 6, columna=1)
+        palabras = ttk.Entry(marco, textvariable=self.var_ae_texto)
+        palabras.grid(row=5, column=1, columnspan=3, sticky="ew", pady=(PAD_FILA, 0))
+        Ayuda(palabras, "Busca en el extracto y en las comisiones del giro.")
+        self._explicacion(marco, "Los filtros cambian la lista al instante, sin volver a consultar el sitio.", 6,
+                          columna=1)
         acciones = ttk.Frame(marco, style="Tarjeta.TFrame")
         acciones.grid(row=7, column=0, columnspan=4, sticky="w", pady=(10, 0))
         ttk.Button(acciones, text="Sumar los elegidos al seguimiento", style="Chico.TButton",
@@ -740,8 +856,7 @@ class Aplicacion(tk.Tk):
                    command=self._ver_ultimos_asuntos).pack(side="left", padx=(6, 0))
         self._casillas(marco, 8, [("Generar un informe de los asuntos (Word, HTML y PDF)", self.var_ae_informe)],
                        columna=0)
-        self.btn_asuntos, self.btn_cancelar_ae = self._botones_generar(marco, 9, "Buscar asuntos nuevos",
-                                                                       self._buscar_asuntos)
+        self.btn_asuntos = self._botones_generar(marco, 9, "Buscar asuntos nuevos", self._buscar_asuntos)
         ttk.Label(marco, textvariable=self.var_ae_info, style="Revision.TLabel").grid(
             row=10, column=0, columnspan=4, sticky="w", pady=(6, 0))
         for variable in [self.var_ae_origen, self.var_ae_texto, *self.vars_ae_tipos.values()]:
@@ -771,12 +886,8 @@ class Aplicacion(tk.Tk):
         self._casillas(marco, 6, [("Reuniones de comisión (lento)", self.var_ses_reuniones),
                                   ("Relacionados (lento)", self.var_ses_relacionados)])
         self._casillas(marco, 7, [("Versión taquigráfica (si la sesión ya se hizo)", self.var_ses_taquigrafica)])
-        self._rotulo(marco, "Formato", 8)
-        self._casillas(marco, 8, [("Word", self.vars_ses_formatos["docx"]), ("HTML", self.vars_ses_formatos["html"]),
-                                  ("Excel", self.vars_ses_formatos["xlsx"]),
-                                  ("CSV (Power BI)", self.vars_ses_formatos["csv"]), ("PDF", self.vars_ses_formatos["pdf"])])
-        self.btn_generar_ses, self.btn_cancelar_ses = self._botones_generar(marco, 9, "Generar informe de sesión",
-                                                                            self._generar_sesion)
+        self.btn_generar_ses = self._botones_generar(marco, 9, "Generar informe de sesión", self._generar_sesion,
+                                                     formatos="sesion")
         return marco
 
     def _panel_resultados(self, padre) -> ttk.Frame:
@@ -791,8 +902,11 @@ class Aplicacion(tk.Tk):
         self.combo_resultado = ttk.Combobox(estado, textvariable=self.var_resultado, state="disabled", width=26)
         self.combo_resultado.grid(row=0, column=1, sticky="e")
         self.combo_resultado.bind("<<ComboboxSelected>>", self._elegir_resultado)
+        Ayuda(self.combo_resultado, "Los informes de esta sesión: elegí uno para volver a verlo.")
         self.barra = ttk.Progressbar(marco, mode="determinate", style="Horizontal.TProgressbar")
-        self.barra.grid(row=1, column=0, sticky="ew", pady=(8, 10))
+        self.barra.grid(row=1, column=0, sticky="ew", pady=(8, 2))
+        self.barra.grid_remove()                     # solo se ve mientras se trabaja
+        marco.rowconfigure(1, minsize=12)
 
         self.pestanias = ttk.Notebook(marco)
         self.pestanias.grid(row=2, column=0, sticky="nsew")
@@ -820,7 +934,8 @@ class Aplicacion(tk.Tk):
 
         acciones = ttk.Frame(marco)
         acciones.grid(row=3, column=0, sticky="ew", pady=(10, 0))
-        ttk.Label(acciones, text="Abrir:").grid(row=0, column=0, padx=(0, 8))
+        self.lbl_abrir = ttk.Label(acciones, text="Abrir:")
+        self.lbl_abrir.grid(row=0, column=0, padx=(0, 8))
         self.btn_word = ttk.Button(acciones, text="Word", command=lambda: self._abrir("docx"), state="disabled",
                                    style="Barra.TButton")
         self.btn_html = ttk.Button(acciones, text="HTML", command=lambda: self._abrir("html"), state="disabled",
@@ -990,11 +1105,19 @@ class Aplicacion(tk.Tk):
                        cancelar=self.cancelar, carpeta_diagnostico=diagnostico)
 
     def _ocupado(self, si: bool) -> None:
-        for b in (self.btn_generar, self.btn_generar_tema, self.btn_revisar, self.btn_generar_ses, self.btn_asuntos):
-            b.state(["disabled"] if si else ["!disabled"])
-        for b in (self.btn_cancelar, self.btn_cancelar_tema, self.btn_cancelar_seg, self.btn_cancelar_ses,
-                  self.btn_cancelar_ae):
-            b.state(["!disabled"] if si else ["disabled"])
+        """Mientras se trabaja, el botón principal de cada panel dice «Cancelar» y la barra de avance se ve."""
+        for boton, comando in self._principales:
+            if si:
+                self._textos_principales[boton] = boton.cget("text")
+                boton.configure(text="Cancelar", command=self._cancelar, style="Cancelar.TButton")
+            else:
+                boton.configure(text=self._textos_principales.pop(boton, boton.cget("text")), command=comando,
+                                style="Acento.TButton")
+            boton.state(["!disabled"])
+        if si:
+            self.barra.grid()
+        else:
+            self.barra.grid_remove()
 
     def _trabajo(self, textos: list[str], opciones: Opciones) -> None:
         cliente = self._nuevo_cliente()
@@ -1024,9 +1147,8 @@ class Aplicacion(tk.Tk):
     def _cancelar(self) -> None:
         self.cancelar.set()
         self.var_estado.set("Cancelando…")
-        for b in (self.btn_cancelar, self.btn_cancelar_tema, self.btn_cancelar_seg, self.btn_cancelar_ses,
-                  self.btn_cancelar_ae):
-            b.state(["disabled"])
+        for boton, _comando in self._principales:
+            boton.state(["disabled"])
 
     def _procesar_cola(self) -> None:
         try:
@@ -1035,7 +1157,24 @@ class Aplicacion(tk.Tk):
                 self._atender(evento, mensaje, datos)
         except queue.Empty:
             pass
+        self._ocultar_lo_que_no_aplica()
         self.after(120, self._procesar_cola)
+
+    def _ocultar_lo_que_no_aplica(self) -> None:
+        """Debajo del informe solo se ven los botones que sirven para el que se está viendo (en vez de grises), y
+        la lista de informes anteriores solo cuando hay más de uno."""
+        botones = (self.btn_word, self.btn_html, self.btn_excel, self.btn_pdf, self.btn_ficha, self.btn_copiar)
+        hay = False
+        for boton in botones:
+            activo = not boton.instate(["disabled"])
+            hay |= activo
+            if activo != bool(boton.winfo_manager()):
+                boton.grid() if activo else boton.grid_remove()
+        if hay != bool(self.lbl_abrir.winfo_manager()):
+            self.lbl_abrir.grid() if hay else self.lbl_abrir.grid_remove()
+        combo = not self.combo_resultado.instate(["disabled"])
+        if combo != bool(self.combo_resultado.winfo_manager()):
+            self.combo_resultado.grid() if combo else self.combo_resultado.grid_remove()
 
     def _atender(self, evento: str, mensaje: str, datos: dict) -> None:
         if evento == "etapa":
@@ -1110,6 +1249,11 @@ class Aplicacion(tk.Tk):
                 if self.resultados and isinstance(self.resultados[-1], ResultadoSeguimiento):
                     self.var_estado.set(f"Listo: {resumen_seguimiento(self.resultados[-1])}")
                     self._llenar_seguimiento()
+                    if not self.cfg.get("consejo_informes"):        # una sola vez: dónde están las vistas nuevas
+                        self.cfg["consejo_informes"] = True
+                        messagebox.showinfo("Consejo", "Con la lista revisada, «Informes» (arriba de la lista) "
+                                            "muestra los Vencimientos y la Agenda de la semana de tus expedientes.",
+                                            parent=self)
             else:
                 self.var_estado.set("No se pudo generar el informe. Mirá el detalle en «Registro».")
             self._registro(f"Pedidos al sitio: {datos['pedidos']} · desde caché: {datos['cache']}")
@@ -1440,11 +1584,11 @@ class Aplicacion(tk.Tk):
             textos = [str(a.heading(columna, "text"))] + [str(a.set(i, columna)) for i in a.get_children()]
             ancho = max(self.f_normal.measure(x) for x in textos) + 20
             a.column(columna, width=ancho, minwidth=ancho)
-        self.btn_revisar.configure(text=f"Revisar novedades ({len(elegidos)})" if grupo else "Revisar novedades")
-        if grupo:
-            self.btn_sacar_grupo.pack(side="left", padx=(0, 4))
+        texto = f"Revisar novedades ({len(elegidos)})" if grupo else "Revisar novedades"
+        if self.btn_revisar in self._textos_principales:       # trabajando: el botón dice «Cancelar»
+            self._textos_principales[self.btn_revisar] = texto
         else:
-            self.btn_sacar_grupo.pack_forget()
+            self.btn_revisar.configure(text=texto)
         revisados = [s.revisado for s in elegidos if s.revisado]
         if revisados:
             ultima = datetime.fromisoformat(max(revisados))
@@ -1729,18 +1873,21 @@ class Aplicacion(tk.Tk):
 
     def _menu_seguimiento(self, evento) -> None:
         fila = self.arbol_seguimiento.identify_row(evento.y)
-        m = self.menu_seguido
-        m.delete(0, "end")
-        if not fila:
-            m.add_command(label="Marcar todos", command=lambda: self._elegir_todos(True))
-            m.add_separator()
-            m.add_command(label="Vaciar la lista de seguimiento…", command=self._vaciar_seguimiento)
-            m.tk_popup(evento.x_root, evento.y_root)
-            return
-        if fila not in self._marcados:
+        if fila and fila not in self._marcados:
             self._marcados = set()
             self.arbol_seguimiento.selection_set(fila)
             self._marcar_elegidos()
+        self._llenar_menu_seguido(self.menu_seguido, bool(fila))
+        self.menu_seguido.tk_popup(evento.x_root, evento.y_root)
+
+    def _llenar_menu_seguido(self, m: tk.Menu, con_elegidos: bool) -> None:
+        """El menú de acciones sobre los expedientes elegidos: el del clic derecho y el del botón «Acciones»."""
+        m.delete(0, "end")
+        if not con_elegidos:
+            m.add_command(label="Marcar todos", command=lambda: self._elegir_todos(True))
+            m.add_separator()
+            m.add_command(label="Vaciar la lista de seguimiento…", command=self._vaciar_seguimiento)
+            return
         m.add_command(label="Ponerle nombre…", command=self._nombrar_seguido)
         sub = tk.Menu(m, tearoff=False)
         for g in self.lista_seguimiento.grupos:
@@ -1758,7 +1905,20 @@ class Aplicacion(tk.Tk):
         m.add_separator()
         m.add_command(label="Marcar todos", command=lambda: self._elegir_todos(True))
         m.add_command(label="Vaciar la lista de seguimiento…", command=self._vaciar_seguimiento)
-        m.tk_popup(evento.x_root, evento.y_root)
+
+    def _vista_seguimiento(self, vista: str) -> None:
+        """Vencimientos o agenda de la semana de la lista (o del grupo que se está viendo), en el navegador."""
+        grupo = self._grupo_elegido()
+        if not self.lista_seguimiento.del_grupo(grupo):
+            messagebox.showinfo("Lista vacía", "Agregá expedientes a la lista para ver sus vencimientos y su agenda.")
+            return
+        try:
+            destino = seguimiento.guardar_vista(self.lista_seguimiento, self._carpeta("seguimiento"), vista, grupo)
+        except OSError as e:
+            messagebox.showwarning("No se pudo guardar", str(e))
+            return
+        self._registro(f"{'Vencimientos' if vista == 'vencimientos' else 'Agenda de la semana'}: {destino}")
+        abrir_en_sistema(destino)
 
     def _informe_seguido(self) -> None:
         elegidos = self._seguidos_elegidos()

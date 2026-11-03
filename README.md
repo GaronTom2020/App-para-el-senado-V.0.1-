@@ -20,7 +20,7 @@
 
 # Sistema de Información Parlamentaria — H. Senado de la Nación
 
-Versión actual: **1.0.0**. Programa de escritorio con cinco modos:
+Versión actual: **1.1.0**. Programa de escritorio con cinco modos:
 
 | | Modo | Qué hace |
 |:-:|---|---|
@@ -32,7 +32,13 @@ Versión actual: **1.0.0**. Programa de escritorio con cinco modos:
 
 Usa solamente información pública de www.senado.gob.ar y www.hcdn.gob.ar.
 
-**Contenido:** [Novedades](#novedades-de-la-versión-100) · [Qué incluye el informe](#qué-incluye-el-informe) · [Instalación](#instalación) · [Uso](#uso) · [Por tema](#informe-temático-por-eje-o-palabras-clave) · [Sesión](#informe-de-sesión-plan-de-labor) · [Asuntos entrados](#asuntos-entrados-dae) · [Resumen diario](#resumen-diario-correo-y-aviso-en-pantalla) · [Seguimiento](#lista-de-seguimiento) · [Si algo no funciona](#si-algo-no-funciona) · [Línea de comandos](#línea-de-comandos) · [Despliegue](#despliegue)
+**Contenido:** [Novedades](#novedades-de-la-versión-110) · [Qué incluye el informe](#qué-incluye-el-informe) · [Instalación](#instalación) · [Uso](#uso) · [Por tema](#informe-temático-por-eje-o-palabras-clave) · [Sesión](#informe-de-sesión-plan-de-labor) · [Asuntos entrados](#asuntos-entrados-dae) · [Resumen diario](#resumen-diario-correo-y-aviso-en-pantalla) · [Seguimiento](#lista-de-seguimiento) · [Si algo no funciona](#si-algo-no-funciona) · [Línea de comandos](#línea-de-comandos) · [Despliegue](#despliegue)
+
+### Novedades de la versión 1.1.0
+
+- **Vencimientos** (*Seguimiento → Informes → Vencimientos*): los expedientes de la lista ordenados por fecha de caducidad; en rojo los que caducan en menos de 60 días y, además en negrita, los de menos de 15.
+- **Agenda de la semana** (*Seguimiento → Informes → Agenda de la semana*): las reuniones de comisión ya convocadas en los próximos siete días que tratan expedientes de la lista, día por día. Las dos vistas salen de la última revisión, sin consultar el sitio.
+- **Interfaz más limpia**: el botón principal de cada pestaña dice «Cancelar» mientras trabaja; los formatos se eligen en un solo lugar (*Herramientas → Formatos de los informes…*, o el renglón *Formatos: … · cambiar* debajo de cada botón); en *Seguimiento*, los botones sueltos pasan a los menús *Grupos*, *Acciones* e *Informes*; *Tipo* y *Comentario* quedan en *Más opciones*; las explicaciones largas aparecen al dejar el mouse sobre el campo; y abajo solo se ven los botones que sirven para el informe que se está viendo.
 
 ### Novedades de la versión 1.0.0
 
@@ -121,9 +127,8 @@ En Linux o macOS: `python3 -m venv .venv && .venv/bin/pip install -r requirement
 ## Uso
 
 1. Escribí uno o más expedientes, uno por línea: `S-1234/24`, `CD-14/24`, `PE-107/24`, `1370-S-2020` o el enlace a la ficha del Senado.
-2. Dejá el tipo en *Detectar automáticamente* (el programa lo consulta en el buscador del Senado) o elegilo si lo sabés.
-3. Elegí qué buscar y el formato, y presioná **Generar informe** (o Ctrl+Enter).
-4. Al terminar, el resumen aparece en la ventana con los enlaces activos. Los botones de abajo abren el Word, el HTML o la carpeta de informes.
+2. Elegí qué buscar y presioná **Generar informe** (o Ctrl+Enter). El formato se cambia con *Formatos: … · cambiar*, debajo del botón; el tipo, en *Más opciones* (por defecto, *Detectar automáticamente*: el programa lo consulta en el buscador del Senado).
+3. Al terminar, el resumen aparece en la ventana con los enlaces activos. Los botones de abajo abren el Word, el HTML o la carpeta de informes.
 
 En la pestaña *Reuniones*, el doble clic abre la nota de la reunión y el clic derecho ofrece la versión taquigráfica, el video o copiar el enlace.
 
@@ -194,7 +199,7 @@ Al guardar se crea la tarea programada de Windows «Informe de Expedientes - res
 
 ## Lista de seguimiento
 
-En la pestaña **Seguimiento** se arma una lista de expedientes para revisar seguido. Se agregan escribiendo el número (o varios, separados por coma) o, desde la lista del modo *Por tema*, con clic derecho → *Agregar a la lista de seguimiento*. Para quitarlos, elegilos y presioná *Quitar los elegidos* (o Supr).
+En la pestaña **Seguimiento** se arma una lista de expedientes para revisar seguido. Se agregan escribiendo el número (o varios, separados por coma) o, desde la lista del modo *Por tema*, con clic derecho → *Agregar a la lista de seguimiento*. Para quitarlos, elegilos y usá *Acciones → Quitar de la lista* (o Supr). El botón *Informes* arma el estado de la lista (Excel o PDF), los vencimientos y la agenda de la semana.
 
 **Revisar novedades** vuelve a consultar cada expediente y lo compara con la revisión anterior. Avisa:
 
