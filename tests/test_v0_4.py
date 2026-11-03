@@ -208,6 +208,22 @@ def test_instalar_guarda_la_version_anterior(monkeypatch, tmp_path):
     assert actualizaciones.hay_anterior()
     bat = actualizaciones.volver_a_anterior().read_text(encoding="mbcs" if os.name == "nt" else "utf-8")
     assert f'move /y "{anterior}" "{actual}"' in bat and "copy" not in bat
+    # El reemplazo se reintenta: el lanzador del .exe lo tiene tomado unos segundos después de cerrar.
+    assert "goto mover" in bat and "geq 30" in bat
+
+
+def test_limpiar_restos(monkeypatch, tmp_path):
+    actual = tmp_path / "InformeExpediente.exe"
+    resto = tmp_path / "InformeExpediente.nuevo.exe"
+    actual.write_bytes(b"actual")
+    resto.write_bytes(b"resto")
+    monkeypatch.setattr(actualizaciones.sys, "executable", str(actual))
+    actualizaciones.limpiar_restos()            # corriendo desde el código no toca nada
+    assert resto.exists()
+    monkeypatch.setattr(actualizaciones.sys, "frozen", True, raising=False)
+    actualizaciones.limpiar_restos()
+    assert not resto.exists() and actual.exists()
+    actualizaciones.limpiar_restos()            # sin restos, no falla
 
 
 def test_cambios_de_las_notas():

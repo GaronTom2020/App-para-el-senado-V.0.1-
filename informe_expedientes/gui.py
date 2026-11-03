@@ -213,6 +213,7 @@ class Aplicacion(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self._cerrar)
         self.after(120, self._procesar_cola)
         self.after(3000, self._buscar_version)
+        actualizaciones.limpiar_restos()
         self.txt_expedientes.focus_set()
 
     # --------------------------------------------------------------- estilo
