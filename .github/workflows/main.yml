@@ -32,16 +32,21 @@ jobs:
       - name: Correr las pruebas
         run: python -m pytest -q
 
-      # Cada compilación lleva su propio número (0.4.0.17: la versión del código y el número de ejecución), así
-      # el programa ofrece actualizarse aunque solo haya cambiado la contraseña de la cuenta de envío.
-      - name: Número de compilación
+      # La versión es la de informe_expedientes/__init__.py, con el esquema de la oficina: lanzamiento.función.parche
+      # (1.1.2). Cada PR sube su número (una función nueva sube el del medio; un arreglo, el último). Si esa versión
+      # ya está publicada, no se vuelve a publicar: hay que subir el número antes de compilar.
+      - name: Versión
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          BASE=$(python -c "import informe_expedientes as m; print(m.__version__)")
-          VERSION="$BASE.${{ github.run_number }}"
-          sed -i "s/__version__ = \"$BASE\"/__version__ = \"$VERSION\"/" informe_expedientes/__init__.py
+          VERSION=$(python -c "import informe_expedientes as m; print(m.__version__)")
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "Versión: $VERSION"
+          if [ "${{ github.ref }}" = "refs/heads/main" ] && gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "::error::La versión $VERSION ya está publicada. Subí el número en informe_expedientes/__init__.py (por ejemplo, el último: un arreglo) y volvé a compilar."
+            exit 1
+          fi
 
       # El manual viaja dentro del .exe (Ayuda → Manual de usuario); si todavía no se publicó, se abre el de Releases.
       - name: Incluir el manual de usuario

@@ -20,7 +20,7 @@
 
 # Sistema de Información Parlamentaria — H. Senado de la Nación
 
-Versión actual: **1.1.0**. Programa de escritorio con cinco modos:
+Versión actual: **1.1.2**. Programa de escritorio con cinco modos:
 
 | | Modo | Qué hace |
 |:-:|---|---|
@@ -32,7 +32,12 @@ Versión actual: **1.1.0**. Programa de escritorio con cinco modos:
 
 Usa solamente información pública de www.senado.gob.ar y www.hcdn.gob.ar.
 
-**Contenido:** [Novedades](#novedades-de-la-versión-110) · [Qué incluye el informe](#qué-incluye-el-informe) · [Instalación](#instalación) · [Uso](#uso) · [Por tema](#informe-temático-por-eje-o-palabras-clave) · [Sesión](#informe-de-sesión-plan-de-labor) · [Asuntos entrados](#asuntos-entrados-dae) · [Resumen diario](#resumen-diario-correo-y-aviso-en-pantalla) · [Seguimiento](#lista-de-seguimiento) · [Si algo no funciona](#si-algo-no-funciona) · [Línea de comandos](#línea-de-comandos) · [Despliegue](#despliegue)
+**Contenido:** [Novedades](#novedades-de-la-versión-112) · [Qué incluye el informe](#qué-incluye-el-informe) · [Instalación](#instalación) · [Uso](#uso) · [Por tema](#informe-temático-por-eje-o-palabras-clave) · [Sesión](#informe-de-sesión-plan-de-labor) · [Asuntos entrados](#asuntos-entrados-dae) · [Resumen diario](#resumen-diario-correo-y-aviso-en-pantalla) · [Seguimiento](#lista-de-seguimiento) · [Si algo no funciona](#si-algo-no-funciona) · [Línea de comandos](#línea-de-comandos) · [Despliegue](#despliegue)
+
+### Novedades de la versión 1.1.2
+
+- **Manual de usuario al día**: las capturas muestran la ventana de la versión 1.1 (1.1.1), y GitHub las vuelve a tomar solo cada vez que cambia el programa (1.1.2).
+- **Números de versión**: desde esta versión se usa el esquema lanzamiento.función.parche. Las anteriores se publicaban con un cuarto número, el de la compilación (por ejemplo, 1.1.0.11).
 
 ### Novedades de la versión 1.1.0
 
@@ -114,7 +119,7 @@ Deja `manual/salida/Manual de usuario.pdf` (y una copia en HTML). Para cambiar e
 
 **Opción A, con el ejecutable (recomendada para la oficina).** Descargá `InformeExpediente.exe` de la última versión en [Releases](https://github.com/GaronTom2020/App-para-el-senado-V.0.1-/releases/latest) y abrilo: no necesita Python ni instalación. Desde ahí, el programa avisa solo cuando hay una versión nueva y ofrece instalarla.
 
-El `.exe` se compila en GitHub: *Actions → Compilar InformeExpediente.exe → Run workflow* (`.github/workflows/main.yml`). Corre las pruebas en una máquina Windows, compila y publica la versión `v1.0.0.N` en Releases, donde N es el número de la ejecución, con la lista de cambios desde la anterior. El `.exe` no lleva la cuenta de envío del resumen diario: se lee de `cuenta_envio.txt`, junto al `.exe` (ver [Resumen diario](#resumen-diario-correo-y-aviso-en-pantalla)). Para compilarlo en una PC con Python 3.10 o posterior (marcando **Add python.exe to PATH** al instalarlo; el «python» que ofrece la Microsoft Store no sirve), está `construir_exe_windows.bat`, que genera `dist\InformeExpediente.exe`; lo mismo vale para la cuenta de envío.
+El `.exe` se compila en GitHub: *Actions → Compilar InformeExpediente.exe → Run workflow* (`.github/workflows/main.yml`). Corre las pruebas en una máquina Windows, compila y publica la versión que figura en `informe_expedientes/__init__.py` (por ejemplo `v1.1.2`) en Releases, con la lista de cambios desde la anterior. Las versiones siguen el esquema lanzamiento.función.parche: cada PR sube su número (una función nueva, el del medio; un arreglo, el último). Si la versión ya está publicada, la compilación se detiene y pide subir el número. El `.exe` no lleva la cuenta de envío del resumen diario: se lee de `cuenta_envio.txt`, junto al `.exe` (ver [Resumen diario](#resumen-diario-correo-y-aviso-en-pantalla)). Para compilarlo en una PC con Python 3.10 o posterior (marcando **Add python.exe to PATH** al instalarlo; el «python» que ofrece la Microsoft Store no sirve), está `construir_exe_windows.bat`, que genera `dist\InformeExpediente.exe`; lo mismo vale para la cuenta de envío.
 
 Si el antivirus o Sistemas bloquean el `.exe`, pedí que lo autoricen: es un programa sin firma digital.
 
