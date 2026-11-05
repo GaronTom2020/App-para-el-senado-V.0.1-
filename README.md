@@ -20,7 +20,7 @@
 
 # Sistema de Información Parlamentaria — H. Senado de la Nación
 
-Versión actual: **1.4.0**. Programa de escritorio con cinco modos:
+Versión actual: **1.5.0**. Programa de escritorio con cinco modos:
 
 | | Modo | Qué hace |
 |:-:|---|---|
@@ -33,6 +33,10 @@ Versión actual: **1.4.0**. Programa de escritorio con cinco modos:
 Usa solamente información pública de www.senado.gob.ar y www.hcdn.gob.ar.
 
 **Contenido:** 📰 [Novedades](#novedades-de-la-versión-11) · 🗂️ [Historial de versiones](#historial-de-versiones) · 📋 [Qué incluye el informe](#qué-incluye-el-informe) · 💾 [Instalación](#instalación) · ▶️ [Uso](#uso) · 🔎 [Por tema](#informe-temático-por-eje-o-palabras-clave) · 🏛️ [Sesión](#informe-de-sesión-plan-de-labor) · 📥 [Asuntos entrados](#asuntos-entrados-dae) · ✉️ [Resumen diario](#resumen-diario-correo-y-aviso-en-pantalla) · 👁️ [Seguimiento](#lista-de-seguimiento) · 🛟 [Si algo no funciona](#si-algo-no-funciona) · ⌨️ [Línea de comandos](#línea-de-comandos) · 🚀 [Despliegue](#despliegue)
+
+### Novedades de la versión 1.5
+
+- **Actualizaciones seguras con antivirus por huella.** En las PCs donde el antivirus solo deja correr los .exe cuya huella aprobó Informática, el programa ya no se queda sin abrir después de actualizarse. Antes de reemplazar el .exe, ejecuta el nuevo en modo de prueba. Si el antivirus lo bloquea, **no toca el programa actual** y muestra un aviso con la **huella SHA-256** del archivo (copiada al portapapeles) para pedirle a Informática que la apruebe. Como red de seguridad, si el .exe reemplazado desaparece, se restaura la versión anterior.
 
 ### Novedades de la versión 1.4
 
@@ -117,6 +121,7 @@ Cada cambio entra al programa por un *pull request* (PR) en GitHub: un pedido de
 | 1.2.3 | Parche | #31 | Historial de versiones al día | 1.2.3 |
 | 1.3.0 | Función | #32 | Diputados: lectura del buscador nuevo (solo datos oficiales, corroborados con la ficha del Senado) | 1.3.0 |
 | 1.4.0 | Función | #34 | Luces de conexión HSN y HCDN; las búsquedas respetan las luces; reintentos y pausa (Continuar, Reintentar, Cancelar); barra de menús propia; hemiciclo solo | |
+| 1.5.0 | Función | #36 | Actualizaciones en PCs con antivirus por huella: se prueba el .exe nuevo antes de reemplazar y, si lo bloquea, se muestra la huella para pedir la aprobación a Informática | |
 
 Desde la 1.1.3, la versión publicada es exactamente la de la tabla.
 

@@ -398,6 +398,8 @@ def _autores_y_bloques(a, cliente: Cliente, consulta) -> int | None:
 
 
 def main() -> None:
+    if sys.argv[1:] == ["--prueba-arranque"]:   # el programa anterior verifica que el antivirus lo deje correr
+        sys.exit(0)
     if len(sys.argv) > 1:
         sys.exit(linea_de_comandos(sys.argv[1:]))
     from informe_expedientes.gui import ejecutar

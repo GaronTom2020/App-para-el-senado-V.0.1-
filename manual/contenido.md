@@ -443,6 +443,17 @@ Al abrir, una vez por día, el programa se fija si hay una versión más nueva. 
 !!! atencion "Si el programa está en una carpeta compartida"
     Si no tiene permiso para escribir en la carpeta del programa, el aviso ofrece abrir la página de descarga. Avise a quien mantiene el programa.
 
+>> Si el antivirus bloquea la versión nueva.
+
+En las PCs donde el antivirus solo deja correr los programas aprobados por Informática (por su *huella*, un código único de cada archivo), una versión nueva todavía no aprobada puede quedar bloqueada. Para que no se quede sin programa, antes de reemplazarlo el programa **prueba** la versión nueva. Si el antivirus la bloquea:
+
+- **no se toca el programa que usted tiene**: sigue funcionando como siempre;
+- aparece el aviso **«Actualización bloqueada»**, con la **huella SHA-256** de la versión nueva, que además queda **copiada al portapapeles**;
+- envíe esa huella a Informática (péguela en el correo o el pedido) para que aprueben la versión nueva, y vuelva a probar *Ayuda → Buscar actualizaciones* cuando se la confirmen.
+
+!!! consejo "Si el .exe desaparece después de actualizar"
+    Como red de seguridad, si el antivirus borrara el programa recién actualizado, se restaura solo la versión anterior. Si no abre, avise a Sistemas.
+
 ## Dónde quedan los archivos
 
 >> Una carpeta por pestaña.
