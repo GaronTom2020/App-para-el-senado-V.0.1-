@@ -20,7 +20,7 @@
 
 # Sistema de Información Parlamentaria — H. Senado de la Nación
 
-Versión actual: **1.1.4**. Programa de escritorio con cinco modos:
+Versión actual: **1.2.0**. Programa de escritorio con cinco modos:
 
 | | Modo | Qué hace |
 |:-:|---|---|
@@ -95,6 +95,7 @@ Cada cambio entra al programa por un *pull request* (PR) en GitHub: un pedido de
 | 1.1.2 | Parche | #24 | Manual: GitHub toma las capturas solo | |
 | 1.1.3 | Parche | #25 | Numeración lanzamiento.función.parche; limpieza del manual | 1.1.3 |
 | 1.1.4 | Parche | #26 | README más corto y con separadores; el manual se arma con capturas tomadas en GitHub | 1.1.4 |
+| 1.2.0 | Función | #27 | Actualizaciones en PCs con antivirus por huella: se prueba el .exe nuevo antes de reemplazar y, si lo bloquea, se muestra la huella para pedir la aprobación a Informática | |
 
 Desde la 1.1.3, la versión publicada es exactamente la de la tabla.
 

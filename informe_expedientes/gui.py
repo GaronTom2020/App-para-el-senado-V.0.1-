@@ -2840,6 +2840,13 @@ class Aplicacion(tk.Tk):
             return
         try:
             bat = actualizaciones.instalar(version, self.var_estado.set)
+        except actualizaciones.Bloqueado as e:
+            self.var_estado.set("")
+            self.clipboard_clear()
+            self.clipboard_append(e.sha256)
+            messagebox.showwarning("Actualización bloqueada", f"{e}\n\n(La huella quedó copiada: podés pegarla "
+                                   "en el pedido a Informática.)")
+            return
         except Exception as e:  # noqa: BLE001 - sin permisos en la carpeta, sin red…
             if messagebox.askyesno("No se pudo instalar", f"No se pudo instalar la versión nueva: {e}\n\n"
                                    "¿Querés abrir la página para descargarla a mano?"):

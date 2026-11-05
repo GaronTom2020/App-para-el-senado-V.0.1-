@@ -207,7 +207,7 @@ def test_instalar_guarda_la_version_anterior(monkeypatch, tmp_path):
     anterior.write_bytes(b"viejo")
     assert actualizaciones.hay_anterior()
     bat = actualizaciones.volver_a_anterior().read_text(encoding="mbcs" if os.name == "nt" else "utf-8")
-    assert f'move /y "{anterior}" "{actual}"' in bat and "copy" not in bat
+    assert f'move /y "{anterior}" "{actual}"' in bat and f'copy /y "{actual}"' not in bat
     # El reemplazo se reintenta: el lanzador del .exe lo tiene tomado unos segundos después de cerrar.
     assert "goto mover" in bat and "geq 30" in bat
 
@@ -409,3 +409,59 @@ def test_cuenta_elegida_a_mano(tmp_path, monkeypatch):
     (tmp_path / "programa").mkdir()
     (tmp_path / "programa" / "cuenta_envio.txt").write_text("compartida@gmail.com\nclave\n", encoding="utf-8")
     assert correo.cuenta_envio() == ("compartida@gmail.com", "clave")
+
+
+@pytest.fixture(autouse=True)
+def _arranque_permitido(monkeypatch):
+    """En las pruebas el «.exe» descargado no es ejecutable: se simula que la prueba de arranque sale bien."""
+    monkeypatch.setattr(actualizaciones.subprocess, "run",
+                        lambda *a, **k: actualizaciones.subprocess.CompletedProcess(a, 0))
+
+
+@pytest.mark.parametrize("efecto", ["borrado", "error", "denegado"])
+def test_instalar_no_reemplaza_si_el_antivirus_bloquea(monkeypatch, tmp_path, efecto):
+    actual = tmp_path / "InformeExpediente.exe"
+    actual.write_bytes(b"viejo")
+    nuevo = tmp_path / "InformeExpediente.nuevo.exe"
+
+    def correr(args, **_k):
+        assert args == [str(nuevo), actualizaciones.ARG_PRUEBA]
+        if efecto == "denegado":
+            raise PermissionError("Acceso denegado")
+        if efecto == "borrado":                 # el antivirus lo deja arrancar y lo borra
+            nuevo.unlink()
+            return actualizaciones.subprocess.CompletedProcess(args, 0)
+        return actualizaciones.subprocess.CompletedProcess(args, 1)
+
+    monkeypatch.setattr(actualizaciones.sys, "executable", str(actual))
+    monkeypatch.setattr(actualizaciones.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(actualizaciones.requests, "get", lambda *a, **k: _Descarga([b"x" * 1000]))
+    monkeypatch.setattr(actualizaciones.subprocess, "run", correr)
+    version = actualizaciones.Version("9.0.0", "https://x", "https://x/InformeExpediente.exe", tamano=1000)
+    with pytest.raises(actualizaciones.Bloqueado) as e:
+        actualizaciones.instalar(version)
+    huella = hashlib.sha256(b"x" * 1000).hexdigest()
+    assert e.value.sha256 == huella and huella in str(e.value)
+    assert not nuevo.exists() and actual.read_bytes() == b"viejo"
+    assert not (tmp_path / "actualizar_informe_expediente.bat").exists()
+
+
+def test_bat_restaura_el_anterior_si_el_nuevo_desaparece(monkeypatch, tmp_path):
+    actual = tmp_path / "InformeExpediente.exe"
+    actual.write_bytes(b"viejo")
+    monkeypatch.setattr(actualizaciones.sys, "executable", str(actual))
+    monkeypatch.setattr(actualizaciones.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(actualizaciones.requests, "get", lambda *a, **k: _Descarga([b"x" * 1000]))
+    version = actualizaciones.Version("9.0.0", "https://x", "https://x/InformeExpediente.exe", tamano=1000)
+    bat = actualizaciones.instalar(version).read_text(encoding="mbcs" if os.name == "nt" else "utf-8")
+    anterior = tmp_path / "InformeExpediente.anterior.exe"
+    restaurar = f'if not exist "{actual}" if exist "{anterior}" copy /y "{anterior}" "{actual}"'
+    assert bat.index(restaurar) < bat.index(f'start "" "{actual}"')
+
+
+def test_modo_prueba_de_arranque(monkeypatch):
+    import app
+    monkeypatch.setattr(app.sys, "argv", ["InformeExpediente.exe", actualizaciones.ARG_PRUEBA])
+    with pytest.raises(SystemExit) as e:
+        app.main()
+    assert e.value.code == 0

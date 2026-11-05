@@ -1,6 +1,6 @@
 """Versiones nuevas del programa y manual de usuario, publicados en GitHub Releases.
 
-Cada compilación del .exe se publica como una versión «v1.1.4» con el archivo InformeExpediente.exe; el
+Cada compilación del .exe se publica como una versión «v1.2.0» con el archivo InformeExpediente.exe; el
 manual, en la versión «manual». Al abrir, el programa consulta la lista de versiones (una vez por día) y,
 si hay una más nueva, ofrece instalarla con la lista de cambios: descarga el .exe nuevo y lo reemplaza al
 cerrar. El anterior queda guardado como «InformeExpediente.anterior.exe», para volver a él si hace falta.
@@ -27,6 +27,18 @@ URL_PAGINA = f"https://github.com/{REPOSITORIO}/releases"
 URL_MANUAL = f"{URL_PAGINA}/download/manual/Manual-de-usuario.pdf"
 MANUAL_LOCAL = Path(__file__).resolve().parent / "recursos" / "Manual-de-usuario.pdf"
 NOMBRE_EXE = "InformeExpediente.exe"
+ARG_PRUEBA = "--prueba-arranque"   # el .exe nuevo arranca y sale: sirve para ver si el antivirus lo deja correr
+
+
+class Bloqueado(OSError):
+    """El antivirus de la PC (lista de huellas aprobadas por Informática) no dejó ejecutar el .exe nuevo."""
+
+    def __init__(self, sha256: str):
+        self.sha256 = sha256
+        super().__init__(
+            "El antivirus de esta computadora no dejó ejecutar la versión nueva (seguramente porque Informática "
+            "todavía no aprobó su huella). Se sigue usando la versión actual, que no se tocó.\n\n"
+            f"Pedile a Informática que apruebe este archivo:\n{NOMBRE_EXE}\nSHA-256: {sha256}")
 
 
 @dataclass
@@ -109,9 +121,31 @@ def instalar(version: Version, avisar=lambda *_: None) -> Path:
         nuevo.unlink(missing_ok=True)
         raise OSError("El archivo descargado no coincide con el publicado en GitHub. No se instaló; "
                       "avisá a quien mantiene el programa.")
+    probar_arranque(nuevo, huella.hexdigest())
     # El .exe actual queda como «.anterior.exe», por si la versión nueva anda mal (Ayuda → Volver a la versión
     # anterior).
     return _bat_reemplazo(nuevo, actual, f"copy /y \"{actual}\" \"{archivo_anterior()}\" >nul\r\n")
+
+
+def probar_arranque(exe: Path, sha256: str, espera: float = 90) -> None:
+    """Ejecuta el .exe nuevo en modo prueba (arranca y sale) antes de reemplazar el actual.
+
+    Los antivirus que trabajan con una lista de huellas aprobadas suelen dejar descargar el archivo y recién lo
+    bloquean o lo borran cuando se lo ejecuta. Si eso pasara después del reemplazo, la persona se quedaría sin
+    programa; probándolo acá, el bloqueo ocurre mientras el .exe aprobado sigue en su lugar. Si falla, se borra
+    el nuevo y se lanza Bloqueado con la huella para pedir la aprobación."""
+    try:
+        r = subprocess.run([str(exe), ARG_PRUEBA], timeout=espera, capture_output=True,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        bien = r.returncode == 0 and exe.exists()
+    except (OSError, subprocess.SubprocessError):
+        bien = False
+    if not bien:
+        try:
+            exe.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise Bloqueado(sha256)
 
 
 def archivo_anterior() -> Path:
@@ -157,6 +191,9 @@ def _bat_reemplazo(nuevo: Path, actual: Path, antes: str = "") -> Path:
         + pausa +
         "goto mover\r\n"
         ":listo\r\n"
+        # Red de seguridad: si el antivirus igual borró el .exe ya reemplazado, vuelve el anterior (el aprobado).
+        f"if not exist \"{actual}\" if exist \"{archivo_anterior()}\" "
+        f"copy /y \"{archivo_anterior()}\" \"{actual}\" >nul\r\n"
         f"start \"\" \"{actual}\"\r\n"
         "del \"%~f0\"\r\n", encoding="mbcs" if os.name == "nt" else "utf-8")
     return bat
@@ -199,6 +236,6 @@ def manual() -> str:
     return str(MANUAL_LOCAL) if MANUAL_LOCAL.exists() else URL_MANUAL
 
 
-__all__ = ["Version", "ultima", "hay_nueva", "instalar", "lanzar_reemplazo", "manual", "es_ejecutable", "clave",
+__all__ = ["Version", "Bloqueado", "probar_arranque", "ARG_PRUEBA", "ultima", "hay_nueva", "instalar", "lanzar_reemplazo", "manual", "es_ejecutable", "clave",
            "cambios", "hay_anterior", "volver_a_anterior", "archivo_anterior",
            "limpiar_restos"]
