@@ -8,6 +8,11 @@ pide con un POST a «DAEDIGITAL/Resultado».
 La primera vez se indica una fecha de partida: se recorren los DAE hacia atrás hasta pasar esa
 fecha, pasando a los períodos anteriores si hace falta. Después, cada revisión trae solo los DAE nuevos desde el último registrado. El
 estado se guarda en `asuntos_entrados.json`, en la carpeta de configuración del programa.
+
+Algunos asuntos tardan en publicarse en un DAE, o no se publican nunca (por ejemplo, las copias de
+cortesía que remite la Jefatura de Gabinete de mensajes ingresados por Diputados, como el PE-361/26 MD).
+Para no perderlos, se consulta además la búsqueda avanzada del año: los expedientes con número mayor
+al último publicado en un DAE se completan con su ficha y se agregan con DAE «Sin asignar».
 """
 
 from __future__ import annotations
@@ -20,7 +25,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from . import config
-from .cliente import Cliente
+from .cliente import Cancelado, Cliente, ErrorRed
 from .identificador import IdExpediente
 from .paginas import sopa
 from .util import anio_cuatro_digitos, limpiar, parsear_fecha, titulo_es
@@ -28,6 +33,36 @@ from .util import anio_cuatro_digitos, limpiar, parsear_fecha, titulo_es
 URL_DAE = config.BASE + "/parlamentario/DAEDIGITAL/"
 URL_RESULTADO = URL_DAE + "Resultado"
 MAX_DAE = 60                     # tope por revisión (unos 1200 asuntos)
+MAX_SIN_DAE = 120                # tope de fichas consultadas por revisión para los asuntos sin DAE
+SIN_DAE = "Sin asignar"
+DAE_PARA_MAXIMOS = 6             # DAE mínimos para saber el último número publicado de cada origen
+ORIGENES_SIN_DAE = ("S", "PE", "CD")
+ORIGENES_FUERA_DEL_DAE = ("OV", "P")   # Oficiales Varios y Particulares: no salen en los DAE normales
+
+# Profundidad de la búsqueda: qué se trae además de los DAE.
+PROFUNDIDADES = {
+    "dae": "Solo DAE",
+    "general": "DAE y sin DAE",
+    "todo": "Todo (con OV y P)",
+    "ovp": "DAE, OV y P",
+}
+PROFUNDIDAD_POR_DEFECTO = "general"
+
+
+def profundidad_de(sin_dae: bool, ov_y_p: bool) -> str:
+    """La profundidad que corresponde a las dos casillas de la ventana."""
+    return {(False, False): "dae", (True, False): "general", (True, True): "todo", (False, True): "ovp"}[
+        (bool(sin_dae), bool(ov_y_p))]
+
+
+def origenes_de(profundidad: str) -> tuple[str, ...]:
+    if profundidad == "todo":
+        return ORIGENES_SIN_DAE + ORIGENES_FUERA_DEL_DAE
+    if profundidad == "general":
+        return ORIGENES_SIN_DAE
+    if profundidad == "ovp":
+        return ORIGENES_FUERA_DEL_DAE
+    return ()
 _RE_EXPEDIENTE = re.compile(r"^\s*([A-Z]{1,4})\s*-\s*(\d{1,5})\s*/\s*(\d{2,4})\s*-\s*([A-Z0-9]{2})\s*$")
 _RE_DAE = re.compile(r"(\d{1,3})\s*/\s*(\d{4})")
 
@@ -118,6 +153,9 @@ class Registro:
     ultimo_dae: tuple[int, int] | None = None   # último DAE revisado: (84, 2026)
     revisado: str | None = None                # fecha y hora de la última revisión
     ultimos_asuntos: list[Asunto] = field(default_factory=list)
+    maximos: dict[str, int] = field(default_factory=dict)   # «PE/2026» → último número visto en un DAE
+    sin_dae: list[str] = field(default_factory=list)        # asuntos sin DAE ya informados («PE-361/26»)
+    profundidad: str = PROFUNDIDAD_POR_DEFECTO
 
     @classmethod
     def cargar(cls, archivo: Path | None = None) -> "Registro":
@@ -128,6 +166,10 @@ class Registro:
             r.desde, r.revisado = datos.get("desde"), datos.get("revisado")
             r.ultimo_dae = tuple(datos["ultimo_dae"]) if datos.get("ultimo_dae") else None
             r.ultimos_asuntos = [Asunto(**a) for a in datos.get("ultimos_asuntos", [])]
+            r.maximos = {k: int(v) for k, v in (datos.get("maximos") or {}).items()}
+            r.sin_dae = list(datos.get("sin_dae") or [])
+            if datos.get("profundidad") in PROFUNDIDADES:
+                r.profundidad = datos["profundidad"]
         except (OSError, ValueError, KeyError, TypeError):
             pass
         return r
@@ -138,7 +180,9 @@ class Registro:
 
     def guardar(self) -> None:
         datos = {"desde": self.desde, "ultimo_dae": list(self.ultimo_dae) if self.ultimo_dae else None,
-                 "revisado": self.revisado, "ultimos_asuntos": [asdict(a) for a in self.ultimos_asuntos]}
+                 "revisado": self.revisado, "ultimos_asuntos": [asdict(a) for a in self.ultimos_asuntos],
+                 "maximos": self.maximos, "sin_dae": self.sin_dae,
+                 "profundidad": self.profundidad}
         self.archivo.parent.mkdir(parents=True, exist_ok=True)
         temporal = self.archivo.with_suffix(".tmp")
         temporal.write_text(json.dumps(datos, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -180,8 +224,93 @@ def ultimo_de(cliente: Cliente, anio: int) -> int:
     return bajo
 
 
+def _clave(origen: str, anio: int) -> str:
+    return f"{origen}/{anio}"
+
+
+def sin_dae(cliente: Cliente, maximos: dict[str, int], desde: date | None, ya_informados: set[str],
+            anios: list[int], avisar=_nada,
+            origenes: tuple[str, ...] = ORIGENES_SIN_DAE) -> tuple[list[Asunto], list[str]]:
+    """Asuntos que ingresaron por Mesa de Entradas pero todavía no figuran en un DAE.
+
+    Se lee la búsqueda avanzada de cada año (trae todos los expedientes) y se toman los de número mayor al
+    último publicado en un DAE para ese origen y año. De cada uno se lee la ficha: fecha de Mesa de Entradas
+    y giros. Devuelve los asuntos y las advertencias.
+
+    Oficiales Varios y Particulares no salen en los DAE: su punto de partida es el primer número que entró
+    desde `desde` (los números siguen el orden de llegada, así que se ubica con una búsqueda binaria sobre
+    las fichas). Después queda anotado en `maximos` el último número revisado.
+    """
+    from .busqueda import Buscador, Consulta, a_hallazgo
+    from .ficha import descargar_ficha
+
+    buscador = Buscador(cliente)
+    def fecha_de(h) -> date | None:
+        try:
+            return descargar_ficha(cliente, h.ident).fecha_mesa_entradas
+        except Cancelado:
+            raise
+        except Exception:  # noqa: BLE001
+            return None
+
+    candidatos = []
+    for anio in anios:
+        avisar("etapa", f"Buscando asuntos de {anio} que todavía no figuran en un DAE…")
+        por_origen: dict[str, list] = {}
+        for fila in buscador.consultar("", anio, Consulta(anio_desde=anio, anio_hasta=anio)):
+            h = a_hallazgo(fila)
+            if h and h.ident.origen in origenes and h.ident.tipo and h.ident.anio == anio:
+                por_origen.setdefault(h.ident.origen, []).append(h)
+        for origen, lista in por_origen.items():
+            lista.sort(key=lambda h: h.ident.numero)
+            clave = _clave(origen, anio)
+            tope = maximos.get(clave)
+            if tope is None and origen in ORIGENES_FUERA_DEL_DAE and desde:
+                avisar("etapa", f"Ubicando los {config.ORIGENES.get(origen, origen)} entrados desde el "
+                                f"{desde:%d/%m/%Y}…")
+                bajo, alto = 0, len(lista)          # primer índice con fecha >= desde
+                while bajo < alto:
+                    cliente.verificar_cancelacion()
+                    medio = (bajo + alto) // 2
+                    fecha = fecha_de(lista[medio])
+                    if fecha is not None and fecha >= desde:
+                        alto = medio
+                    else:
+                        bajo = medio + 1
+                tope = lista[bajo - 1].ident.numero if bajo else 0
+            if tope is None:
+                continue
+            candidatos += [h for h in lista if h.ident.numero > tope]
+            if origen in ORIGENES_FUERA_DEL_DAE and lista:
+                maximos[clave] = max(tope, lista[-1].ident.numero)
+    candidatos = [h for h in candidatos if h.ident.corto not in ya_informados]
+    advertencias = []
+    if len(candidatos) > MAX_SIN_DAE:
+        advertencias.append(f"Hay {len(candidatos)} expedientes que no figuran en un DAE; se revisaron "
+                            f"los {MAX_SIN_DAE} más recientes.")
+        candidatos.sort(key=lambda h: h.ident.numero, reverse=True)
+        candidatos = candidatos[:MAX_SIN_DAE]
+    asuntos = []
+    for i, h in enumerate(candidatos, 1):
+        cliente.verificar_cancelacion()
+        avisar("etapa", f"Leyendo la ficha de {h.ident.corto} ({i} de {len(candidatos)})…")
+        try:
+            ficha = descargar_ficha(cliente, h.ident)
+        except Cancelado:
+            raise
+        except Exception:  # noqa: BLE001 - una ficha que no responde no frena la revisión
+            continue
+        fecha = ficha.fecha_mesa_entradas
+        if fecha is None or (desde and fecha < desde):
+            continue
+        giros = list(dict.fromkeys(titulo_es(re.sub(r"^(?i:de)\s+", "", g.comision)) for g in ficha.giros))
+        asuntos.append(Asunto(fecha.isoformat(), SIN_DAE, h.ident.corto, h.ident.origen, h.ident.tipo, giros,
+                              ficha.extracto or h.extracto))
+    return asuntos, advertencias
+
+
 def revisar(cliente: Cliente, registro: Registro, desde: date | None = None, avisar=_nada,
-            hoy: date | None = None) -> ResultadoAsuntos:
+            hoy: date | None = None, profundidad: str | None = None) -> ResultadoAsuntos:
     """Trae los asuntos de los DAE nuevos. La primera vez hace falta `desde` (fecha de partida).
 
     Los DAE se numeran por período parlamentario (de marzo a febrero), no por año calendario: el 111/2025
@@ -200,6 +329,8 @@ def revisar(cliente: Cliente, registro: Registro, desde: date | None = None, avi
     advertencias: list[str] = []
     asuntos: list[Asunto] = []
     leidos: list[str] = []
+    maximos = dict(registro.maximos)
+    en_dae: set[str] = set()
     numero, anio = ultimo
     while True:
         if limite and (anio, numero) <= (limite[1], limite[0]):
@@ -212,6 +343,10 @@ def revisar(cliente: Cliente, registro: Registro, desde: date | None = None, avi
         cliente.verificar_cancelacion()
         lote = leer_dae(portada) if (numero, anio) == ultimo else bajar_dae(cliente, numero, anio)
         leidos.append(f"{numero}/{anio}")
+        for a in lote:
+            clave = _clave(a.origen, a.ident.anio)
+            maximos[clave] = max(maximos.get(clave, 0), a.ident.numero)
+            en_dae.add(a.expediente)
         if limite:
             asuntos += lote
         else:
@@ -228,7 +363,42 @@ def revisar(cliente: Cliente, registro: Registro, desde: date | None = None, avi
             if numero < 1:
                 break
 
+    profundidad = profundidad or registro.profundidad
+    if profundidad not in PROFUNDIDADES:
+        raise ValueError(f"Profundidad desconocida: {profundidad}")
+    registro.profundidad = profundidad
+    origenes = origenes_de(profundidad)
+    if origenes and not limite and len(leidos) < DAE_PARA_MAXIMOS:
+        # Un DAE puede traer solo expedientes viejos de un origen: se miran algunos anteriores
+        # para conocer el último número publicado (si no, se revisarían cientos de fichas de más).
+        n = int(leidos[-1].split("/")[0]) if leidos else ultimo[0]
+        for extra in range(n - 1, max(0, n - 1 - (DAE_PARA_MAXIMOS - len(leidos))), -1):
+            cliente.verificar_cancelacion()
+            try:
+                previo = bajar_dae(cliente, extra, int(leidos[-1].split("/")[1]) if leidos else ultimo[1])
+            except ErrorRed:
+                break
+            for a in previo:
+                clave = _clave(a.origen, a.ident.anio)
+                maximos[clave] = max(maximos.get(clave, 0), a.ident.numero)
+    # Los ya informados sin DAE que ahora figuran en uno dejan de anotarse (aparecen con su DAE).
+    informados = [e for e in registro.sin_dae if e not in en_dae]
+    if origenes:
+        partida = desde or (date.fromisoformat(registro.desde) if registro.desde else None)
+        hoy = hoy or date.today()
+        anios = sorted({hoy.year, ultimo[1]} | ({hoy.year - 1} if hoy.month <= 2 else set()), reverse=True)
+        try:
+            nuevos, avisos = sin_dae(cliente, maximos, partida, set(informados), anios, avisar, origenes)
+        except Cancelado:
+            raise
+        except Exception as e:  # noqa: BLE001 - sin el buscador quedan los asuntos del DAE
+            nuevos, avisos = [], [f"No se pudieron buscar los asuntos que todavía no figuran en un DAE ({e})."]
+        asuntos += nuevos
+        advertencias += avisos
+        informados += [a.expediente for a in nuevos]
     asuntos.sort(key=lambda a: (a.fecha, a.origen, a.ident.numero), reverse=True)
+    registro.maximos = maximos
+    registro.sin_dae = informados
     registro.ultimo_dae = ultimo
     registro.revisado = datetime.now().isoformat(timespec="minutes")
     if desde and not registro.desde:

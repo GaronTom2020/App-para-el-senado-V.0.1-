@@ -379,9 +379,11 @@ class Aplicacion(tk.Tk):
         self.vars_ae_tipos = {t: tk.BooleanVar(value=True) for t, _ in TIPOS_TEMA}
         self.var_ae_origen = tk.StringVar(value=TODOS_ORIGENES)
         self.var_ae_texto = tk.StringVar()
-        self.var_ae_ayuda = tk.StringVar()
         self.var_ae_info = tk.StringVar()
         self.var_ae_informe = tk.BooleanVar(value=c.get("asuntos_informe", False))
+        origenes = asuntos_entrados.origenes_de(self.registro_ae.profundidad)
+        self.var_ae_sin_dae = tk.BooleanVar(value="PE" in origenes)
+        self.var_ae_ov_p = tk.BooleanVar(value="OV" in origenes)
         self._ae_lista: list = []
         self.var_seg_info = tk.StringVar()
         self.var_seg_ultima = tk.StringVar()
@@ -830,35 +832,45 @@ class Aplicacion(tk.Tk):
     def _panel_asuntos(self, padre) -> ttk.Frame:
         marco = self._marco_panel(padre)
         self._rotulo(marco, "Desde", 0)
-        ttk.Entry(marco, textvariable=self.var_ae_desde, width=12).grid(row=0, column=1, sticky="w", pady=(PAD_FILA, 0))
-        self._explicacion(marco, "", 1, columna=1).configure(textvariable=self.var_ae_ayuda)
-        self._seccion(marco, "Filtrar lo que se muestra", 2)
-        self._rotulo(marco, "Tipos", 3)
+        campo_desde = ttk.Entry(marco, textvariable=self.var_ae_desde, width=12)
+        campo_desde.grid(row=0, column=1, sticky="w", pady=(PAD_FILA, 0))
+        Ayuda(campo_desde, "Fecha de Mesa de Entradas desde la que buscar (dd/mm/aaaa). Después solo se traen los "
+                           "asuntos nuevos; si cambiás la fecha, la búsqueda empieza de nuevo.")
+        self._explicacion(marco, "dd/mm/aaaa. Después, solo lo nuevo.", 1, columna=1)
+        self._rotulo(marco, "Sumar", 2)
+        caja = self._casillas(marco, 2, [("Sin DAE", self.var_ae_sin_dae),
+                                         ("Oficiales Varios y Particulares", self.var_ae_ov_p)])
+        sin_dae, ov_p = caja.winfo_children()
+        Ayuda(sin_dae, "Lo que entró por Mesa de Entradas y aún no figura en un DAE (copias de cortesía y otros).")
+        Ayuda(ov_p, "No salen en los DAE normales.")
+        self._explicacion(marco, "Sin tildar: solo los DAE. Cada casilla suma tiempo.", 3, columna=1)
+        self._seccion(marco, "Filtrar", 4)
+        self._rotulo(marco, "Tipos", 5)
         tipos = ttk.Frame(marco, style="Tarjeta.TFrame")
-        tipos.grid(row=3, column=1, columnspan=3, sticky="w", pady=(PAD_FILA, 0))
+        tipos.grid(row=5, column=1, columnspan=3, sticky="w", pady=(PAD_FILA, 0))
         for k, (codigo, nombre) in enumerate(TIPOS_TEMA):
             ttk.Checkbutton(tipos, text=nombre, variable=self.vars_ae_tipos[codigo],
                             style="Tarjeta.TCheckbutton").grid(row=k // 3, column=k % 3, sticky="w", padx=(0, 10))
-        self._rotulo(marco, "Origen", 4)
+        self._rotulo(marco, "Origen", 6)
         ttk.Combobox(marco, textvariable=self.var_ae_origen, values=OPCIONES_ORIGEN, state="readonly").grid(
-            row=4, column=1, columnspan=3, sticky="ew", pady=(PAD_FILA, 0))
-        self._rotulo(marco, "Palabras", 5)
+            row=6, column=1, columnspan=3, sticky="ew", pady=(PAD_FILA, 0))
+        self._rotulo(marco, "Palabras", 7)
         palabras = ttk.Entry(marco, textvariable=self.var_ae_texto)
-        palabras.grid(row=5, column=1, columnspan=3, sticky="ew", pady=(PAD_FILA, 0))
-        Ayuda(palabras, "Busca en el extracto y en las comisiones del giro.")
-        self._explicacion(marco, "Los filtros cambian la lista al instante, sin volver a consultar el sitio.", 6,
-                          columna=1)
+        palabras.grid(row=7, column=1, columnspan=3, sticky="ew", pady=(PAD_FILA, 0))
+        Ayuda(palabras, "Busca en el extracto y en las comisiones del giro. Los filtros cambian la lista al "
+                        "instante, sin volver a consultar el sitio.")
+        self._explicacion(marco, "Filtra al instante, sin consultar el sitio.", 8, columna=1)
         acciones = ttk.Frame(marco, style="Tarjeta.TFrame")
-        acciones.grid(row=7, column=0, columnspan=4, sticky="w", pady=(10, 0))
+        acciones.grid(row=9, column=0, columnspan=4, sticky="w", pady=(10, 0))
         ttk.Button(acciones, text="Sumar los elegidos al seguimiento", style="Chico.TButton",
                    command=lambda: self._accion_expediente("seguir")).pack(side="left")
         ttk.Button(acciones, text="Ver la última revisión", style="Chico.TButton",
                    command=self._ver_ultimos_asuntos).pack(side="left", padx=(6, 0))
-        self._casillas(marco, 8, [("Generar un informe de los asuntos (Word, HTML y PDF)", self.var_ae_informe)],
+        self._casillas(marco, 10, [("Generar un informe de los asuntos (Word, HTML y PDF)", self.var_ae_informe)],
                        columna=0)
-        self.btn_asuntos = self._botones_generar(marco, 9, "Buscar asuntos nuevos", self._buscar_asuntos)
+        self.btn_asuntos = self._botones_generar(marco, 11, "Buscar asuntos nuevos", self._buscar_asuntos)
         ttk.Label(marco, textvariable=self.var_ae_info, style="Revision.TLabel").grid(
-            row=10, column=0, columnspan=4, sticky="w", pady=(6, 0))
+            row=12, column=0, columnspan=4, sticky="w", pady=(6, 0))
         for variable in [self.var_ae_origen, self.var_ae_texto, *self.vars_ae_tipos.values()]:
             variable.trace_add("write", lambda *_: self._refiltrar_asuntos())
         self._estado_asuntos()
@@ -913,10 +925,23 @@ class Aplicacion(tk.Tk):
         self.txt_resumen = self._texto_solo_lectura(self.pestanias)
         self.pestanias.add(self.txt_resumen.master, text="Resumen")
         self.arbol_expedientes = self._arbol(
-            self.pestanias, [("exp", "Expediente", 120), ("tipo", "Tipo", 56), ("etapa", "Situación", 210),
-                             ("extracto", "Extracto", 300)],
-            ayuda="Doble clic: abre la ficha. Clic derecho: informe completo o seguimiento (Ctrl + clic elige varios).",
+            self.pestanias, [("marca", MARCA_NO, 30), ("exp", "Expediente", 120), ("tipo", "Tipo", 56),
+                             ("etapa", "Situación", 210), ("giro", "Giro", 200), ("extracto", "Extracto", 300)],
+            ayuda="☐ marca varios; el ☐ del encabezado, todos. Doble clic: abre la ficha. "
+                  "Clic derecho: más acciones.",
             seleccion="extended")
+        self._marcados_exp: set[str] = set()
+        # Ancho y estiramiento original de las columnas de texto (asuntos entrados angosta la de «Situación»).
+        self._cols_cortas: dict[str, tuple[int, bool]] = {
+            c: (int(self.arbol_expedientes.column(c, "width")), bool(int(self.arbol_expedientes.column(c, "stretch"))))
+            for c in self.COLUMNAS_LARGAS}
+        self._ancla_exp = ""
+        a = self.arbol_expedientes
+        a.column("marca", width=30, minwidth=30, stretch=False, anchor="center")
+        a.heading("marca", anchor="center", command=self._marcar_todos_exp)
+        a.bind("<Button-1>", self._clic_expedientes)
+        a.bind("<space>", lambda _e: self._alternar_marca_exp(a.focus()) or "break")
+        a.bind("<Control-a>", lambda _e: self._marcar_todos_exp(True) or "break")
         self.pestanias.add(self.arbol_expedientes.master, text="Expedientes", state="hidden")
         self.arbol_reuniones = self._arbol(
             self.pestanias, [("fecha", "Fecha", 92), ("reunion", "Reunión", 300), ("tipo", "Tipo", 84),
@@ -1004,6 +1029,14 @@ class Aplicacion(tk.Tk):
         arbol.pack(side="left", fill="both", expand=True)
         barra_automatica(contenedor, arbol)
         return arbol
+
+    COLUMNAS_LARGAS = ("etapa", "giro", "extracto")
+
+    def _ajustar_columnas(self, arbol: ttk.Treeview, columnas=COLUMNAS_LARGAS) -> None:
+        """Devuelve las columnas de texto a su ancho original (el texto que no entra queda recortado)."""
+        for col in columnas:
+            ancho, estira = self._cols_cortas[col]
+            arbol.column(col, width=ancho, minwidth=44, stretch=estira)
 
     def _preparar_resumen(self) -> None:
         t = self.txt_resumen
@@ -1332,7 +1365,12 @@ class Aplicacion(tk.Tk):
         for i, it in enumerate(r.items):
             ident = it.hallazgo.ident
             situacion = it.situacion.titulo if it.situacion else ETAPA[it.nivel]
-            a.insert("", "end", iid=str(i), values=(ident.corto, ident.tipo or "—", situacion, it.hallazgo.extracto))
+            a.insert("", "end", iid=str(i), values=(MARCA_NO, ident.corto, ident.tipo or "—", situacion, "",
+                                                    it.hallazgo.extracto))
+        a.configure(displaycolumns=("marca", "exp", "tipo", "etapa", "extracto"))   # sin giro
+        self._ajustar_columnas(a, ("etapa", "extracto"))
+        self._marcados_exp = set()
+        self._pintar_marcas_exp()
         for formato, boton in (("docx", self.btn_word), ("html", self.btn_html), ("xlsx", self.btn_excel)):
             boton.state(["!disabled"] if formato in r.archivos else ["disabled"])
         self.btn_ficha.state(["disabled"])
@@ -1815,7 +1853,7 @@ class Aplicacion(tk.Tk):
                                                          "podés traer acá todos sus expedientes o solo los que elijas "
                                                          "en la lista de resultados.")
             return
-        sel = self.arbol_expedientes.selection() if tematico is self.actual else ()
+        sel = sorted(self._filas_exp_elegidas(), key=int) if tematico is self.actual else ()
         items = [tematico.items[int(i)] for i in sel] or tematico.items
         que = f"los {len(items)} expedientes elegidos" if sel else f"los {len(items)} expedientes de la búsqueda"
         if len(items) > 1 and not messagebox.askyesno("Traer de «Por tema»", f"¿Sumar al seguimiento {que} "
@@ -2013,17 +2051,56 @@ class Aplicacion(tk.Tk):
 
     def _filas_elegidas(self) -> list[tuple]:
         """(ident, enlace a la ficha) de las filas elegidas en «Expedientes» (búsqueda por tema o asuntos entrados)."""
-        sel = [int(i) for i in self.arbol_expedientes.selection()]
+        sel = sorted(int(i) for i in self._filas_exp_elegidas())
         if isinstance(self.actual, ResultadoTematico):
             return [(self.actual.items[i].hallazgo.ident, self.actual.items[i].url) for i in sel]
         if isinstance(self.actual, asuntos_entrados.ResultadoAsuntos):
             return [(self._ae_lista[i].ident, self._ae_lista[i].url_ficha) for i in sel if i < len(self._ae_lista)]
         return []
 
+    def _filas_exp_elegidas(self) -> list[str]:
+        """Las filas marcadas con la casilla o, si no hay ninguna, las elegidas con el mouse."""
+        return list(self._marcados_exp) or list(self.arbol_expedientes.selection())
+
+    def _pintar_marcas_exp(self) -> None:
+        a = self.arbol_expedientes
+        filas = a.get_children()
+        for iid in filas:
+            a.set(iid, "marca", MARCA_SI if iid in self._marcados_exp else MARCA_NO)
+        a.heading("marca", text=MARCA_SI if filas and len(self._marcados_exp) == len(filas) else MARCA_NO)
+
+    def _alternar_marca_exp(self, fila: str) -> None:
+        if fila:
+            self._marcados_exp ^= {fila}
+            self._pintar_marcas_exp()
+
+    def _marcar_todos_exp(self, todos: bool | None = None) -> None:
+        filas = set(self.arbol_expedientes.get_children())
+        if todos is None:
+            todos = self._marcados_exp != filas
+        self._marcados_exp = filas if todos else set()
+        self._pintar_marcas_exp()
+
+    def _clic_expedientes(self, evento):
+        """Clic en la casilla: marca o desmarca (con Mayús, un tramo). En el resto de la fila, la elige."""
+        a = self.arbol_expedientes
+        if a.identify_region(evento.x, evento.y) != "cell" or a.identify_column(evento.x) != "#1":
+            return None
+        fila = a.identify_row(evento.y)
+        filas = list(a.get_children())
+        if evento.state & 0x1 and self._ancla_exp in filas and fila:
+            i, j = sorted((filas.index(self._ancla_exp), filas.index(fila)))
+            self._marcados_exp |= set(filas[i:j + 1])
+            self._pintar_marcas_exp()
+        else:
+            self._alternar_marca_exp(fila)
+            self._ancla_exp = fila
+        return "break"
+
     def _menu_expedientes(self, evento) -> None:
         fila = self.arbol_expedientes.identify_row(evento.y)
         if fila:
-            if fila not in self.arbol_expedientes.selection():
+            if not self._marcados_exp and fila not in self.arbol_expedientes.selection():
                 self.arbol_expedientes.selection_set(fila)
             self.menu_expediente.tk_popup(evento.x_root, evento.y_root)
 
@@ -2031,8 +2108,8 @@ class Aplicacion(tk.Tk):
         filas = self._filas_elegidas()
         if not filas:
             if que == "seguir":
-                messagebox.showinfo("Elegí expedientes", "Elegí uno o más expedientes en la lista «Expedientes» de la "
-                                                         "derecha (Ctrl + clic para varios).")
+                messagebox.showinfo("Elegí expedientes", "Marcá con la casilla ☐ uno o más expedientes de la lista "
+                                                         "«Expedientes» de la derecha.")
             return
         ident, url = filas[0]
         if que == "ficha":
@@ -2058,13 +2135,9 @@ class Aplicacion(tk.Tk):
     def _estado_asuntos(self) -> None:
         r = self.registro_ae
         if r.iniciado:
-            self.var_ae_ayuda.set(f"Se buscan los DAE posteriores al {r.ultimo_dae[0]}/{r.ultimo_dae[1]}. Si cambiás la "
-                                  "fecha, la búsqueda empieza de nuevo desde ella.")
             cuando = f"{datetime.fromisoformat(r.revisado):%d/%m/%Y, %H:%M} h" if r.revisado else ""
             self.var_ae_info.set(f"⟳  Última revisión: {cuando} · DAE {r.ultimo_dae[0]}/{r.ultimo_dae[1]}")
         else:
-            self.var_ae_ayuda.set("Primera vez: fecha de Mesa de Entradas desde la que buscar (dd/mm/aaaa). Después "
-                                  "solo se traen los asuntos nuevos.")
             self.var_ae_info.set("")
 
     def _buscar_asuntos(self) -> None:
@@ -2081,6 +2154,7 @@ class Aplicacion(tk.Tk):
                                                            f"¿Empezar de nuevo desde el {fmt_fecha(desde)}?"):
                 return
             r.ultimo_dae, r.desde = None, None
+        profundidad = asuntos_entrados.profundidad_de(self.var_ae_sin_dae.get(), self.var_ae_ov_p.get())
         self.cancelar.clear()
         self._registro("— Asuntos entrados")
         self._ocupado(True)
@@ -2090,7 +2164,8 @@ class Aplicacion(tk.Tk):
             hechos, fallidos = 0, []
             try:
                 res = asuntos_entrados.revisar(cliente, r, None if r.iniciado else desde,
-                                               lambda ev, msg="", **d: self.cola.put((ev, msg, d)))
+                                               lambda ev, msg="", **d: self.cola.put((ev, msg, d)),
+                                               profundidad=profundidad)
                 self.cola.put(("resultado", "", {"resultado": res}))
                 hechos = 1
             except Cancelado:
@@ -2166,17 +2241,26 @@ class Aplicacion(tk.Tk):
                 conteo[nombre] = conteo.get(nombre, 0) + 1
             for nombre, k in sorted(conteo.items(), key=lambda x: -x[1]):
                 t.insert("end", f"• {nombre}: {k}\n", "vineta")
-            t.insert("end", "\nLa lista está en la pestaña «Expedientes»: elegí los que quieras y sumalos al "
-                            "seguimiento.\n", ("vineta", "suave"))
+            t.insert("end", "\nLa lista está en la pestaña «Expedientes»: marcá con ☐ los que quieras y sumalos "
+                            "al seguimiento con el clic derecho.\n", ("vineta", "suave"))
         for aviso in r.advertencias:
             t.insert("end", f"• {aviso}\n", ("vineta", "suave"))
         t.configure(state="disabled")
         a = self.arbol_expedientes
-        a.heading("etapa", text="Entrada y giro")
+        a.heading("etapa", text="Entrada")
+        a.configure(displaycolumns=("marca", "exp", "tipo", "etapa", "giro", "extracto"))
         a.delete(*a.get_children())
         for i, x in enumerate(lista):
-            entrada = fmt_fecha(x.fecha_d) + (f" · {', '.join(x.giros)}" if x.giros else "")
-            a.insert("", "end", iid=str(i), values=(x.expediente, x.tipo, entrada, x.extracto))
+            a.insert("", "end", iid=str(i), values=(MARCA_NO, x.expediente, x.tipo, fmt_fecha(x.fecha_d),
+                                                    ", ".join(x.giros) or "—", x.extracto))
+        # La fecha de Mesa de Entradas siempre entera: el ancho se mide con la fuente real (no se recorta).
+        from tkinter import font as tkfont
+        ancho_fecha = max(tkfont.nametofont("TkDefaultFont").measure(t) for t in ("00/00/0000", "Entrada")) + 24
+        a.column("etapa", width=ancho_fecha, minwidth=ancho_fecha, stretch=False)       # solo la fecha: no hace falta colapsarla
+        a.heading("etapa", text="Entrada")
+        self._ajustar_columnas(a, ("giro", "extracto"))
+        self._marcados_exp = set()
+        self._pintar_marcas_exp()
         for formato, boton in (("docx", self.btn_word), ("html", self.btn_html), ("xlsx", self.btn_excel)):
             boton.state(["!disabled"] if formato in r.archivos else ["disabled"])
         self.btn_ficha.state(["disabled"])
