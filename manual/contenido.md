@@ -298,9 +298,14 @@ Lee el **Diario de Asuntos Entrados** (DAE) digital del Senado desde una fecha y
 >> La fecha solo se usa la primera vez.
 
 1. En **Desde** escriba la fecha de partida (dd/mm/aaaa). Solo se usa la primera vez; después se traen los asuntos nuevos.
-2. Presione **Buscar asuntos nuevos**.
-3. Use los filtros **Tipos**, **Origen** y **Palabras** para achicar la lista: cambian al instante, sin volver a consultar el sitio.
-4. Marque los que le interesen y presione **Sumar los elegidos al seguimiento**.
+2. En **Sumar**, elija qué agregar a lo publicado en el DAE:
+   - **Sin DAE**: lo que ya entró por Mesa de Entradas y todavía no figura en un DAE, como las copias de cortesía. Aparece con DAE «Sin asignar».
+   - **Oficiales Varios y Particulares**: esos dos orígenes, que no salen en los DAE.
+
+   Sin tildar ninguna, se leen solo los DAE. Cada casilla hace la búsqueda un poco más lenta.
+3. Presione **Buscar asuntos nuevos**.
+4. Use los filtros **Tipos**, **Origen** y **Palabras** para achicar la lista: cambian al instante, sin volver a consultar el sitio.
+5. En la pestaña **Expedientes** de la derecha, marque con la casilla ☐ los que le interesen (el ☐ del encabezado marca todos) y presione **Sumar los elegidos al seguimiento**, o use el clic derecho.
 
 >> El informe es opcional.
 

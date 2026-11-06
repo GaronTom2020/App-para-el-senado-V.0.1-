@@ -20,7 +20,7 @@
 
 # Sistema de Información Parlamentaria — H. Senado de la Nación
 
-Versión actual: **1.1.4**. Programa de escritorio con cinco modos:
+Versión actual: **1.2.0**. Programa de escritorio con cinco modos:
 
 | | Modo | Qué hace |
 |:-:|---|---|
@@ -28,11 +28,19 @@ Versión actual: **1.1.4**. Programa de escritorio con cinco modos:
 | 🔎 | **Por tema** | A partir de un eje temático o de palabras clave, encuentra todos los expedientes que responden a ese tema y arma un informe consolidado en Word, HTML y Excel con la etapa de cada uno. |
 | 👁️ | **Seguimiento** | Una lista de expedientes que se revisa seguido para avisar qué cambió. |
 | 🏛️ | **Sesión** | A partir del plan de labor parlamentaria, un único informe con cada asunto en el orden de tratamiento y la ficha de sus expedientes, más un CSV para el tablero de sesiones. También arma el informe de una orden del día («OD 366/26») y lee la versión taquigráfica de la sesión. |
-| 📥 | **Asuntos entrados** | Lee el Diario de Asuntos Entrados (DAE) digital del Senado desde una fecha de partida y después solo lo nuevo, con filtros por tipo, origen y palabras. |
+| 📥 | **Asuntos entrados** | Lee el Diario de Asuntos Entrados (DAE) digital del Senado desde una fecha de partida y después solo lo nuevo, con filtros por tipo, origen y palabras. Suma, si se pide, lo que entró y todavía no figura en un DAE (como las copias de cortesía) y los Oficiales Varios y Particulares. |
 
 Usa solamente información pública de www.senado.gob.ar y www.hcdn.gob.ar.
 
 **Contenido:** 📰 [Novedades](#novedades-de-la-versión-11) · 🗂️ [Historial de versiones](#historial-de-versiones) · 📋 [Qué incluye el informe](#qué-incluye-el-informe) · 💾 [Instalación](#instalación) · ▶️ [Uso](#uso) · 🔎 [Por tema](#informe-temático-por-eje-o-palabras-clave) · 🏛️ [Sesión](#informe-de-sesión-plan-de-labor) · 📥 [Asuntos entrados](#asuntos-entrados-dae) · ✉️ [Resumen diario](#resumen-diario-correo-y-aviso-en-pantalla) · 👁️ [Seguimiento](#lista-de-seguimiento) · 🛟 [Si algo no funciona](#si-algo-no-funciona) · ⌨️ [Línea de comandos](#línea-de-comandos) · 🚀 [Despliegue](#despliegue)
+
+### Novedades de la versión 1.2
+
+- **Asuntos entrados sin DAE**: con la casilla *Sumar → Sin DAE*, también aparecen los expedientes que ya entraron por Mesa de Entradas pero todavía no figuran en un Diario de Asuntos Entrados, o no figuran nunca, como las copias de cortesía de mensajes ingresados por Diputados (por ejemplo, el PE-361/26). Se marcan con DAE «Sin asignar».
+- **Oficiales Varios y Particulares**: con la casilla *Sumar → Oficiales Varios y Particulares*, se agregan esos dos orígenes, que no salen en los DAE.
+- **Casillas ☐ en la lista de resultados** de *Asuntos entrados* y *Por tema*, como en *Seguimiento*: se marcan varios expedientes y el clic derecho actúa sobre ellos.
+- **Fecha y giro en columnas separadas** en la lista de asuntos entrados.
+- **PDF con Edge 156**: los informes en PDF vuelven a generarse con la versión actual de Edge.
 
 ### Novedades de la versión 1.1
 
@@ -95,6 +103,7 @@ Cada cambio entra al programa por un *pull request* (PR) en GitHub: un pedido de
 | 1.1.2 | Parche | #24 | Manual: GitHub toma las capturas solo | |
 | 1.1.3 | Parche | #25 | Numeración lanzamiento.función.parche; limpieza del manual | 1.1.3 |
 | 1.1.4 | Parche | #26 | README más corto y con separadores; el manual se arma con capturas tomadas en GitHub | 1.1.4 |
+| 1.2.0 | Función | #27 | Asuntos entrados sin DAE (copias de cortesía), Oficiales Varios y Particulares, casillas en los resultados; PDF con Edge 156 | 1.2.0 |
 
 Desde la 1.1.3, la versión publicada es exactamente la de la tabla.
 
@@ -201,6 +210,8 @@ En la pestaña **Sesión**:
 ## Asuntos entrados (DAE)
 
 En la pestaña **Asuntos entrados** se elige una fecha de partida y el programa lee los Diarios de Asuntos Entrados digitales del Senado desde esa fecha; en las consultas siguientes trae solo los nuevos. Si la fecha cae en el período parlamentario anterior (marzo a febrero), sigue la numeración de ambos. Se filtran por tipo, origen y palabras, y cada asunto se puede sumar a la lista de seguimiento. El informe en Word y HTML es opcional.
+
+Algunos asuntos tardan en publicarse en un DAE, o no se publican nunca (por ejemplo, las copias de cortesía que remite la Jefatura de Gabinete). Con **Sumar → Sin DAE**, el programa consulta además la búsqueda avanzada del año: los expedientes del Senado, el Poder Ejecutivo y Diputados con número mayor al último publicado en un DAE se completan con su ficha (fecha de Mesa de Entradas y giros) y se muestran con DAE «Sin asignar». **Sumar → Oficiales Varios y Particulares** agrega esos dos orígenes, que no salen en los DAE: la primera vez se ubica por fecha el primer número posterior a la de partida. Cada asunto sin DAE se informa una sola vez; cuando aparece en un DAE, vuelve a figurar con su número. Lo elegido se recuerda y también lo usa el resumen diario.
 
 <p align="center"><img src="docs/img/separador.svg" width="70%" alt=""></p>
 

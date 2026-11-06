@@ -10,6 +10,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 ESPERA = 120          # segundos como máximo por documento
@@ -43,7 +44,10 @@ def html_a_pdf(origen: Path, destino: Path) -> Path:
         raise ErrorPDF("Para guardar en PDF hace falta Microsoft Edge o Google Chrome, y no se encontró ninguno.")
     destino = Path(destino)
     destino.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="informe_pdf_") as perfil:
+    if destino.exists():
+        destino.unlink()                    # para no confundir un PDF viejo con el nuevo
+    # Edge puede seguir usando el perfil un momento después de terminar: si no se puede borrar, se deja.
+    with tempfile.TemporaryDirectory(prefix="informe_pdf_", ignore_cleanup_errors=True) as perfil:
         orden = [exe, "--headless=new", "--disable-gpu", "--no-first-run", "--no-pdf-header-footer",
                  f"--user-data-dir={perfil}", f"--print-to-pdf={destino}", Path(origen).resolve().as_uri()]
         try:
@@ -51,9 +55,25 @@ def html_a_pdf(origen: Path, destino: Path) -> Path:
                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         except (OSError, subprocess.TimeoutExpired) as e:
             raise ErrorPDF(f"No se pudo generar el PDF: {e}") from e
+        # Las versiones nuevas de Edge devuelven el control enseguida y escriben el PDF en segundo plano:
+        # se espera a que el archivo aparezca y deje de crecer.
+        esperar_archivo(destino, ESPERA)
     if not destino.exists() or destino.stat().st_size == 0:
         raise ErrorPDF("El navegador no generó el PDF.")
     return destino
+
+
+def esperar_archivo(ruta: Path, limite: float, pausa: float = 0.25) -> bool:
+    """Espera hasta `limite` segundos a que `ruta` exista y su tamaño quede quieto. True si lo logró."""
+    fin = time.monotonic() + limite
+    anterior = -1
+    while time.monotonic() < fin:
+        tamanio = ruta.stat().st_size if ruta.exists() else -1
+        if tamanio > 0 and tamanio == anterior:
+            return True
+        anterior = tamanio
+        time.sleep(pausa)
+    return False
 
 
 def texto_a_pdf(html: str, destino: Path) -> Path:
