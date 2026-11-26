@@ -104,7 +104,10 @@ Cada cambio entra al programa por un *pull request* (PR) en GitHub: un pedido de
 | 1.1.3 | Parche | #25 | Numeración lanzamiento.función.parche; limpieza del manual | 1.1.3 |
 | 1.1.4 | Parche | #26 | README más corto y con separadores; el manual se arma con capturas tomadas en GitHub | 1.1.4 |
 | 1.2.0 | Función | #27 | Asuntos entrados sin DAE (copias de cortesía), Oficiales Varios y Particulares, casillas en los resultados; PDF con Edge 156 | 1.2.0 |
-| 1.3.0 | Función | #28 | Diputados: lectura del buscador nuevo (solo datos oficiales, corroborados con la ficha del Senado) | 1.3.0 |
+| 1.2.1 | Parche | #30 | El .exe vuelve a abrir bien después de actualizarse («Failed to load Python DLL») | |
+| 1.2.2 | Parche | #29 | Actualización de componentes: pypdf 7.0.1 | |
+| 1.2.3 | Parche | #31 | Historial de versiones al día | 1.2.3 |
+| 1.3.0 | Función | #32 | Diputados: lectura del buscador nuevo (solo datos oficiales, corroborados con la ficha del Senado) | 1.3.0 |
 
 Desde la 1.1.3, la versión publicada es exactamente la de la tabla.
 
