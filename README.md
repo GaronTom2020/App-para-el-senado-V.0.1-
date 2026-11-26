@@ -20,7 +20,7 @@
 
 # Sistema de Información Parlamentaria — H. Senado de la Nación
 
-Versión actual: **1.2.0**. Programa de escritorio con cinco modos:
+Versión actual: **1.2.1**. Programa de escritorio con cinco modos:
 
 | | Modo | Qué hace |
 |:-:|---|---|
@@ -104,6 +104,7 @@ Cada cambio entra al programa por un *pull request* (PR) en GitHub: un pedido de
 | 1.1.3 | Parche | #25 | Numeración lanzamiento.función.parche; limpieza del manual | 1.1.3 |
 | 1.1.4 | Parche | #26 | README más corto y con separadores; el manual se arma con capturas tomadas en GitHub | 1.1.4 |
 | 1.2.0 | Función | #27 | Asuntos entrados sin DAE (copias de cortesía), Oficiales Varios y Particulares, casillas en los resultados; PDF con Edge 156 | 1.2.0 |
+| 1.2.1 | Parche | #28 | El .exe vuelve a abrir bien después de actualizarse («Failed to load Python DLL») | 1.2.1 |
 
 Desde la 1.1.3, la versión publicada es exactamente la de la tabla.
 
