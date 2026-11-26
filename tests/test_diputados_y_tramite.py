@@ -125,7 +125,7 @@ def test_informe_con_etapa_en_diputados(tmp_path):
     assert filas["Votación en Diputados"] == "Media sanción el 14/08/2024"
     assert filas["Último movimiento en Diputados"].startswith("Consideracion y rechazo de la insistencia")
     html = r.archivos["html"].read_text(encoding="utf-8")
-    assert "strNumExp=422&amp;strNumExpOrig=D&amp;strNumExpAnio=2024" in html
+    assert "proyectos/buscador/?exp=0422-D-2024" in html
 
 
 def test_sin_diputados_para_proyectos_que_no_son_de_ley(tmp_path):

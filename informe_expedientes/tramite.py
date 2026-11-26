@@ -216,6 +216,8 @@ def _completar_con_diputados(r: Recorrido, p) -> None:
                            "todavía no.")
     for m in p.insistencia():
         n = normalizar(m.movimiento)
+        if not m.camara:
+            continue    # el buscador nuevo de Diputados no dice en qué cámara fue: no se supone ninguna
         r.insistencia_fecha, r.insistencia_camara = m.fecha, (SENADO if normalizar(m.camara).startswith("SENAD")
                                                                else DIPUTADOS)
         r.insistencia = "rechazada" if ("RECHAZO" in n or "ACEPTA VETO" in n or "NO ALCANZA" in n) else "lograda"

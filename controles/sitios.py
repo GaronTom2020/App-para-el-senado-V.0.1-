@@ -19,7 +19,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from informe_expedientes import asuntos_entrados, busqueda, hcdn  # noqa: E402
 from informe_expedientes.cliente import Cliente  # noqa: E402
-from informe_expedientes.identificador import parsear  # noqa: E402
 from informe_expedientes.servicio import Opciones, generar  # noqa: E402
 
 
@@ -39,8 +38,15 @@ def _ficha(cliente: Cliente, numero: str) -> list[str]:
 
 
 def _diputados(cliente: Cliente, numero: str) -> list[str]:
-    """El buscador de Diputados tiene que encontrar el proyecto y su trámite."""
-    p = hcdn.buscar(cliente, parsear(numero))
+    """El buscador de Diputados tiene que encontrar el proyecto y su trámite (con el número de Diputados que da la
+    ficha del Senado, como hace el programa)."""
+    r = generar(numero, Opciones(buscar_reuniones=False, buscar_agenda=False, buscar_relacionados=False,
+                                 contrastar_diputados=False, formatos=()), cliente, escribir=False)
+    try:
+        p = hcdn.buscar(cliente, r.ficha)
+    except hcdn.BuscadorFueraDeServicio:
+        return [f"{numero}: el buscador de proyectos de Diputados está fuera de servicio («en construcción» "
+                "o la dirección dejó de existir); hay que esperar que vuelva o adaptar la lectura al nuevo buscador"]
     if p is None:
         return [f"{numero}: el sitio de Diputados ya no lo encuentra"]
     faltan = [que for que, hay in [("número de Diputados", p.expediente_diputados), ("trámite", p.tramite)]

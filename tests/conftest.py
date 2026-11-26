@@ -160,3 +160,20 @@ def _taquigrafica_en_texto(monkeypatch):
     original = taquigrafica._texto_pdf
     monkeypatch.setattr(taquigrafica, "_texto_pdf",
                         lambda contenido: original(contenido) if contenido.startswith(b"%PDF") else contenido.decode("utf-8"))
+
+
+@pytest.fixture(autouse=True)
+def _diputados_desde_la_pagina_vieja(monkeypatch):
+    """Los informes de punta a punta usan lo que registraba la página vieja de Diputados (resultado.html, dada de
+    baja en noviembre de 2026), que traía la cámara y el resultado de cada movimiento: así se sigue probando cómo
+    arma el informe esos datos. La lectura del buscador nuevo se prueba aparte (test_hcdn_buscador_nuevo.py)."""
+    from informe_expedientes import hcdn
+
+    def buscar(cliente, ficha):
+        archivo = MAPA.get(hcdn.url_busqueda(ficha.id))
+        if archivo is None:
+            return None
+        buscado = hcdn.numero_hcdn(ficha.id)
+        return next((p for p in hcdn.parsear_resultado(leer(archivo)) if p.expediente_senado == buscado), None)
+
+    monkeypatch.setattr(hcdn, "buscar", buscar)

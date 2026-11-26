@@ -106,11 +106,13 @@ def generar(texto: str, opciones: Opciones, cliente: Cliente, avisar=_nada, hoy:
     if opciones.contrastar_diputados and ficha.id.tipo == "PL":
         avisar("etapa", "Contrastando con el sitio de la Cámara de Diputados…")
         try:
-            diputados = hcdn.buscar(cliente, ficha.id)
+            diputados = hcdn.buscar(cliente, ficha)
             diputados_consultado = True
             avisar("log", f"Diputados: {diputados.expediente_diputados or 'sin número propio'}, "
                           f"{len(diputados.tramite)} movimientos." if diputados else
                    "Diputados: el proyecto no figura en su buscador.")
+        except hcdn.SinCorroborar as e:
+            avisar_y_guardar("advertencia", str(e))
         except ErrorRed as e:
             avisar_y_guardar("advertencia", f"No se pudo consultar el sitio de Diputados: {e}")
 

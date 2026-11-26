@@ -16,7 +16,10 @@ URL_COMISION = BASE + "/parlamentario/comisiones/info/{id}"
 URL_AGENDA = BASE + "/parlamentario/comisiones/agenda/{id}"
 # El buscador de Diputados acepta GET: sirve como enlace a un proyecto (proyecto.jsp ya no existe).
 URL_HCDN_BUSQUEDA = "https://www.hcdn.gob.ar/proyectos/resultado.html"
-URL_HCDN_PROYECTO = URL_HCDN_BUSQUEDA + "?strNumExp={numero}&strNumExpOrig={origen}&strNumExpAnio={anio}"
+URL_HCDN_BUSCADOR = "https://www.hcdn.gob.ar/proyectos/buscador/"
+URL_HCDN_API = URL_HCDN_BUSCADOR + "api/v1/proyectos"
+URL_HCDN_DETALLE = URL_HCDN_BUSCADOR + "?proyecto={clave}"
+URL_HCDN_PROYECTO = URL_HCDN_BUSCADOR + "?exp={numero}-{origen}-{anio}"
 
 USER_AGENT = (
     "Mozilla/5.0 (compatible; InformeExpedientes/1.0; "
@@ -187,7 +190,7 @@ MAX_PAGINAS_POR_LISTADO = 40
 def url_hcdn(expediente: str) -> str:
     """«1752-D-2023» → búsqueda de ese expediente en el sitio de Diputados."""
     numero, origen, anio = expediente.split("-", 2)
-    return URL_HCDN_PROYECTO.format(numero=int(numero), origen=origen, anio=anio)
+    return URL_HCDN_PROYECTO.format(numero=f"{int(numero):04d}", origen=origen, anio=anio)
 
 
 def carpeta_app() -> Path:
