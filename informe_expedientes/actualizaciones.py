@@ -189,9 +189,22 @@ def cambios(notas: str, maximo: int = 8) -> list[str]:
     return titulos
 
 
+def entorno_limpio() -> dict[str, str]:
+    """Variables de entorno para abrir otra vez el programa desde el propio .exe.
+
+    El .exe de un solo archivo (PyInstaller) se descomprime en una carpeta temporal «_MEI…» y anota su ruta
+    en variables de entorno. Si el programa nuevo las hereda, usa esa carpeta, que el viejo borra al cerrarse,
+    y no arranca («Failed to load Python DLL … python312.dll»). Se quitan y se pide un arranque desde cero.
+    """
+    entorno = {k: v for k, v in os.environ.items()
+               if not (k.upper().startswith("_PYI_") or k.upper().startswith("_MEIPASS"))}
+    entorno["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+    return entorno
+
+
 def lanzar_reemplazo(bat: Path) -> None:
     subprocess.Popen(["cmd", "/c", str(bat)], creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-                     close_fds=True)
+                     close_fds=True, env=entorno_limpio())
 
 
 def manual() -> str:

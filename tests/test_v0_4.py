@@ -409,3 +409,14 @@ def test_cuenta_elegida_a_mano(tmp_path, monkeypatch):
     (tmp_path / "programa").mkdir()
     (tmp_path / "programa" / "cuenta_envio.txt").write_text("compartida@gmail.com\nclave\n", encoding="utf-8")
     assert correo.cuenta_envio() == ("compartida@gmail.com", "clave")
+
+
+def test_reabrir_el_exe_no_hereda_la_carpeta_temporal(monkeypatch):
+    """Al reabrirse tras actualizar, el .exe nuevo no debe usar la carpeta _MEI del viejo (ya borrada)."""
+    from informe_expedientes import actualizaciones
+    monkeypatch.setenv("_PYI_APPLICATION_HOME_DIR", r"C:\Temp\_MEI123")
+    monkeypatch.setenv("_PYI_ARCHIVE_FILE", r"C:\InformeExpediente.exe")
+    monkeypatch.setenv("_MEIPASS2", r"C:\Temp\_MEI123")
+    entorno = actualizaciones.entorno_limpio()
+    assert not [k for k in entorno if k.upper().startswith(("_PYI_", "_MEIPASS"))]
+    assert entorno["PYINSTALLER_RESET_ENVIRONMENT"] == "1" and "PATH" in {k.upper() for k in entorno}

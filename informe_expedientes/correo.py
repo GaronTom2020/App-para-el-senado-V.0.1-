@@ -392,7 +392,8 @@ def abrir_programa() -> None:
         python = Path(sys.executable)
         sin_ventana = python.with_name("pythonw.exe")
         orden = [str(sin_ventana if sin_ventana.exists() else python), str(Path(__file__).resolve().parent.parent / "app.py")]
-    subprocess.Popen(orden, close_fds=True)
+    from .actualizaciones import entorno_limpio
+    subprocess.Popen(orden, close_fds=True, env=entorno_limpio())
 
 
 def mostrar_aviso(res: Resumen) -> None:
