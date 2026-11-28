@@ -2,6 +2,7 @@
 
 import hashlib
 import os
+import subprocess
 import sys
 from datetime import date
 
@@ -207,7 +208,7 @@ def test_instalar_guarda_la_version_anterior(monkeypatch, tmp_path):
     anterior.write_bytes(b"viejo")
     assert actualizaciones.hay_anterior()
     bat = actualizaciones.volver_a_anterior().read_text(encoding="mbcs" if os.name == "nt" else "utf-8")
-    assert f'move /y "{anterior}" "{actual}"' in bat and "copy" not in bat
+    assert f'move /y "{anterior}" "{actual}"' in bat and f'copy /y "{actual}"' not in bat
     # El reemplazo se reintenta: el lanzador del .exe lo tiene tomado unos segundos después de cerrar.
     assert "goto mover" in bat and "geq 30" in bat
 
@@ -420,3 +421,98 @@ def test_reabrir_el_exe_no_hereda_la_carpeta_temporal(monkeypatch):
     entorno = actualizaciones.entorno_limpio()
     assert not [k for k in entorno if k.upper().startswith(("_PYI_", "_MEIPASS"))]
     assert entorno["PYINSTALLER_RESET_ENVIRONMENT"] == "1" and "PATH" in {k.upper() for k in entorno}
+
+
+class _SubprocesoDePrueba:
+    """El «subprocess» que ve actualizaciones.py durante las pruebas: todo es el de verdad, salvo run(), que da por
+    buena la prueba de arranque (el «.exe» descargado de prueba no es ejecutable). Es un reemplazo del nombre
+    dentro de actualizaciones, no de subprocess.run: este último es global y dejaría sin correr, por ejemplo, el
+    navegador de la prueba del PDF."""
+
+    def __getattr__(self, nombre):
+        return getattr(subprocess, nombre)
+
+    @staticmethod
+    def run(args, *_a, **_k):
+        return subprocess.CompletedProcess(args, 0)
+
+
+@pytest.fixture(autouse=True)
+def _arranque_permitido(monkeypatch):
+    monkeypatch.setattr(actualizaciones, "subprocess", _SubprocesoDePrueba())
+
+
+@pytest.mark.parametrize("efecto", ["borrado", "error", "denegado"])
+def test_instalar_no_reemplaza_si_el_antivirus_bloquea(monkeypatch, tmp_path, efecto):
+    actual = tmp_path / "InformeExpediente.exe"
+    actual.write_bytes(b"viejo")
+    nuevo = tmp_path / "InformeExpediente.nuevo.exe"
+
+    def correr(args, **_k):
+        assert args == [str(nuevo), actualizaciones.ARG_PRUEBA]
+        if efecto == "denegado":
+            raise PermissionError("Acceso denegado")
+        if efecto == "borrado":                 # el antivirus lo deja arrancar y lo borra
+            nuevo.unlink()
+            return actualizaciones.subprocess.CompletedProcess(args, 0)
+        return actualizaciones.subprocess.CompletedProcess(args, 1)
+
+    monkeypatch.setattr(actualizaciones.sys, "executable", str(actual))
+    monkeypatch.setattr(actualizaciones.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(actualizaciones.requests, "get", lambda *a, **k: _Descarga([b"x" * 1000]))
+    monkeypatch.setattr(actualizaciones.subprocess, "run", correr)
+    version = actualizaciones.Version("9.0.0", "https://x", "https://x/InformeExpediente.exe", tamano=1000)
+    with pytest.raises(actualizaciones.Bloqueado) as e:
+        actualizaciones.instalar(version)
+    huella = hashlib.sha256(b"x" * 1000).hexdigest()
+    assert e.value.sha256 == huella and huella in str(e.value)
+    assert not nuevo.exists() and actual.read_bytes() == b"viejo"
+    assert not (tmp_path / "actualizar_informe_expediente.bat").exists()
+
+
+def test_bat_restaura_el_anterior_si_el_nuevo_desaparece(monkeypatch, tmp_path):
+    actual = tmp_path / "InformeExpediente.exe"
+    actual.write_bytes(b"viejo")
+    monkeypatch.setattr(actualizaciones.sys, "executable", str(actual))
+    monkeypatch.setattr(actualizaciones.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(actualizaciones.requests, "get", lambda *a, **k: _Descarga([b"x" * 1000]))
+    version = actualizaciones.Version("9.0.0", "https://x", "https://x/InformeExpediente.exe", tamano=1000)
+    bat = actualizaciones.instalar(version).read_text(encoding="mbcs" if os.name == "nt" else "utf-8")
+    anterior = tmp_path / "InformeExpediente.anterior.exe"
+    restaurar = f'if not exist "{actual}" if exist "{anterior}" copy /y "{anterior}" "{actual}"'
+    assert bat.index(restaurar) < bat.index(f'start "" "{actual}"')
+
+
+def test_modo_prueba_de_arranque(monkeypatch):
+    import app
+    monkeypatch.setattr(app.sys, "argv", ["InformeExpediente.exe", actualizaciones.ARG_PRUEBA])
+    with pytest.raises(SystemExit) as e:
+        app.main()
+    assert e.value.code == 0
+
+
+def test_la_prueba_de_arranque_no_hereda_la_carpeta_temporal(monkeypatch, tmp_path):
+    """El .exe nuevo se prueba con el entorno limpio: si heredara la carpeta _MEI del actual, no arrancaría y se
+    lo tomaría por bloqueado por el antivirus."""
+    monkeypatch.setenv("_MEIPASS2", r"C:\Temp\_MEI123")
+    monkeypatch.setenv("_PYI_APPLICATION_HOME_DIR", r"C:\Temp\_MEI123")
+    nuevo = tmp_path / "InformeExpediente.nuevo.exe"
+    nuevo.write_bytes(b"x")
+    vistos = {}
+
+    def correr(args, **k):
+        vistos.update(k)
+        return actualizaciones.subprocess.CompletedProcess(args, 0)
+
+    monkeypatch.setattr(actualizaciones.subprocess, "run", correr)
+    actualizaciones.probar_arranque(nuevo, "abc")
+    assert not [k for k in vistos["env"] if k.upper().startswith(("_PYI_", "_MEIPASS"))]
+    assert vistos["env"]["PYINSTALLER_RESET_ENVIRONMENT"] == "1"
+
+
+@pytest.mark.parametrize("codigo,disponible", [(200, True), (301, True), (404, True), (403, False), (429, False),
+                                               (401, False), (500, False), (503, False)])
+def test_una_luz_es_verde_solo_si_el_sitio_se_puede_leer(codigo, disponible):
+    """Un bloqueo (403 de Cloudflare, 429) no es «en línea»: el programa no podría leer nada."""
+    from informe_expedientes import gui
+    assert gui.sitio_disponible(codigo) is disponible

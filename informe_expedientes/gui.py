@@ -220,6 +220,12 @@ def mensaje_de_error(error: Exception) -> str:
 
 # ============================================================ indicadores LED
 
+def sitio_disponible(codigo: int) -> bool:
+    """¿Un sitio que respondió con este código HTTP se puede leer? Sí si respondió bien (o con «no encontrado»,
+    que es una página del propio sitio); no si dio un error del servidor (5xx) o nos bloqueó (401, 403, 429)."""
+    return codigo < 400 or codigo in (404, 410)
+
+
 def _mezclar(a: str, b: str, t: float) -> str:
     """Color entre a (t=0) y b (t=1); Tk no tiene transparencia, así que el brillo se arma mezclando colores."""
     ra = [int(a[i:i + 2], 16) for i in (1, 3, 5)]
@@ -748,8 +754,10 @@ class Aplicacion(tk.Tk):
         self.after(self.SEGUNDOS_LED * 1000, self._ciclo_sitios)
 
     def _lanzar_comprobacion(self) -> None:
-        """Pregunta en segundo plano si cada sitio responde (cualquier respuesta HTTP cuenta como en línea,
-        aunque sea un error de la página; sin respuesta o con error 5xx, no)."""
+        """Pregunta en segundo plano si cada sitio responde y deja leerlo: una respuesta normal (o un aviso de
+        «no encontrado») cuenta como en línea; sin respuesta, con error del servidor (5xx) o con un bloqueo
+        (403, 429: por ejemplo la protección contra programas automáticos de Cloudflare) no, porque en ese caso
+        el programa no puede leer nada aunque el sitio se abra en el navegador."""
         def hay_internet() -> bool:
             """¿Sale la computadora a internet? Se prueba contra servidores de DNS públicos, sin pedir ninguna
             página, para no confundir «sin wifi» con «el sitio del Senado o de Diputados está caído»."""
@@ -767,7 +775,7 @@ class Aplicacion(tk.Tk):
                 try:
                     r = requests.get(url, timeout=8, stream=True, headers={"User-Agent": "Mozilla/5.0"})
                     r.close()
-                    self._estado_sitios[sigla] = r.status_code < 500
+                    self._estado_sitios[sigla] = sitio_disponible(r.status_code)
                 except requests.RequestException:
                     if internet is None:
                         internet = hay_internet()
@@ -3274,6 +3282,13 @@ class Aplicacion(tk.Tk):
             return
         try:
             bat = actualizaciones.instalar(version, self.var_estado.set)
+        except actualizaciones.Bloqueado as e:
+            self.var_estado.set("")
+            self.clipboard_clear()
+            self.clipboard_append(e.sha256)
+            messagebox.showwarning("Actualización bloqueada", f"{e}\n\n(La huella quedó copiada: podés pegarla "
+                                   "en el pedido a Informática.)")
+            return
         except Exception as e:  # noqa: BLE001 - sin permisos en la carpeta, sin red…
             if messagebox.askyesno("No se pudo instalar", f"No se pudo instalar la versión nueva: {e}\n\n"
                                    "¿Querés abrir la página para descargarla a mano?"):
