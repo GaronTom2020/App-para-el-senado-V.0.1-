@@ -31,6 +31,7 @@ class Opciones:
     completar_ordenes_del_dia: bool = True
     buscar_votaciones: bool = True
     contrastar_diputados: bool = True     # proyectos de ley: se confronta con hcdn.gob.ar
+    diputados_no_disponible: bool = False  # se eligió seguir aunque el sitio de Diputados no responde: queda la nota
     buscar_relacionados: bool = True      # tratados en conjunto y tenidos a la vista
     formatos: tuple[str, ...] = ("docx", "html")
     carpeta_salida: Path = field(default_factory=config.carpeta_informes_por_defecto)
@@ -47,6 +48,12 @@ def generar(texto: str, opciones: Opciones, cliente: Cliente, avisar=_nada, hoy:
             escribir: bool = True) -> Resultado:
     hoy = hoy or date.today()
     advertencias: list[str] = []
+    fallas_red: list[str] = []
+
+    def falla_red(mensaje: str) -> None:
+        """Un paso que no se pudo hacer por la red: se avisa y se anota, para poder reintentar o pausar."""
+        fallas_red.append(mensaje)
+        avisar_y_guardar("advertencia", mensaje)
 
     def avisar_y_guardar(evento, mensaje="", **datos):
         if evento == "advertencia" and mensaje:
@@ -82,7 +89,7 @@ def generar(texto: str, opciones: Opciones, cliente: Cliente, avisar=_nada, hoy:
                 cliente, ficha, opciones.incluir_asesores, opciones.max_hilos, avisar_y_guardar, hoy)
             avisar("log", f"Reuniones en que se trató: {len(reuniones)}.")
         except ErrorRed as e:
-            avisar_y_guardar("advertencia", f"No se pudo completar la búsqueda de reuniones: {e}")
+            falla_red(f"No se pudo completar la búsqueda de reuniones: {e}")
             busqueda = BusquedaReuniones(realizada=False, motivo=str(e))
 
     convocadas = []
@@ -91,7 +98,7 @@ def generar(texto: str, opciones: Opciones, cliente: Cliente, avisar=_nada, hoy:
         try:
             convocadas = comisiones.buscar_convocatorias(cliente, ficha, avisar_y_guardar, hoy)
         except ErrorRed as e:
-            avisar_y_guardar("advertencia", f"No se pudo revisar la agenda: {e}")
+            falla_red(f"No se pudo revisar la agenda: {e}")
 
     votaciones = []
     if opciones.buscar_votaciones:
@@ -100,9 +107,13 @@ def generar(texto: str, opciones: Opciones, cliente: Cliente, avisar=_nada, hoy:
             votaciones = votaciones_mod.buscar(cliente, ficha, hoy, avisar_y_guardar)
             avisar("log", f"Votaciones nominales encontradas: {len(votaciones)}.")
         except (ErrorRed, votaciones_mod.ErrorVotaciones) as e:
-            avisar_y_guardar("advertencia", f"No se pudieron revisar las votaciones del recinto: {e}")
+            falla_red(f"No se pudieron revisar las votaciones del recinto: {e}")
 
     diputados, diputados_consultado = None, False
+    if opciones.diputados_no_disponible and ficha.id.tipo == "PL":
+        avisar_y_guardar("advertencia", "Sin contraste con Diputados: el sitio de la Cámara no estaba disponible "
+                                        "al generar este informe, así que la situación se calculó solo con los "
+                                        "datos del Senado.")
     if opciones.contrastar_diputados and ficha.id.tipo == "PL":
         avisar("etapa", "Contrastando con el sitio de la Cámara de Diputados…")
         try:
@@ -114,7 +125,7 @@ def generar(texto: str, opciones: Opciones, cliente: Cliente, avisar=_nada, hoy:
         except hcdn.SinCorroborar as e:
             avisar_y_guardar("advertencia", str(e))
         except ErrorRed as e:
-            avisar_y_guardar("advertencia", f"No se pudo consultar el sitio de Diputados: {e}")
+            falla_red(f"No se pudo consultar el sitio de Diputados: {e}")
 
     situacion = situacion_mod.calcular(ficha, hoy, votaciones, diputados)
 
@@ -125,7 +136,7 @@ def generar(texto: str, opciones: Opciones, cliente: Cliente, avisar=_nada, hoy:
             relacionados = relacionados_mod.buscar(cliente, ficha, diputados, reuniones, avisar_y_guardar, hoy)
             avisar("log", f"Expedientes relacionados: {len(relacionados)}.")
         except ErrorRed as e:
-            avisar_y_guardar("advertencia", f"No se pudieron buscar los expedientes relacionados: {e}")
+            falla_red(f"No se pudieron buscar los expedientes relacionados: {e}")
     resultado = Resultado(
         ficha=ficha,
         situacion=situacion,
@@ -142,6 +153,7 @@ def generar(texto: str, opciones: Opciones, cliente: Cliente, avisar=_nada, hoy:
         notas_usuario=opciones.notas_usuario.strip(),
         generado=datetime.now(),
         advertencias=advertencias,
+        fallas_red=fallas_red,
         od=od,
         od_expedientes=od_expedientes,
     )

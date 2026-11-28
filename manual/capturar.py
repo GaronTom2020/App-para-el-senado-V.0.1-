@@ -99,6 +99,44 @@ def capturar(app, nombre: str, widget=None) -> None:
     raise RuntimeError(f"No se pudo capturar «{nombre}»: " + "; ".join(errores))
 
 
+def capturar_luces(app) -> None:
+    """La barra de menú con las luces de conexión en sus tres estados, una debajo de otra:
+    verde (en línea), rojo (el sitio no responde) y amarillo (sin internet)."""
+    estados = (("En línea", {"HSN": True, "HCDN": True}),
+               ("Diputados no responde", {"HSN": True, "HCDN": False}),
+               ("Sin internet", {"HSN": "sin_red", "HCDN": "sin_red"}))
+    tiras = []
+    for nombre, estado in estados:
+        app._estado_sitios.update(estado)
+        for _ in range(8):                      # que las luces se pongan al día
+            app.update()
+            app.after(60)
+        capturar(app, f"_luces_{len(tiras)}", app.barra_menu)
+        tiras.append(Image.open(SALIDA / f"_luces_{len(tiras)}.png").convert("RGB"))
+    # Solo la mitad derecha de cada tira, donde están las luces; las tres juntas con una línea fina entre ellas.
+    recortes = [t.crop((t.width - 420, 0, t.width, t.height)) for t in tiras]
+    hoja = Image.new("RGB", (420, sum(t.height for t in recortes) + 2 * (len(recortes) - 1)), (185, 200, 222))
+    y = 0
+    for t in recortes:
+        hoja.paste(t, (0, y))
+        y += t.height + 2
+    hoja.save(SALIDA / "10_luces.png")
+    for i in range(len(tiras)):
+        (SALIDA / f"_luces_{i}.png").unlink(missing_ok=True)
+    app._estado_sitios.update({"HSN": True, "HCDN": True})
+
+
+def capturar_pausa(app) -> None:
+    """La ventana que aparece cuando el sitio no responde y los reintentos no alcanzaron."""
+    def tomar() -> None:
+        ventana = next(w for w in app.winfo_children() if isinstance(w, gui.tk.Toplevel))
+        ventana.attributes("-topmost", True)
+        capturar(app, "11_pausa", ventana)
+        ventana.destroy()
+    app.after(700, tomar)
+    app._preguntar_pausa("el informe de S-351/25", "sin respuesta del sitio")
+
+
 def principal() -> None:
     if sys.platform.startswith("win"):
         import ctypes
@@ -118,6 +156,7 @@ def principal() -> None:
     gui.tk.Tk.__init__ = a_escala_100
     # Sin nadie que conteste, un aviso o la consulta de versión nueva dejarían la captura esperando para siempre.
     gui.Aplicacion._buscar_version = lambda *_a, **_k: None
+    gui.Aplicacion._lanzar_comprobacion = lambda *_a, **_k: None      # las luces no consultan los sitios de verdad
     for nombre in ("showinfo", "showwarning", "showerror", "askyesno", "askokcancel", "askyesnocancel"):
         setattr(gui.messagebox, nombre, lambda titulo="", texto="", *_a, _n=nombre, **_k:
                 print(f"aviso omitido ({_n}): {titulo}", flush=True) or False)
@@ -125,6 +164,7 @@ def principal() -> None:
     app.geometry("1280x800+0+0")
     app.attributes("-topmost", True)
     app.lift()
+    app._estado_sitios.update({"HSN": True, "HCDN": True})
     capturar(app, "01_inicio")
 
     # Un informe real armado con las páginas de prueba.
@@ -152,6 +192,9 @@ def principal() -> None:
     ventana.attributes("-topmost", True)
     capturar(app, "09_correo", ventana)
     ventana.destroy()
+
+    capturar_luces(app)
+    capturar_pausa(app)
 
     html = r.archivos.get("html")
     if html:

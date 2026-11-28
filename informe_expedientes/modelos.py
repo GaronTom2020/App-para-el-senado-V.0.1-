@@ -281,6 +281,7 @@ class Resultado:
     generado: datetime = field(default_factory=datetime.now)
     archivos: dict[str, Path] = field(default_factory=dict)
     advertencias: list[str] = field(default_factory=list)
+    fallas_red: list[str] = field(default_factory=list)   # pasos que fallaron por la red (informe incompleto)
     od: str | None = None                       # si se pidió por orden del día: «366/26»
     od_expedientes: list = field(default_factory=list)   # IdExpediente que integran esa OD (cabecera primero)
 

@@ -71,7 +71,7 @@ jobs:
             --hidden-import lxml.etree --hidden-import lxml._elementpath \
             --icon informe_expedientes/recursos/icono.ico \
             --add-data "informe_expedientes/recursos/icono.ico;informe_expedientes/recursos" \
-            --add-data "informe_expedientes/recursos/logo_senado.png;informe_expedientes/recursos" \
+            --add-data "informe_expedientes/recursos/logo_hemiciclo.png;informe_expedientes/recursos" \
             "${extra[@]}" app.py
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

@@ -20,7 +20,7 @@
 
 # Sistema de Información Parlamentaria — H. Senado de la Nación
 
-Versión actual: **1.3.0**. Programa de escritorio con cinco modos:
+Versión actual: **1.4.0**. Programa de escritorio con cinco modos:
 
 | | Modo | Qué hace |
 |:-:|---|---|
@@ -33,6 +33,14 @@ Versión actual: **1.3.0**. Programa de escritorio con cinco modos:
 Usa solamente información pública de www.senado.gob.ar y www.hcdn.gob.ar.
 
 **Contenido:** 📰 [Novedades](#novedades-de-la-versión-11) · 🗂️ [Historial de versiones](#historial-de-versiones) · 📋 [Qué incluye el informe](#qué-incluye-el-informe) · 💾 [Instalación](#instalación) · ▶️ [Uso](#uso) · 🔎 [Por tema](#informe-temático-por-eje-o-palabras-clave) · 🏛️ [Sesión](#informe-de-sesión-plan-de-labor) · 📥 [Asuntos entrados](#asuntos-entrados-dae) · ✉️ [Resumen diario](#resumen-diario-correo-y-aviso-en-pantalla) · 👁️ [Seguimiento](#lista-de-seguimiento) · 🛟 [Si algo no funciona](#si-algo-no-funciona) · ⌨️ [Línea de comandos](#línea-de-comandos) · 🚀 [Despliegue](#despliegue)
+
+### Novedades de la versión 1.4
+
+- **Luces de conexión HSN y HCDN**, a la derecha de la barra de menús: una por cada sitio de donde salen los datos (Senado y Diputados). **Verde**, el sitio responde; **roja con un pulso lento**, no responde; **amarilla**, la PC no tiene internet; **gris**, se está comprobando. Se actualizan solas, al abrir y cada 30 segundos.
+- **Las búsquedas respetan las luces.** Con HSN en rojo, o las dos, y con la PC sin internet, no se busca y un mensaje lo explica. Con solo HCDN en rojo se puede buscar, con un aviso previo («el contraste con Diputados no estará disponible»), y el informe lleva la nota *Sin contraste con Diputados* en el resumen.
+- **Reintentos y pausa.** Si el sitio falla en medio de una búsqueda, el programa reintenta el asunto tres veces (esperas de 3, 8 y 15 segundos). Si sigue fallando, se detiene en ese asunto y pregunta: **Continuar** (lo omite y lo anota), **Reintentar** (otra tanda) o **Cancelar** (corta, y deja una nota visible de lo que no se generó). En *Expedientes*, un informe incompleto no se guarda sin avisar. Vale en las cinco pestañas de búsqueda.
+- **Barra de menús propia**, con las mismas opciones, para alojar las luces; los menús se abren con el mouse. El logo de la banda es ahora solo el hemiciclo, más grande.
+- **Barra de carga**: ya no reinicia su animación en cada etapa de la búsqueda.
 
 ### Novedades de la versión 1.2
 
@@ -108,6 +116,7 @@ Cada cambio entra al programa por un *pull request* (PR) en GitHub: un pedido de
 | 1.2.2 | Parche | #29 | Actualización de componentes: pypdf 7.0.1 | |
 | 1.2.3 | Parche | #31 | Historial de versiones al día | 1.2.3 |
 | 1.3.0 | Función | #32 | Diputados: lectura del buscador nuevo (solo datos oficiales, corroborados con la ficha del Senado) | 1.3.0 |
+| 1.4.0 | Función | #33 | Luces de conexión HSN y HCDN; las búsquedas respetan las luces; reintentos y pausa (Continuar, Reintentar, Cancelar); barra de menús propia; hemiciclo solo | |
 
 Desde la 1.1.3, la versión publicada es exactamente la de la tabla.
 
@@ -166,6 +175,10 @@ En Linux o macOS: `python3 -m venv .venv && .venv/bin/pip install -r requirement
 3. Al terminar, el resumen aparece en la ventana con los enlaces activos. Los botones de abajo abren el Word, el HTML o la carpeta de informes.
 
 En la pestaña *Reuniones*, el doble clic abre la nota de la reunión y el clic derecho ofrece la versión taquigráfica, el video o copiar el enlace.
+
+**Luces de conexión.** A la derecha de la barra de menús, **HSN** (Senado) y **HCDN** (Diputados) muestran si cada sitio responde: verde sí; roja (con pulso lento) no; amarilla, la PC no tiene internet. Con HSN en rojo o sin internet no se busca; con solo HCDN en rojo se puede, con un aviso y una nota en el informe.
+
+**Si el sitio falla en medio de una búsqueda**, el programa reintenta el asunto tres veces; si sigue sin responder, se detiene y ofrece **Continuar** (omitir ese asunto), **Reintentar** o **Cancelar**. Lo omitido o no generado queda anotado arriba del resumen y en la pestaña *Registro*.
 
 <p align="center"><img src="docs/img/separador.svg" width="70%" alt=""></p>
 
@@ -291,7 +304,8 @@ Puede tardar entre medio minuto y un par de minutos según cuántas reuniones ha
 
 ## Si algo no funciona
 
-- **"No se pudo conectar con el sitio"**: revisá la conexión o probá más tarde; el sitio del Senado a veces responde lento.
+- **"No se pudo conectar con el sitio"**: revisá la conexión o probá más tarde; el sitio del Senado a veces responde lento. Las luces HSN y HCDN, arriba a la derecha, dicen cuál es el problema: amarilla, la PC sin internet; roja, el sitio sin respuesta.
+- **Apareció «Búsqueda en pausa»**: el sitio no respondió después de varios reintentos. *Continuar* omite ese asunto (queda anotado), *Reintentar* prueba otra vez y *Cancelar* corta la búsqueda; lo que ya salió bien queda guardado.
 - **"No se encontró el expediente"**: revisá número, año y origen, o elegí el tipo a mano.
 - **Una sección del informe aparece vacía o rara**: el sitio pudo haber cambiado. Activá *Herramientas → Guardar las páginas descargadas*, repetí la consulta y enviá la carpeta que se abre con *Herramientas → Abrir carpeta de diagnóstico* a quien mantiene el programa.
 - **Datos viejos**: *Herramientas → Vaciar caché*. La ficha se vuelve a consultar siempre que pasan más de 10 minutos; las listas de reuniones, cada 6 horas.
