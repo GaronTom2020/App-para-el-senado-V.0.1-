@@ -81,7 +81,7 @@ A la derecha de la barra de menús hay dos luces que dicen, en todo momento, si 
 | Luz | Qué significa |
 |---|---|
 | **Verde** | El sitio responde. Se puede buscar con normalidad. |
-| **Roja, con un pulso lento** | El sitio no responde, aunque la PC sí tiene internet. El problema está del lado del sitio. |
+| **Roja, con un pulso lento** | El sitio no responde, o responde pero no deja que el programa lo lea (por ejemplo, si bloquea los programas automáticos), aunque la PC sí tiene internet. El problema está del lado del sitio. |
 | **Amarilla, fija** | La PC no tiene conexión a internet (por ejemplo, sin wifi). Se pone en las dos luces a la vez. |
 | **Gris** | Todavía no se sabe: se está comprobando, algo que dura unos segundos al abrir el programa. |
 

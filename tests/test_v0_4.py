@@ -2,6 +2,7 @@
 
 import hashlib
 import os
+import subprocess
 import sys
 from datetime import date
 
@@ -422,11 +423,23 @@ def test_reabrir_el_exe_no_hereda_la_carpeta_temporal(monkeypatch):
     assert entorno["PYINSTALLER_RESET_ENVIRONMENT"] == "1" and "PATH" in {k.upper() for k in entorno}
 
 
+class _SubprocesoDePrueba:
+    """El «subprocess» que ve actualizaciones.py durante las pruebas: todo es el de verdad, salvo run(), que da por
+    buena la prueba de arranque (el «.exe» descargado de prueba no es ejecutable). Es un reemplazo del nombre
+    dentro de actualizaciones, no de subprocess.run: este último es global y dejaría sin correr, por ejemplo, el
+    navegador de la prueba del PDF."""
+
+    def __getattr__(self, nombre):
+        return getattr(subprocess, nombre)
+
+    @staticmethod
+    def run(args, *_a, **_k):
+        return subprocess.CompletedProcess(args, 0)
+
+
 @pytest.fixture(autouse=True)
 def _arranque_permitido(monkeypatch):
-    """En las pruebas el «.exe» descargado no es ejecutable: se simula que la prueba de arranque sale bien."""
-    monkeypatch.setattr(actualizaciones.subprocess, "run",
-                        lambda *a, **k: actualizaciones.subprocess.CompletedProcess(a, 0))
+    monkeypatch.setattr(actualizaciones, "subprocess", _SubprocesoDePrueba())
 
 
 @pytest.mark.parametrize("efecto", ["borrado", "error", "denegado"])
@@ -495,3 +508,11 @@ def test_la_prueba_de_arranque_no_hereda_la_carpeta_temporal(monkeypatch, tmp_pa
     actualizaciones.probar_arranque(nuevo, "abc")
     assert not [k for k in vistos["env"] if k.upper().startswith(("_PYI_", "_MEIPASS"))]
     assert vistos["env"]["PYINSTALLER_RESET_ENVIRONMENT"] == "1"
+
+
+@pytest.mark.parametrize("codigo,disponible", [(200, True), (301, True), (404, True), (403, False), (429, False),
+                                               (401, False), (500, False), (503, False)])
+def test_una_luz_es_verde_solo_si_el_sitio_se_puede_leer(codigo, disponible):
+    """Un bloqueo (403 de Cloudflare, 429) no es «en línea»: el programa no podría leer nada."""
+    from informe_expedientes import gui
+    assert gui.sitio_disponible(codigo) is disponible

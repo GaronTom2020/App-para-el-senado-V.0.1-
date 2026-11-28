@@ -40,7 +40,7 @@ Usa solamente información pública de www.senado.gob.ar y www.hcdn.gob.ar.
 
 ### Novedades de la versión 1.4
 
-- **Luces de conexión HSN y HCDN**, a la derecha de la barra de menús: una por cada sitio de donde salen los datos (Senado y Diputados). **Verde**, el sitio responde; **roja con un pulso lento**, no responde; **amarilla**, la PC no tiene internet; **gris**, se está comprobando. Se actualizan solas, al abrir y cada 30 segundos.
+- **Luces de conexión HSN y HCDN**, a la derecha de la barra de menús: una por cada sitio de donde salen los datos (Senado y Diputados). **Verde**, el sitio responde; **roja con un pulso lento**, no responde o no deja leerlo (por ejemplo, si bloquea los programas automáticos); **amarilla**, la PC no tiene internet; **gris**, se está comprobando. Se actualizan solas, al abrir y cada 30 segundos.
 - **Las búsquedas respetan las luces.** Con HSN en rojo, o las dos, y con la PC sin internet, no se busca y un mensaje lo explica. Con solo HCDN en rojo se puede buscar, con un aviso previo («el contraste con Diputados no estará disponible»), y el informe lleva la nota *Sin contraste con Diputados* en el resumen.
 - **Reintentos y pausa.** Si el sitio falla en medio de una búsqueda, el programa reintenta el asunto tres veces (esperas de 3, 8 y 15 segundos). Si sigue fallando, se detiene en ese asunto y pregunta: **Continuar** (lo omite y lo anota), **Reintentar** (otra tanda) o **Cancelar** (corta, y deja una nota visible de lo que no se generó). En *Expedientes*, un informe incompleto no se guarda sin avisar. Vale en las cinco pestañas de búsqueda.
 - **Barra de menús propia**, con las mismas opciones, para alojar las luces; los menús se abren con el mouse. El logo de la banda es ahora solo el hemiciclo, más grande.
