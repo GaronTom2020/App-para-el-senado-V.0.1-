@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import queue
+import socket
 import subprocess
 import sys
 import threading
@@ -16,6 +18,8 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
 from tkinter import font as tkfont
+
+import requests
 
 from . import __version__, config
 from .cliente import Cancelado, Cliente, ErrorRed
@@ -35,7 +39,7 @@ from .seguimiento import (
 from .sesion import OpcionesSesion, ResultadoSesion, etiqueta_referencias, generar_sesion
 from .sesion import resumen as resumen_sesion
 from .seguimiento import resumen as resumen_seguimiento
-from .servicio import Opciones, generar
+from .servicio import Opciones, escribir_informes, generar
 from .tematico import ETAPA, OpcionesTematicas, ResultadoTematico, generar_tematico, resumen, resumen_tipos
 from .tematico import texto_resumen_tematico
 from .util import fmt_fecha, nombre_comision
@@ -46,7 +50,7 @@ P = {
     "ambar": "#8A5A10", "apagado": "#9BB3D4", "subtitulo": "#D6E4F5", "boton": "#114E9A", "boton_activo": "#0B3D7C",
 }
 ICONO = Path(__file__).resolve().parent / "recursos" / "icono.ico"
-LOGO = Path(__file__).resolve().parent / "recursos" / "logo_senado.png"     # isologotipo del sitio del Senado
+LOGO = Path(__file__).resolve().parent / "recursos" / "logo_hemiciclo.png"   # hemiciclo del logo del Senado (sin el texto)
 TITULO = "Sistema de Información Parlamentaria"
 # Cada pestaña guarda sus archivos en su propia subcarpeta de la carpeta de informes.
 SUBCARPETAS = {"expedientes": "Expedientes", "tema": "Por tema", "seguimiento": "Seguimiento", "sesion": "Sesión",
@@ -214,6 +218,140 @@ def mensaje_de_error(error: Exception) -> str:
     return f"Error inesperado: {type(error).__name__}: {error}"
 
 
+# ============================================================ indicadores LED
+
+def _mezclar(a: str, b: str, t: float) -> str:
+    """Color entre a (t=0) y b (t=1); Tk no tiene transparencia, así que el brillo se arma mezclando colores."""
+    ra = [int(a[i:i + 2], 16) for i in (1, 3, 5)]
+    rb = [int(b[i:i + 2], 16) for i in (1, 3, 5)]
+    return "#%02x%02x%02x" % tuple(round(x + (y - x) * t) for x, y in zip(ra, rb))
+
+
+# (borde oscuro, cuerpo, centro brillante) de la lente según el estado
+LED_COLORES = {
+    True: ("#0B5A22", "#1FC553", "#C9FFD9"),      # en línea: verde
+    False: ("#6A0D0D", "#E02525", "#FFC9C9"),     # sin conexión: rojo
+    "sin_red": ("#7A5A00", "#E6B800", "#FFF3B0"),  # sin internet en esta computadora: amarillo
+    None: ("#3A3F47", "#6A717C", "#B8BEC8"),      # sin saber todavía: gris apagado
+}
+
+
+class Led:
+    """Luz de estado en miniatura, dibujada pixel a pixel en una imagen (va como ícono de una entrada del menú).
+    Aro metálico oscuro y fino, lente con degradado radial y un resplandor suave cuando está encendida.
+    En línea: verde fijo. El sitio no responde: rojo con pulso lento. Sin internet en la computadora: amarillo
+    fijo (no es culpa del sitio). Sin saber todavía: gris apagado."""
+
+    TAM = 16                    # lado de la imagen; el resplandor llega casi hasta el borde
+    RADIO = 4.0                 # radio de la lente
+    FASES = 16                  # cuadros del pulso
+
+    def __init__(self, fondo: str):
+        self.fondo = fondo
+        self.etiqueta: tk.Label | None = None            # la etiqueta que muestra la luz (la pone quien la arma)
+        self.estado: bool | None = None
+        self.fase = 0
+        self._cache: dict = {}
+        self.dibujar()
+
+    def cambiar_fondo(self, fondo: str) -> None:
+        self.fondo = fondo
+        self._cache.clear()
+        self.dibujar()
+
+    def poner(self, estado: bool | None) -> bool:
+        """Cambia el estado; devuelve True si hubo que redibujar."""
+        if estado == self.estado:
+            return False
+        self.estado, self.fase = estado, 0
+        self.dibujar()
+        return True
+
+    def pulsar(self) -> bool:
+        """Un paso del pulso (solo sin conexión); devuelve True si redibujó."""
+        if self.estado is not False:
+            return False
+        self.fase = (self.fase + 1) % self.FASES
+        self.dibujar()
+        return True
+
+    def _intensidad(self) -> float:
+        return 1.0 if self.estado is not False else 0.75 + 0.25 * math.sin(2 * math.pi * self.fase / self.FASES)
+
+    @property
+    def imagen(self) -> tk.PhotoImage:
+        return self._cache[self._clave()]
+
+    def _clave(self):
+        return (self.estado, self.fase if self.estado is False else 0)
+
+    def dibujar(self) -> None:
+        clave = self._clave()
+        if clave not in self._cache:
+            self._cache[clave] = self._cuadro()
+        if self.etiqueta is not None:
+            self.etiqueta.configure(image=self._cache[clave])
+
+    def _cuadro(self):
+        borde, cuerpo, brillo = LED_COLORES[self.estado]
+        k = self._intensidad()
+        encendido = self.estado is not None
+        c = (self.TAM - 1) / 2
+        r = self.RADIO
+        rb = r + 1.2                                   # aro: fino y sin canto claro
+        filas, vacios = [], []
+        for y in range(self.TAM):
+            fila = []
+            for x in range(self.TAM):
+                d = math.hypot(x - c, y - c)
+                col = None
+                if encendido and d > rb:                # resplandor: se funde con el fondo
+                    t = max(0.0, 1 - (d - rb) / (c + 0.5 - rb)) ** 2 * 0.55 * k
+                    if t > 0.03:
+                        col = _mezclar(self.fondo, cuerpo, t)
+                cob = min(1.0, max(0.0, rb + 0.5 - d))
+                if cob > 0:
+                    col = _mezclar(col or self.fondo, "#3B4048", cob)
+                cob = min(1.0, max(0.0, r + 0.5 - d))
+                if cob > 0:
+                    t = 1 - min(1.0, math.hypot(x - c, y - c + 0.7) / r)     # 0 en el borde, 1 en el centro
+                    lente = _mezclar(borde, cuerpo, min(1.0, 0.35 + t * 1.3 * k))
+                    if t > 0.6:
+                        lente = _mezclar(lente, brillo, (t - 0.6) / 0.4 * 0.55 * k)
+                    if self.estado is False:
+                        lente = _mezclar("#2A0A0A", lente, 0.35 + 0.65 * k)
+                    col = _mezclar(col or self.fondo, lente, cob)
+                if col is None:
+                    vacios.append((x, y))
+                fila.append(col or self.fondo)
+            filas.append("{" + " ".join(fila) + "}")
+        imagen = tk.PhotoImage(width=self.TAM, height=self.TAM)
+        imagen.put(" ".join(filas))
+        for x, y in vacios:
+            imagen.transparency_set(x, y, True)
+        return imagen
+
+
+def _esperar_decision(yo, que: str, motivo: str) -> str:
+    """Avisa a la ventana que la búsqueda quedó en pausa en «que» y espera lo que elija el usuario:
+    «continuar», «reintentar» o «cancelar» (también si se cancela la búsqueda mientras tanto)."""
+    yo.cola.put(("pausa", "", {"texto": que, "motivo": motivo}))
+    while True:
+        try:
+            return yo._decision.get(timeout=0.4)
+        except queue.Empty:
+            if yo.cancelar.is_set():
+                return "cancelar"
+
+
+class AsuntoOmitido(Exception):
+    """El usuario eligió «Continuar» en la pausa: se salta este asunto y se sigue con el siguiente."""
+
+    def __init__(self, texto: str, motivo: str):
+        super().__init__(texto)
+        self.texto, self.motivo = texto, motivo
+
+
 # ================================================================== ventana
 
 class Aplicacion(tk.Tk):
@@ -230,6 +368,7 @@ class Aplicacion(tk.Tk):
 
         self.cola: queue.Queue = queue.Queue()
         self.cancelar = threading.Event()
+        self._decision: queue.Queue = queue.Queue()      # respuesta de la ventana de pausa al hilo de trabajo
         self.hilo: threading.Thread | None = None
         self.resultados: list = []
         self.actual = None
@@ -460,14 +599,37 @@ class Aplicacion(tk.Tk):
 
     # ---------------------------------------------------------------- menú
     def _menu(self) -> None:
-        barra = tk.Menu(self)
+        # Barra de menú propia (Tk no deja poner nada más en la nativa): cada título abre su menú de siempre
+        # y las luces de conexión van a la derecha, en la misma fila.
+        barra = tk.Frame(self, bg=P["papel"])
+        barra.pack(fill="x")
+        self.barra_menu = barra
+        tk.Frame(self, bg=P["linea"], height=1).pack(fill="x")
+        f_menu = tkfont.Font(family=self.f_chica.actual("family"), size=10)
+
+        def cascada(titulo: str, menu: tk.Menu) -> None:
+            etiqueta = tk.Label(barra, text=titulo, bg=P["papel"], fg=P["tinta"], font=f_menu, padx=11, pady=4)
+            etiqueta.pack(side="left")
+
+            def abrir(_e=None) -> None:
+                etiqueta.configure(bg=P["piedra"])
+                try:
+                    menu.tk_popup(etiqueta.winfo_rootx(), etiqueta.winfo_rooty() + etiqueta.winfo_height())
+                finally:
+                    menu.grab_release()
+                    etiqueta.configure(bg=P["papel"])
+            etiqueta.bind("<Button-1>", abrir)
+            etiqueta.bind("<Enter>", lambda _e: etiqueta.configure(bg=P["cupula_tenue"]))
+            etiqueta.bind("<Leave>", lambda _e: etiqueta.configure(bg=P["papel"]))
+            self.cascadas[titulo] = (etiqueta, abrir)
+        self.cascadas: dict = {}
         archivo = tk.Menu(barra, tearoff=False)
         archivo.add_command(label="Generar informe", accelerator="Ctrl+Enter", command=self._generar)
         archivo.add_command(label="Abrir carpeta de informes", command=self._abrir_carpeta)
         archivo.add_command(label="Cambiar carpeta de informes…", command=self._elegir_carpeta)
         archivo.add_separator()
         archivo.add_command(label="Salir", command=self._cerrar)
-        barra.add_cascade(label="Archivo", menu=archivo)
+        cascada("Archivo", archivo)
         herramientas = tk.Menu(barra, tearoff=False)
         herramientas.add_command(label="Formatos de los informes…", command=self._elegir_formatos)
         herramientas.add_separator()
@@ -479,14 +641,14 @@ class Aplicacion(tk.Tk):
         herramientas.add_command(label="Resumen diario (correo y aviso)…", command=self._config_correo)
         herramientas.add_separator()
         herramientas.add_command(label="Vaciar caché", command=self._vaciar_cache)
-        barra.add_cascade(label="Herramientas", menu=herramientas)
+        cascada("Herramientas", herramientas)
         enlaces = tk.Menu(barra, tearoff=False)
         for enlace in ENLACES:
             if enlace is None:
                 enlaces.add_separator()
             else:
                 enlaces.add_command(label=enlace[0], command=lambda u=enlace[1]: webbrowser.open(u))
-        barra.add_cascade(label="Enlaces útiles", menu=enlaces)
+        cascada("Enlaces útiles", enlaces)
         ayuda = tk.Menu(barra, tearoff=False)
         ayuda.add_command(label="Manual de usuario", command=self._manual)
         ayuda.add_command(label="Cómo funciona", command=self._ayuda)
@@ -494,16 +656,16 @@ class Aplicacion(tk.Tk):
         if actualizaciones.hay_anterior():
             ayuda.add_command(label="Volver a la versión anterior", command=self._volver_a_anterior)
         ayuda.add_command(label="Acerca del programa", command=self._acerca)
-        barra.add_cascade(label="Ayuda", menu=ayuda)
-        self.config(menu=barra)
+        cascada("Ayuda", ayuda)
+        self._luces_en_menu(barra)
 
     # ------------------------------------------------------------- armado
     def _construir(self) -> None:
         banda = tk.Frame(self, bg=P["cupula"])
         banda.pack(fill="x")
         try:
-            self.logo = tk.PhotoImage(file=str(LOGO))          # 110 × 82, en su tamaño original: se ve nítido
-            tk.Label(banda, image=self.logo, bg=P["cupula"]).pack(side="right", padx=(0, 24), pady=8)
+            self.logo = tk.PhotoImage(file=str(LOGO))          # 165 × 66, en su tamaño original: se ve nítido
+            tk.Label(banda, image=self.logo, bg=P["cupula"]).pack(side="right", padx=(0, 24), pady=4)
         except tk.TclError:
             pass                                       # sin el logo, la banda queda solo con el título
         tk.Label(banda, text=TITULO, bg=P["cupula"], fg="#FFFFFF", font=self.f_titulo).pack(
@@ -531,6 +693,93 @@ class Aplicacion(tk.Tk):
         self._panel_asuntos(interior).pack(fill="both", expand=True)
         self.modos.add(exterior, text="Asuntos entrados")
         self._panel_resultados(cuerpo).grid(row=0, column=1, sticky="nsew")
+
+    # ------------------------------------------------- luces de conexión
+    SITIOS_LED = (("HSN", "Senado de la Nación", config.BASE),
+                  ("HCDN", "Diputados de la Nación", "https://www.hcdn.gob.ar/"))
+    SEGUNDOS_LED = 30            # cada cuánto se vuelve a comprobar
+
+    def _luces_en_menu(self, barra) -> None:
+        """Dos luces a la derecha de la barra de menú: verde si el sitio responde, roja si no."""
+        fondo = P["papel"]
+        self.leds: dict[str, Led] = {}
+        self._estado_sitios: dict[str, bool | str] = {}
+        fuente = tkfont.Font(family=self.f_chica.actual("family"), size=9)
+        caja = tk.Frame(barra, bg=fondo)
+        caja.pack(side="right", padx=(0, 12))
+        for col, (sigla, _nombre, _url) in enumerate(self.SITIOS_LED):
+            led = Led(fondo)
+            self.leds[sigla] = led
+            led.etiqueta = tk.Label(caja, image=led.imagen, bg=fondo, bd=0)
+            led.etiqueta.grid(row=0, column=col * 2, padx=(0 if col == 0 else 14, 4))
+            tk.Label(caja, text=sigla, bg=fondo, fg=P["tinta"], font=fuente, bd=0).grid(row=0, column=col * 2 + 1)
+        self._ciclo_sitios()
+        self._animar_luces()
+
+    def _permitir_busqueda(self, usa_diputados: bool = True):
+        """Mira las luces antes de arrancar una búsqueda. Devuelve None si no se puede (y explica por qué),
+        True si se puede, y «sin_diputados» si se puede pero sin contrastar con la Cámara (el usuario lo aceptó)."""
+        hsn, hcdn = self._estado_sitios.get("HSN"), self._estado_sitios.get("HCDN")
+        if "sin_red" in (hsn, hcdn):
+            self._lanzar_comprobacion()
+            messagebox.showwarning("Sin conexión a internet", "Esta computadora no tiene conexión a internet, así "
+                                   "que no se puede buscar nada. Revisá el wifi o el cable de red y probá de nuevo "
+                                   "en unos segundos.")
+            return None
+        if hsn is False:
+            self._lanzar_comprobacion()
+            quien = "los sitios del Senado y de Diputados no responden" if hcdn is False else \
+                "el sitio del Senado no responde"
+            messagebox.showwarning("Sitio sin respuesta", f"Ahora mismo {quien}, y casi ningún informe se puede "
+                                   "armar sin el Senado. Probá de nuevo en unos minutos; las luces de arriba a la "
+                                   "derecha se ponen verdes cuando vuelven.")
+            return None
+        if hcdn is False and usa_diputados:
+            self._lanzar_comprobacion()
+            if not messagebox.askokcancel("Diputados no responde", "El sitio de la Cámara de Diputados no responde: "
+                                          "el contraste con Diputados no estará disponible. El informe se arma con "
+                                          "los datos del Senado y lo aclara en el resumen.\n\n¿Seguir igual?"):
+                return None
+            return "sin_diputados"
+        return True
+
+    def _ciclo_sitios(self) -> None:
+        self._lanzar_comprobacion()
+        self.after(self.SEGUNDOS_LED * 1000, self._ciclo_sitios)
+
+    def _lanzar_comprobacion(self) -> None:
+        """Pregunta en segundo plano si cada sitio responde (cualquier respuesta HTTP cuenta como en línea,
+        aunque sea un error de la página; sin respuesta o con error 5xx, no)."""
+        def hay_internet() -> bool:
+            """¿Sale la computadora a internet? Se prueba contra servidores de DNS públicos, sin pedir ninguna
+            página, para no confundir «sin wifi» con «el sitio del Senado o de Diputados está caído»."""
+            for host, puerto in (("1.1.1.1", 443), ("8.8.8.8", 53)):
+                try:
+                    socket.create_connection((host, puerto), timeout=3).close()
+                    return True
+                except OSError:
+                    continue
+            return False
+
+        def trabajo():
+            internet = None
+            for sigla, _nombre, url in self.SITIOS_LED:
+                try:
+                    r = requests.get(url, timeout=8, stream=True, headers={"User-Agent": "Mozilla/5.0"})
+                    r.close()
+                    self._estado_sitios[sigla] = r.status_code < 500
+                except requests.RequestException:
+                    if internet is None:
+                        internet = hay_internet()
+                    self._estado_sitios[sigla] = False if internet else "sin_red"
+        threading.Thread(target=trabajo, daemon=True).start()
+
+    def _animar_luces(self) -> None:
+        for sigla, led in self.leds.items():
+            led.poner(self._estado_sitios.get(sigla))
+            if not (self.hilo and self.hilo.is_alive()):
+                led.pulsar()
+        self.after(90, self._animar_luces)
 
     def _desplazable(self, padre):
         """Marco con barra de desplazamiento vertical (para pantallas bajas)."""
@@ -1123,6 +1372,11 @@ class Aplicacion(tk.Tk):
         if not opciones.formatos:
             messagebox.showinfo("Elegí un formato", "Marcá Word, HTML o ambos para guardar el informe.")
             return
+        permiso = self._permitir_busqueda(usa_diputados=opciones.contrastar_diputados)
+        if permiso is None:
+            return
+        if permiso == "sin_diputados":
+            opciones.contrastar_diputados, opciones.diputados_no_disponible = False, True
         self._guardar_preferencias()
         self.cancelar.clear()
         self._registro(f"— Nueva consulta: {', '.join(textos)}")
@@ -1152,9 +1406,92 @@ class Aplicacion(tk.Tk):
         else:
             self.barra.grid_remove()
 
+    ESPERAS_REINTENTO = (3, 8, 15)        # segundos entre reintentos: un pico de lag no frena la búsqueda
+
+    def _generar_con_reintentos(self, texto, opciones, cliente, avisar, prefijo):
+        """Genera un expediente. Si la red falla (error o pasos incompletos) lo reintenta unas veces con espera
+        creciente; si sigue sin salir, pausa y deja elegir: continuar (se omite este asunto y se sigue con el
+        siguiente), reintentar (otra tanda de reintentos) o cancelar (se corta la búsqueda). Los que ya salieron
+        bien no se tocan. Devuelve el resultado ya escrito."""
+        while True:
+            error, resultado = None, None
+            for intento, espera in enumerate((0,) + self.ESPERAS_REINTENTO):
+                if espera:
+                    avisar("etapa", f"{prefijo}Sin respuesta; reintentando en {espera} s…")
+                    if self.cancelar.wait(espera):
+                        raise Cancelado()
+                try:
+                    resultado = generar(texto, opciones, cliente, avisar, escribir=False)
+                    error = None
+                    if not resultado.fallas_red:
+                        break
+                    error = "; ".join(resultado.fallas_red)
+                except ErrorRed as e:
+                    error, resultado = str(e), None
+                if intento < len(self.ESPERAS_REINTENTO):
+                    self.cola.put(("log", f"{texto}: falló la red ({error}). Se reintenta.", {}))
+            if resultado is not None and not error:
+                escribir_informes(resultado, opciones, avisar)
+                return resultado
+            # No hubo caso: pausa. La decisión vuelve por self._decision (la toma la ventana).
+            decision = _esperar_decision(self, f"el informe de {texto}", error)
+            if decision == "continuar":
+                raise AsuntoOmitido(texto, error)
+            if decision != "reintentar":
+                raise Cancelado()
+            # «reintentar»: vuelve al principio del while, con otra tanda completa de reintentos
+
+    def _ejecutar_con_pausa(self, accion, que: str, avisar):
+        """Lo mismo para las búsquedas de una sola operación (por tema, sesión, seguimiento, asuntos entrados):
+        si la red falla la reintenta con espera creciente y, si sigue sin salir, pausa y deja elegir continuar
+        (se omite), reintentar o cancelar. Los pedidos ya hechos quedan en la caché, así que reintentar no
+        empieza de cero."""
+        while True:
+            error = ""
+            for espera in (0,) + self.ESPERAS_REINTENTO:
+                if espera:
+                    avisar("etapa", f"Sin respuesta; reintentando en {espera} s…")
+                    if self.cancelar.wait(espera):
+                        raise Cancelado()
+                try:
+                    return accion()
+                except ErrorRed as e:
+                    error = str(e)
+                    self.cola.put(("log", f"Falló la red ({error}). Se reintenta.", {}))
+            decision = _esperar_decision(self, que, error)
+            if decision == "continuar":
+                raise AsuntoOmitido(que, error)
+            if decision != "reintentar":
+                raise Cancelado()
+
+    def _trabajo_simple(self, accion, que: str, carpeta, cliente, texto_cancelado: str) -> None:
+        """Cuerpo común de los hilos de una sola operación: resultado, omitido, cancelado o error, y el «fin»."""
+        hechos, fallidos, omitidos, no_generados = 0, [], [], []
+
+        def avisar(evento, mensaje="", **datos):
+            self.cola.put((evento, mensaje, datos))
+
+        try:
+            res = self._ejecutar_con_pausa(lambda: accion(avisar), que, avisar)
+            self.cola.put(("resultado", "", {"resultado": res}))
+            hechos = 1
+        except AsuntoOmitido as e:
+            omitidos.append((e.texto, e.motivo))
+            self.cola.put(("log", f"Se omitió {e.texto}: no se pudo definir ({e.motivo}).", {}))
+        except Cancelado:
+            self.cancelar.set()
+            no_generados = [que]
+            self.cola.put(("log", texto_cancelado, {}))
+        except Exception as e:  # noqa: BLE001
+            fallidos.append(mensaje_de_error(e))
+            self.cola.put(("log", traceback.format_exc(), {}))
+        self.cola.put(("fin", "", {"hechos": hechos, "fallidos": fallidos, "carpeta": str(carpeta),
+                                   "pedidos": cliente.pedidos_red, "cache": cliente.pedidos_cache,
+                                   "omitidos": omitidos, "no_generados": no_generados}))
+
     def _trabajo(self, textos: list[str], opciones: Opciones) -> None:
         cliente = self._nuevo_cliente()
-        hechos, fallidos = 0, []
+        hechos, fallidos, omitidos, no_generados = 0, [], [], []
         for i, texto in enumerate(textos, 1):
             prefijo = f"({i}/{len(textos)}) " if len(textos) > 1 else ""
 
@@ -1164,10 +1501,15 @@ class Aplicacion(tk.Tk):
                 self.cola.put((evento, mensaje, datos))
 
             try:
-                resultado = generar(texto, opciones, cliente, avisar)
+                resultado = self._generar_con_reintentos(texto, opciones, cliente, avisar, prefijo)
                 self.cola.put(("resultado", "", {"resultado": resultado}))
                 hechos += 1
+            except AsuntoOmitido as e:
+                omitidos.append((f"el informe de {e.texto}", e.motivo))
+                self.cola.put(("log", f"Se omitió el informe de {e.texto}: no se pudo definir ({e.motivo}).", {}))
             except Cancelado:
+                self.cancelar.set()
+                no_generados = [f"el informe de {t}" for t in textos[i - 1:]]    # el asunto en curso y los que faltaban
                 self.cola.put(("log", "Consulta cancelada.", {}))
                 break
             except Exception as e:  # noqa: BLE001 - se muestra al usuario
@@ -1175,13 +1517,62 @@ class Aplicacion(tk.Tk):
                 self.cola.put(("log", f"Error con {texto}: {mensaje_de_error(e)}", {}))
                 self.cola.put(("log", traceback.format_exc(), {}))
         self.cola.put(("fin", "", {"hechos": hechos, "fallidos": fallidos, "carpeta": str(opciones.carpeta_salida),
-                                   "pedidos": cliente.pedidos_red, "cache": cliente.pedidos_cache}))
+                                   "pedidos": cliente.pedidos_red, "cache": cliente.pedidos_cache,
+                                   "omitidos": omitidos, "no_generados": no_generados}))
 
     def _cancelar(self) -> None:
         self.cancelar.set()
         self.var_estado.set("Cancelando…")
         for boton, _comando in self._principales:
             boton.state(["disabled"])
+
+    def _notas_de_fin(self, omitidos: list, no_generados: list) -> None:
+        """Deja a la vista, arriba del Resumen y en el Registro, lo que NO se generó: lo que el usuario eligió
+        omitir y, si se canceló, lo que no llegó a generarse. (La línea de estado queda como siempre.)"""
+        lineas = [f"Se omitió {que}: no se pudo definir por un problema con el sitio, y no se generó. "
+                  f"({motivo[:200]})" for que, motivo in omitidos]
+        if no_generados:
+            lista = ", ".join(no_generados)
+            lineas.append(f"Búsqueda cancelada: {lista} no llegó a generarse." if len(no_generados) == 1
+                          else f"Búsqueda cancelada: {lista} no llegaron a generarse.")
+        if not lineas:
+            return
+        for linea in lineas:
+            self._registro(linea)
+        t = self.txt_resumen
+        t.configure(state="normal")
+        t.insert("1.0", "Atención\n" + "\n".join(lineas) + "\n\n", "situacion_lacre")
+        t.configure(state="disabled")
+
+    def _preguntar_pausa(self, texto: str, motivo: str) -> str:
+        """Ventana de pausa, breve (el detalle del error queda en el Registro): devuelve «continuar» (omitir),
+        «reintentar» o «cancelar»."""
+        v = tk.Toplevel(self)
+        v.title("Búsqueda en pausa")
+        v.configure(bg=P["papel"])
+        v.transient(self)
+        v.resizable(False, False)
+        elegido = {"valor": "cancelar"}                  # cerrar la ventana equivale a cancelar
+
+        def elegir(valor: str) -> None:
+            elegido["valor"] = valor
+            v.destroy()
+        marco = ttk.Frame(v, style="Tarjeta.TFrame", padding=(18, 14, 18, 14))
+        marco.pack(fill="both", expand=True)
+        ttk.Label(marco, text=f"No se pudo completar {texto}", style="Rotulo.TLabel").pack(anchor="w")
+        ttk.Label(marco, text="El sitio no responde. Lo que ya salió bien está guardado.",
+                  style="Tarjeta.TLabel", wraplength=420, justify="left").pack(anchor="w", pady=(4, 12))
+        botones = ttk.Frame(marco, style="Tarjeta.TFrame")
+        botones.pack(anchor="e")
+        for texto_boton, valor in (("Continuar", "continuar"), ("Reintentar", "reintentar"), ("Cancelar", "cancelar")):
+            ttk.Button(botones, text=texto_boton, command=lambda v=valor: elegir(v)).pack(side="left", padx=(0, 8))
+        v.protocol("WM_DELETE_WINDOW", lambda: elegir("cancelar"))
+        v.update_idletasks()
+        v.geometry("+%d+%d" % (self.winfo_rootx() + max(0, (self.winfo_width() - v.winfo_reqwidth()) // 2),
+                               self.winfo_rooty() + max(0, (self.winfo_height() - v.winfo_reqheight()) // 3)))
+        v.grab_set()
+        self.wait_window(v)
+        return elegido["valor"]
 
     def _procesar_cola(self) -> None:
         try:
@@ -1213,7 +1604,7 @@ class Aplicacion(tk.Tk):
         if evento == "etapa":
             self.var_estado.set(mensaje)
             self._registro(mensaje)
-            if not self._contando:
+            if not self._contando and str(self.barra.cget("mode")) != "indeterminate":
                 self.barra.configure(mode="indeterminate")
                 self.barra.start(14)
         elif evento == "progreso":
@@ -1223,6 +1614,10 @@ class Aplicacion(tk.Tk):
                                  value=datos.get("actual", 0))
             if datos.get("actual", 0) >= datos.get("total", 1):
                 self._contando = False
+        elif evento == "pausa":
+            self.var_estado.set(f"En pausa: no se pudo definir {datos['texto']}.")
+            self._registro(f"En pausa en {datos['texto']}: {datos['motivo']}")
+            self._decision.put(self._preguntar_pausa(datos["texto"], datos["motivo"]))
         elif evento in ("log", "advertencia"):
             self._registro(("Aviso: " if evento == "advertencia" else "") + mensaje)
         elif evento == "version":
@@ -1293,6 +1688,7 @@ class Aplicacion(tk.Tk):
             if self._mensaje_fin:
                 self.var_estado.set(self._mensaje_fin)
                 self._mensaje_fin = ""
+            self._notas_de_fin(datos.get("omitidos", []), datos.get("no_generados", []))
             if fallidos:
                 messagebox.showwarning("Algunos informes no se generaron", "\n\n".join(fallidos))
 
@@ -1519,7 +1915,7 @@ class Aplicacion(tk.Tk):
         if self.hilo and self.hilo.is_alive():
             return
         plan = self._plan_actual()
-        if plan is None:
+        if plan is None or self._permitir_busqueda(usa_diputados=False) is None:
             return
         formatos = tuple(f for f, v in self.vars_ses_formatos.items() if v.get())
         if not formatos:
@@ -1538,22 +1934,8 @@ class Aplicacion(tk.Tk):
 
     def _trabajo_sesion(self, plan, opciones: OpcionesSesion) -> None:
         cliente = self._nuevo_cliente()
-        hechos, fallidos = 0, []
-
-        def avisar(evento, mensaje="", **datos):
-            self.cola.put((evento, mensaje, datos))
-
-        try:
-            res = generar_sesion(plan, opciones, cliente, avisar)
-            self.cola.put(("resultado", "", {"resultado": res}))
-            hechos = 1
-        except Cancelado:
-            self.cola.put(("log", "Informe de sesión cancelado.", {}))
-        except Exception as e:  # noqa: BLE001
-            fallidos.append(mensaje_de_error(e))
-            self.cola.put(("log", traceback.format_exc(), {}))
-        self.cola.put(("fin", "", {"hechos": hechos, "fallidos": fallidos, "carpeta": str(opciones.carpeta_salida),
-                                   "pedidos": cliente.pedidos_red, "cache": cliente.pedidos_cache}))
+        self._trabajo_simple(lambda av: generar_sesion(plan, opciones, cliente, av), "el informe de sesión",
+                             opciones.carpeta_salida, cliente, "Informe de sesión cancelado.")
 
     def _mostrar_sesion(self, r: ResultadoSesion) -> None:
         self._pestanias_visibles(True)
@@ -2011,6 +2393,8 @@ class Aplicacion(tk.Tk):
     def _revisar_seguimiento(self) -> None:
         if self.hilo and self.hilo.is_alive():
             return
+        if self._permitir_busqueda(usa_diputados=True) is None:
+            return
         grupo = self._grupo_elegido()
         elegidos = self.lista_seguimiento.del_grupo(grupo)
         if not elegidos:
@@ -2032,22 +2416,8 @@ class Aplicacion(tk.Tk):
 
     def _trabajo_seguimiento(self, opciones: OpcionesSeguimiento, grupo: str | None = None) -> None:
         cliente = self._nuevo_cliente()
-        hechos, fallidos = 0, []
-
-        def avisar(evento, mensaje="", **datos):
-            self.cola.put((evento, mensaje, datos))
-
-        try:
-            res = revisar(self.lista_seguimiento, cliente, opciones, avisar, grupo=grupo)
-            self.cola.put(("resultado", "", {"resultado": res}))
-            hechos = 1
-        except Cancelado:
-            self.cola.put(("log", "Revisión cancelada.", {}))
-        except Exception as e:  # noqa: BLE001
-            fallidos.append(mensaje_de_error(e))
-            self.cola.put(("log", traceback.format_exc(), {}))
-        self.cola.put(("fin", "", {"hechos": hechos, "fallidos": fallidos, "carpeta": str(opciones.carpeta_salida),
-                                   "pedidos": cliente.pedidos_red, "cache": cliente.pedidos_cache}))
+        self._trabajo_simple(lambda av: revisar(self.lista_seguimiento, cliente, opciones, av, grupo=grupo),
+                             "la revisión del seguimiento", opciones.carpeta_salida, cliente, "Revisión cancelada.")
 
     def _filas_elegidas(self) -> list[tuple]:
         """(ident, enlace a la ficha) de las filas elegidas en «Expedientes» (búsqueda por tema o asuntos entrados)."""
@@ -2143,6 +2513,8 @@ class Aplicacion(tk.Tk):
     def _buscar_asuntos(self) -> None:
         if self.hilo and self.hilo.is_alive():
             return
+        if self._permitir_busqueda(usa_diputados=False) is None:
+            return
         from .util import parsear_fecha
         desde = parsear_fecha(self.var_ae_desde.get().strip())
         if desde is None:
@@ -2161,20 +2533,10 @@ class Aplicacion(tk.Tk):
 
         def trabajo():
             cliente = self._nuevo_cliente()
-            hechos, fallidos = 0, []
-            try:
-                res = asuntos_entrados.revisar(cliente, r, None if r.iniciado else desde,
-                                               lambda ev, msg="", **d: self.cola.put((ev, msg, d)),
-                                               profundidad=profundidad)
-                self.cola.put(("resultado", "", {"resultado": res}))
-                hechos = 1
-            except Cancelado:
-                self.cola.put(("log", "Consulta cancelada.", {}))
-            except Exception as e:  # noqa: BLE001
-                fallidos.append(mensaje_de_error(e))
-                self.cola.put(("log", traceback.format_exc(), {}))
-            self.cola.put(("fin", "", {"hechos": hechos, "fallidos": fallidos, "carpeta": str(self._carpeta("asuntos")),
-                                       "pedidos": cliente.pedidos_red, "cache": cliente.pedidos_cache}))
+            self._trabajo_simple(
+                lambda av: asuntos_entrados.revisar(cliente, r, None if r.iniciado else desde, av,
+                                                    profundidad=profundidad),
+                "la búsqueda de asuntos entrados", self._carpeta("asuntos"), cliente, "Consulta cancelada.")
 
         self.hilo = threading.Thread(target=trabajo, daemon=True)
         self.hilo.start()
@@ -2356,6 +2718,8 @@ class Aplicacion(tk.Tk):
     def _generar_tematico(self) -> None:
         if self.hilo and self.hilo.is_alive():
             return
+        if self._permitir_busqueda(usa_diputados=False) is None:
+            return
         palabras = separar_palabras(self.var_palabras.get())
         comision_id = self.comisiones_por_nombre.get(self.var_comision.get())
         autores, bloque = self._autores_elegidos()
@@ -2411,22 +2775,8 @@ class Aplicacion(tk.Tk):
 
     def _trabajo_tematico(self, consulta: Consulta, opciones: OpcionesTematicas) -> None:
         cliente = self._nuevo_cliente()
-        hechos, fallidos = 0, []
-
-        def avisar(evento, mensaje="", **datos):
-            self.cola.put((evento, mensaje, datos))
-
-        try:
-            res = generar_tematico(consulta, opciones, cliente, avisar)
-            self.cola.put(("resultado", "", {"resultado": res}))
-            hechos = 1
-        except Cancelado:
-            self.cola.put(("log", "Consulta cancelada.", {}))
-        except Exception as e:  # noqa: BLE001
-            fallidos.append(mensaje_de_error(e))
-            self.cola.put(("log", traceback.format_exc(), {}))
-        self.cola.put(("fin", "", {"hechos": hechos, "fallidos": fallidos, "carpeta": str(opciones.carpeta_salida),
-                                   "pedidos": cliente.pedidos_red, "cache": cliente.pedidos_cache}))
+        self._trabajo_simple(lambda av: generar_tematico(consulta, opciones, cliente, av), "el informe temático",
+                             opciones.carpeta_salida, cliente, "Consulta cancelada.")
 
     def _enlace(self, texto: str, url: str | None, estilo: str | None = None) -> None:
         t = self.txt_resumen

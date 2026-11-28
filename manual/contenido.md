@@ -57,7 +57,7 @@ Tiene cinco modos de trabajo, cada uno en una pestaña:
 
 ![La ventana principal al abrir el programa](capturas/01_inicio.png)
 
-- **Arriba**, la barra de menús: *Archivo*, *Herramientas*, *Enlaces útiles* y *Ayuda* (ver el capítulo «Menús y herramientas»).
+- **Arriba**, la barra de menús: *Archivo*, *Herramientas*, *Enlaces útiles* y *Ayuda* (ver el capítulo «Menús y herramientas»), y a su derecha las **luces de conexión** HSN y HCDN (ver el apartado siguiente). Los menús se abren con el mouse.
 - **A la izquierda**, las cinco pestañas de trabajo. En cada una se completa qué se quiere buscar y se presiona el botón azul grande.
 - **A la derecha**, el resultado: un resumen con enlaces activos y otras pestañas (*Reuniones*, *Trámite*, *Registro*). Mientras trabaja, la barra de progreso avanza y el texto de arriba dice qué está consultando.
 - **Abajo a la derecha**, los botones **Abrir**: los formatos que se guardaron (Word, HTML, Excel o PDF), la ficha en el sitio del Senado, copiar el resumen y la carpeta donde se guardan los informes. Solo aparecen los que sirven para el informe que se está viendo.
@@ -69,6 +69,55 @@ Mientras el programa consulta, puede seguir usando la PC. El botón azul grande 
 >> Ayudas: el mouse sobre un campo.
 
 Si deja el mouse quieto sobre un campo, aparece una explicación breve de qué escribir en él. Debajo de cada botón azul, el renglón **Formatos: … · cambiar** dice qué archivos se van a guardar; un clic ahí los cambia (es lo mismo que *Herramientas → Formatos de los informes…*).
+
+## Las luces de conexión
+
+>> Arriba a la derecha: HSN (Senado) y HCDN (Diputados).
+
+A la derecha de la barra de menús hay dos luces que dicen, en todo momento, si el programa puede llegar a los sitios de donde saca los datos. **HSN** es el sitio del Honorable Senado de la Nación y **HCDN**, el de la Honorable Cámara de Diputados de la Nación. El programa las comprueba solo al abrirse y después cada 30 segundos; no hace falta hacer nada.
+
+![Las luces de conexión: en línea, Diputados sin respuesta y sin internet](capturas/10_luces.png)
+
+| Luz | Qué significa |
+|---|---|
+| **Verde** | El sitio responde. Se puede buscar con normalidad. |
+| **Roja, con un pulso lento** | El sitio no responde, aunque la PC sí tiene internet. El problema está del lado del sitio. |
+| **Amarilla, fija** | La PC no tiene conexión a internet (por ejemplo, sin wifi). Se pone en las dos luces a la vez. |
+| **Gris** | Todavía no se sabe: se está comprobando, algo que dura unos segundos al abrir el programa. |
+
+Las luces cambian lo que el programa deja hacer:
+
+- **Las dos en rojo, o HSN en rojo**: no se puede buscar, porque casi ningún informe se arma sin el Senado. Al presionar el botón azul aparece un mensaje que lo explica. Pruebe de nuevo en unos minutos: las luces se ponen verdes cuando el sitio vuelve.
+- **Amarilla (sin internet)**: no se intenta nada y el mensaje pide revisar el wifi o el cable de red.
+- **Solo HCDN en rojo**: se puede buscar. Antes de empezar, el programa avisa que **el contraste con Diputados no estará disponible** y pregunta si se quiere seguir. Si acepta, el informe se arma con los datos del Senado y lleva, en el resumen, la nota *«Sin contraste con Diputados»*.
+
+!!! consejo "No hace falta actualizar nada"
+    Las luces se corrigen solas. Si acaba de arreglar la conexión, espere hasta 30 segundos a que se pongan verdes.
+
+## Si el sitio no responde en medio de una búsqueda
+
+>> Primero reintenta solo; si no puede, pregunta.
+
+A veces el sitio tarda o se cae justo mientras se arma un informe. El programa **no abandona la búsqueda a la primera falla**: vuelve a intentar el asunto tres veces, esperando un poco más cada vez (3, 8 y 15 segundos), así que un momento de lentitud pasa sin que usted se entere. Los pedidos que ya salieron bien quedan guardados.
+
+Solo si el sitio sigue sin responder, la búsqueda **se detiene en ese asunto** y aparece esta ventana:
+
+![La ventana que aparece cuando un asunto no se puede completar](capturas/11_pausa.png)
+
+| Botón | Qué hace |
+|---|---|
+| **Continuar** | Omite ese asunto y sigue con el siguiente. El informe de ese asunto no se genera, y queda anotado arriba del *Resumen* y en la pestaña *Registro*. |
+| **Reintentar** | Vuelve a intentar ese mismo asunto, con otra tanda de reintentos. |
+| **Cancelar** | Detiene la búsqueda. Lo que ya se había generado queda guardado, y una nota visible aclara qué informes no llegaron a generarse. |
+
+Cerrar la ventana con la **X** equivale a **Cancelar**. El detalle de lo que falló queda en la pestaña **Registro**.
+
+>> Vale para todas las pestañas de búsqueda.
+
+Esto funciona igual en las cinco pestañas (*Expedientes*, *Por tema*, *Seguimiento*, *Sesión* y *Asuntos entrados*). En las que arman un solo informe, la pausa es por la búsqueda completa; en *Expedientes*, con varios números a la vez, se detiene en el expediente que falló y los anteriores ya están hechos.
+
+!!! atencion "Un informe de expediente incompleto no se guarda"
+    En la pestaña *Expedientes*, si el sitio falló a mitad de un informe, el programa no guarda un archivo con datos que faltan sin avisar: reintenta, y si no puede, le pregunta qué hacer antes de escribir nada.
 
 # Informe de un expediente
 
@@ -405,6 +454,9 @@ Dentro de la carpeta de informes, cada pestaña guarda sus archivos en su propia
 ## Problemas frecuentes
 
 >> Antes de avisar, pruebe estos pasos.
+
+- **Una luz amarilla o roja arriba a la derecha**: ver «Las luces de conexión». Amarilla es la PC sin internet; roja es el sitio sin respuesta.
+- **Apareció la ventana «Búsqueda en pausa»**: el sitio no respondió después de varios reintentos. Elija **Continuar** (omitir ese asunto), **Reintentar** o **Cancelar**; ver «Si el sitio no responde en medio de una búsqueda».
 
 {{readme: Si algo no funciona}}
 
